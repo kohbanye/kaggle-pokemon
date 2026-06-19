@@ -1,0 +1,28 @@
+{
+  "agent_a": "random",
+  "agent_b": "random",
+  "games": 500,
+  "a_wins": 256,
+  "b_wins": 244,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 500,
+  "a_winrate": 0.512,
+  "a_winrate_ci95": [
+    0.46826225284987066,
+    0.5555547629790522
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 14.242,
+  "avg_selections": 49.754,
+  "avg_move_ms_a": 0.0025557290546042812,
+  "avg_move_ms_b": 0.0031597946380264464,
+  "max_move_ms_a": 0.15004101442173123,
+  "max_move_ms_b": 4.520250018686056,
+  "avg_game_wall_s": 0.005469491423806176,
+  "games_per_sec": 182.832355426587,
+  "base_seed": 500,
+  "swap": true,
+  "total_wall_s": 2.746430376020726
+}

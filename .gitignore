@@ -209,3 +209,8 @@ __marimo__/
 lightning_logs/
 data
 wandb
+
+# Eval harness output: keep the small summary JSONs (they document exit
+# criteria), drop the bulky regenerable per-game CSVs and throwaway smoke runs.
+results/**/*.csv
+results/smoke/

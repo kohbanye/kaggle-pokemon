@@ -29,11 +29,17 @@ competition (Simulation Track). Host: Kaggle × The Pokémon Company × Matsuo L
 ├── notebooks/
 │   └── 01_card_data_eda.ipynb  # card-pool EDA (built from the script below)
 ├── src/
-│   └── cards.py                # card CSV loader + energy/cost/damage parsing
+│   ├── cards.py                # card CSV loader + energy/cost/damage parsing
+│   ├── agents/                 # swappable policies (pure dict->list[int])
+│   │   ├── random_agent.py     #   random legal-move baseline
+│   │   └── greedy_agent.py     #   develop-then-attack baseline
+│   └── harness/                # Wilson CI + win-rate aggregation (pure)
 ├── scripts/
 │   ├── download_data.sh        # fetch competition data (after accepting rules)
 │   ├── build_eda_notebook.py   # regenerate the EDA notebook
-│   └── sim_smoke.py            # verify the simulator runs (Linux only)
+│   ├── sim_smoke.py            # verify the simulator runs (Linux only)
+│   └── run_eval.py             # battle runner / eval harness (Linux only)
+├── results/                    # eval summaries (JSON committed, CSVs gitignored)
 └── Dockerfile                  # linux/amd64 box to run the simulator
 ```
 
@@ -72,6 +78,28 @@ The engine exposes battle play (`cg.game`), full card/attack data
 (`all_card_data()`, `all_attack()`), and a lookahead **search API**
 (`search_begin` / `search_step`) usable for MCTS-style planning.
 
+## Evaluation harness (Phase 0)
+
+Play two registered agents head-to-head with first/second slot swapping and a
+win-rate + Wilson 95% CI verdict — the "ruler" every later ablation is measured
+on (also Linux x86-64, so run it under Docker):
+
+```bash
+docker run --platform=linux/amd64 --rm -v "$PWD":/work -w /work ptcg-sim \
+    python scripts/run_eval.py --a greedy --b random --games 500 --seed 0
+```
+
+Agents are pure `dict -> list[int]` policies registered in `src/agents/`; add
+one to the registry and it's selectable by `--a` / `--b`. Summaries land in
+`results/` (per-game CSV + summary JSON).
+
+**Reproducibility caveat:** the engine's RNG (shuffles, coin flips) is *not*
+exposed, so individual games can't be replayed bit-for-bit. The harness seeds
+agent randomness and relies on large N + slot swap + Wilson CI for
+*statistically* reproducible comparisons (which is what keep/drop decisions
+need). Measured baseline: `greedy` beats `random` **0.908 [0.879, 0.930]** over
+500 games; `random` vs `random` sits at **0.498 / 0.512** (harness is fair).
+
 ## Plan & research
 
 - **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan (eval harness → deck →
@@ -84,6 +112,7 @@ The engine exposes battle play (`cg.game`), full card/attack data
 - [x] Data downloaded, card-pool EDA notebook.
 - [x] Simulator verified under Docker (`scripts/sim_smoke.py` plays a full game).
 - [x] Methods survey + phased plan written.
-- [ ] Phase 0 — eval harness + baselines (random / greedy).
+- [x] Phase 0 — eval harness + baselines (random / greedy); greedy beats random
+      0.908 [0.879, 0.930] over 500 games, harness calibrated.
 - [ ] Phase 1 — choose deck archetype (biggest lever on Elo).
 - [ ] Phases 2+ — heuristic → search → ablations against the live ladder (5 subs/day).
