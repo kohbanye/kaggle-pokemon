@@ -13,6 +13,10 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
+[tool.ruff]
+# EDA notebooks aren't held to library lint standards.
+extend-exclude = ["notebooks"]
+
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "N812"]
@@ -22,6 +26,15 @@ ignore = ["D", "N812"]
 "scripts/*" = ["T201", "INP001", "S101", "PLR2004", "TRY003", "EM101", "EM102"]
 # Card data legitimately contains the ×/● glyphs; flagging them as ambiguous is noise.
 "src/cards.py" = ["RUF002"]
+# Tests: asserts and inline literals are the point.
+"tests/*" = ["S101", "PLR2004", "INP001", "RUF001", "RUF002"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ty.src]
+# cg engine lives under the gitignored data/ download; don't type-check scripts that import it.
+include = ["src", "tests"]
 
 [dependency-groups]
 dev = [
