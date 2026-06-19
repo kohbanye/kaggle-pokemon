@@ -76,6 +76,9 @@ The engine exposes battle play (`cg.game`), full card/attack data
 
 - **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan (eval harness → deck →
   heuristic → search → ISMCTS → learned value → distill), with keep/drop criteria.
+- **[docs/rules/pokemon-tcg-rules.md](docs/rules/pokemon-tcg-rules.md)** — Pokémon TCG rules
+  reference (win conditions, turn flow, energy/cost notation, ex/Mega/ACE SPEC) mapped to
+  this repo's data (`src/cards.py`) and the agent contract.
 - **[docs/research/game-ai-survey.md](docs/research/game-ai-survey.md)** — cited survey of
   game-AI algorithms (MCTS/ISMCTS, MuZero family, CFR/ReBeL/DeepNash) and their fit here.
 
