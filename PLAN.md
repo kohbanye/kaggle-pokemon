@@ -261,6 +261,7 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P1 | デッキ評価ハーネス スモーク（sample+random合法3, greedy固定） | — | 60/対 | spread **0.794** | — | ハーネス健全 | サンプル周辺0.983, ランダム0.19–0.56＝デッキ差≫エージェント差(~0.50)。ランダムは極端例、メタデッキで本評価予定 |
 | 2026-06-20 | P1 | **本デッキ評価**（デモ8 mono-aggro＋sample＋random, greedy固定） | — | 80/対(10デッキ) | spread **0.683** | — | コヒーレント確認 | 全デモがランダムを~1.00で圧倒（psychic_aggroのみ~0.45の弱外れ）。周辺: metal 0.744/sample 0.717…psychic 0.103。弱点相性構造あり。デッキ差≫エージェント差を**実デッキで**再確認 |
 | 2026-06-20 | P1 | 提出バンドル スモーク（自己完結 greedy+metal_aggro, 自己対戦） | — | 1局 | — | — | 提出可 | `submission/main.py` が deck.csv読込＋all_attack()打点表(1556)＋98手完走・クラッシュ0。ラダー提出は要 Kaggle 認証（ユーザ操作） |
+| 2026-06-20 | P1 | **初回ラダー提出**（greedy + metal_aggro, tar.gz/CLI, ref 53874111） | — | — | — | **≈602 / 1378位(2174)** | **M1起点** | 検証COMPLETE。516.6→602.6と上昇中＝レート変動継続中。ローカル↔ラダー較正の最初の点。提出手順/ハマり所は CLAUDE.md |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -282,7 +283,7 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **デモデッキ（BC教師の素体）**: `src/deckbuild.py` — 外部メタを取り込む代わりに**プールから直接コヒーレントなデッキを構築**（mono-type アグロ8種：強い基本ポケexの技持ち×各色＋一致基本エネ＋サンプル流の draw/search エンジン）。全て engine 合法。`scripts/build_demo_decks.py` で `decklists/*.csv` に出力（`tests/test_deckbuild.py`）。
 - **デッキリスト取込（名前→ID）**: `src/decklists.py` — `<枚数> <カード名>` 形式の人間可読リストを ID 化（同名複数刷りは最小ID代表）。将来の実メタ取込の口（`tests/test_decklists.py`）。
 - **本デッキ評価（`run_deck_eval.py --deck-dir`, Docker, greedy, 80戦/対, 10デッキ）**: デモ8種＋サンプル＋ランダム合法1。全コヒーレントデッキが**ランダムを ~1.00 で圧倒**（=実プレイ可能を確認。例外: psychic_aggro が ~0.45 と弱い外れ値）。**弱点に沿った相性構造**が出現（例: water>fire 0.80, metal>water 0.95）。周辺勝率: metal 0.744 / sample 0.717 / fighting 0.690 … psychic 0.103。**デッキ spread 0.683**（実デッキ同士でも大）＝「デッキ差≫エージェント差(~0.50 ミラー)」を**実デッキで再確認**。結果 `results/deckeval_demo_greedy.json`。
-- **初回ラダー提出（準備完了・提出はユーザ操作）**: `submission/main.py`（**自己完結 greedy**：deck.csv 読込＋`all_attack()` から打点表を起動時生成＋全例外で合法フォールバック）。`scripts/build_submission.py` が `build/submission/`(main.py+deck.csv+cg/) を生成。Docker スモークで**自己対戦が98手で完走・クラッシュ0**を確認。既定デッキ=metal_aggro（ローカル最良）。**残:** `kaggle competitions submit`（要 Kaggle 認証）→ ローカル↔ラダー較正開始。
+- **初回ラダー提出（準備完了・提出はユーザ操作）**: `submission/main.py`（**自己完結 greedy**：deck.csv 読込＋`all_attack()` から打点表を起動時生成＋全例外で合法フォールバック）。`scripts/build_submission.py` が `build/submission/`(main.py+deck.csv+cg/) を生成。Docker スモークで**自己対戦が98手で完走・クラッシュ0**を確認。既定デッキ=metal_aggro（ローカル最良）。**提出済み（2026-06-20, ref 53874111）**：検証 COMPLETE → 初期レート **≈602 / 1378位(2174)**（516.6→602.6で変動中）＝M1のローカル↔ラダー較正起点。提出手順・ハマり所は CLAUDE.md「Submitting to the ladder」。
 - **未確認（follow-up）**: errorType=1 の意味（不明カードID? 未テスト）／「同名・別ID」を 5枚にしたケースの厳密確認（現プローブは同ID5枚で代理確認）。Radiant 等の特殊上限。psychic_aggro が弱い原因（攻撃役の選定 or 相性）。
 - **次（Phase 3 へ）**: 構築物（プール/合法マスク/デモデッキ/評価ハーネス）を土台に、状態/行動表現＋ネット骨格（CB+BTヘッド）。実メタ取込は `src/decklists.py` 経由でいつでも追加可。
 
