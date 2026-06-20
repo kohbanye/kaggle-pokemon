@@ -25,6 +25,7 @@ from dataclasses import fields
 from .base import Agent
 from .greedy_agent import GreedyAgent
 from .heuristic_agent import HeuristicAgent, HeuristicConfig
+from .net_agent import NetAgent
 from .random_agent import RandomAgent
 
 AgentFactory = Callable[[list[int], dict | None], Agent]
@@ -40,6 +41,8 @@ REGISTRY: dict[str, AgentFactory] = {
     "random": lambda deck, _engine: RandomAgent(deck),
     "greedy": lambda deck, engine: GreedyAgent(deck, _attack_damage(engine)),
     "heuristic": lambda deck, engine: HeuristicAgent(deck, engine),
+    # Phase 3 skeleton: random-init policy/value net (fixed seed = reproducible).
+    "net": lambda deck, engine: NetAgent(deck, engine),
 }
 
 # One ablation variant per feature flag: `heuristic_no_<flag>` = that flag off.
@@ -72,6 +75,7 @@ __all__ = [
     "GreedyAgent",
     "HeuristicAgent",
     "HeuristicConfig",
+    "NetAgent",
     "RandomAgent",
     "build_agent",
 ]
