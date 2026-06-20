@@ -155,7 +155,11 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 
 ---
 
-## Phase 5 — OSFP 自己対戦学習（中核：論文手法の本体／デッキ↔プレイ同時学習）
+## Phase 5 — OSFP 自己対戦学習（中核：論文手法の本体／デッキ↔プレイ同時学習）🚧(5a 配線完了, RLラン待ち)
+
+> **進め方**: 巨大なので ablation 軸「デッキヘッド学習 on/off」で2段に分割。
+> **5a = デッキOFFアーム**（プレイ+価値ヘッドだけ自己対戦RL・デッキ固定）＝OSFP中核機構を最小構成で確立。**配線・ネイティブ単体テスト完了**（下記 Phase 5a メモ）。実RLランはユーザ起動の Docker ジョブ。
+> **5b = デッキONアーム**（CBヘッドRL・各局でデッキsample→勝敗逆伝播・相手デッキ多様化）＝後の増分。
 **目的**: 添付論文の中核を実装（アルゴリズム詳細→ **[docs/research/osfp-cardgame-2303.05197.md](docs/research/osfp-cardgame-2303.05197.md)** §3・§5・§6）。**過去チェックポイント混合への smooth best response** を分散自己対戦で学習し、**last-iterate収束**した最終ネットを得る。**デッキ構築(CB)と対戦(BT)を同時に学習**する。**学習ループに探索は入れない**。
 
 **作るもの**
@@ -272,6 +276,11 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P4 | ablation: **教師 greedy vs heuristic**（同一ログ流用） | heuristic-init各値 | 各500 | greedy-init 0.990/0.488/0.580 | — | heuristic優位 | 全対戦で heuristic-init ≥ greedy-init → **既定=heuristic 確定**（P5初期化） |
 | 2026-06-20 | P4 | 価値ヘッド符号正解率（held-out, 23k samples） | chance 0.5 | — | **0.895** | — | **偶然超** | 実勝敗で学習＝真の信号。Exit「value偶然超」達成（policy top-1 acc 0.874 も同時） |
 | 2026-06-20 | P4 | CB head decode（学習CB, 実機 battle_start） | — | — | — | — | **制約判明** | **greedy decode は distinct=2 に崩壊**（固定特徴＝プロファイル選択＋energyがcap免除）。**sampled decode は distinct=50 で合法**・多様。crash0/illegal0/worst0.87ms |
+| 2026-06-20 | P5a | OSFP相手プール（recency/admission/self-play, 純粋） | — | — | — | — | **配線OK** | `src/net/osfp.py`：直近重み単調・baseline下限・self_play_prob・閾値/patience 採用を単体テスト（test_osfp 11ケース）。`cg`/torch非依存でネイティブ検証 |
+| 2026-06-20 | P5a | LitPolicyGradient sanity（REINFORCE+baseline+entropy, 合成） | — | — | — | — | **配線OK** | +advで logp↑・value が returns に回帰・**masked entropy が NaN安全**（padding下）・**CBヘッド凍結**（trunk/policy/valueのみ更新）。`run_osfp` 全ループを fake generator でネイティブ検証（test_rl 9ケース）。デッキOFFアーム |
+| 2026-06-20 | P5a | OSFP self-play collect＋loop（Docker `--smoke`, 実機） | — | 3iter×8局 | — | — | **配線OK** | `collect_selfplay`: 8局~1s・winner全decisive・学習者/相手タグ片側ずつ（リーク無）・learner単一選択303=サンプル。`train_osfp --smoke`: opp=random/self を pool から選択・**自己対戦は両スロットlearnerで~2倍サンプル**・iter3でpatience採用・final.npz出力（計6.3s） |
+| 2026-06-20 | P5a | 学習後 net 実機 probe（final.npz, Docker） | — | 6局 | — | — | **PASS** | net vs greedy/net **crash0/illegal0**・worst **1.0ms**。**CBヘッド凍結を実証**（greedy distinct=2/sampled distinct=50＝Phase4と一致＝cb*未更新）。errorType=0 |
+| — | P5a | OSFP net(5a, deck固定) vs BC / heuristic | BC net / heuristic | 500 | — | — | **未計測** | 本RLラン（多時間・Docker・CPU）後に計測。合格＝≥55%（CIが0.5跨がない）。BC暖機あり/なし も実測予定 |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -326,6 +335,16 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **CB 所見（重要・アーキ起因の制約）**: CBヘッドは **固定特徴**で各カードを採点（`features.py`：学習カード埋め込みは後段ablation）。ゆえに「カード個体」でなく「**特徴プロファイル**」を順位付けし、**greedy decode は最高プロファイル＋cap免除の基本エネに崩壊**（distinct=2）。inverse-copy 重み（`CBSample.weight`＝1/枚数。エネ支配を抑える）でも個体識別不能の壁は残る。一方 **sampled decode は distinct=50 で合法・多様**（「デッキは分布」と整合）。→ **(a)** 決定的提出は **デモデッキを安全網**（§Phase7 安全網）、**(b)** OSFP(Phase5) では **sampled CB** を相手デッキ多様化に使える、**(c)** CB の個体選択力には **学習カード埋め込み**が必要（後段で ablation）。
 - **提出衛生**: バンドルは numpy のみ（torch非依存）を維持。`bc_net.npz`=22k params/~180KB。`data/bc/`（ログ・engine.json・npz）は gitignore。
 - **次（Phase 5 へ）**: `data/bc/bc_net.npz`（heuristic-init）を **OSFP 自己対戦の初期重み**に確定。Phase5 で「**BC暖機あり vs なし(from-scratch)**」を同計算量で実測（暖機の価値の裏取り＝ユーザ合意事項）し、価値ターゲット(最終 vs 割引)・デッキヘッド学習 on/off を ablation。
+
+### Phase 5a メモ（OSFP 自己対戦 — 配線完了, 実RLラン待ち）
+
+- **作ったもの**: ①`src/agents/net_agent.py` に**確率的サンプリング**（`temperature>0` で単一選択を softmax からサンプル、`reset(seed)` で per-game RNG。既定 `temperature=0`＝argmax で評価/提出挙動は不変。multi-select は決定的 top-k のまま）。②`src/net/lit.py` の **`LitPolicyGradient`**（REINFORCE＋価値ベースライン＋エントロピー。BCと**同じ5-tupleバッチ**を再解釈＝target は実際に取った手・value はリターン。`configure_optimizers` は **`cb*` を除外**＝CBヘッド凍結＝デッキ固定アーム）。③`src/net/osfp.py` の **`OpponentPool`**（純numpy・論文 Algorithm1 の縮約：直近重み付きサンプリング＋scriptedベースライン下限＋self-play確率、チェックポイント採用＝全相手を閾値超 or patience）。④`scripts/collect_selfplay.py`（Docker・`collect_bc.BCRecorder`/`play_game` 再利用、自己対戦は両スロット `"learner"`・対相手は学習者側のみタグ）。⑤`scripts/train_osfp.py`（**注入式の純ループ `run_osfp(cfg, feats, *, generate, evaluate)`**＝Docker無しで全ループをネイティブ検証可、本番は `docker run` を反復）。
+- **設計の論理**: 1イテレーションで直近重みが生成した≒on-policyデータを1パス学習＝重要度比≈1なので**内側更新は REINFORCE で十分**（V-Trace/PPO は後段 ablation）。γ=1.0（`discount=None`）＝報酬はエピソード末の±1のみ。価値ヘッドは**RLベースライン専用**で学習し**推論では未使用**（`NetAgent.act` は policy のみ＝提出パス無変更）。
+- **load-bearing なバグ修正（実装中に実測で判明）**: (a) **masked entropy の NaN** — `logp.exp()*logp` が masked 位置で `0*-inf=nan`、後から masked_fill しても**逆伝播で再発**（mul の grad が保存済み -inf を掛ける）。→ 積の**前に** `logp` を0埋め（`safe_logp`）。`entropy_coef=0` でも `0*nan=nan` で全損失が汚染されるため必須。(b) **中断局の混入** — `_outcome` は draw も abort も 0。`run_osfp` が `winner in (0,1)` でフィルタしてから `build_policy_samples`。
+- **検証（ネイティブ）**: `ruff/ty/pytest` 全緑（**125 passed**）。`test_osfp.py`（プール論理11ケース）＋`test_rl.py`（PG: +advで logp↑/value回帰/エントロピーNaN安全/CB凍結、学習者タグ抽出、確率的agent合法・再現、export→NetAgent合法、`run_osfp` 全ループ）。
+- **検証（Docker `--smoke` 実機・配線確認済み）**: `collect_selfplay` 8局~1s・全decisive・タグ正常（learner/opp 片側ずつ＝リーク無）。`train_osfp --smoke`（3iter×8局, 6.3s）が pool 選択→収集→PG学習→採用→export を完走（**自己対戦は両スロットlearnerで~2倍サンプル**＝タグ規約が機能、iter3 で patience 採用）。学習後 `final.npz` を実機 probe＝**crash0/illegal0/worst1.0ms・PASS**、**CBヘッド凍結を実証**（greedy distinct=2/sampled 50＝Phase4と一致）。
+- **未計測（ユーザ起動の本RLラン待ち）**: **OSFP net vs BC/heuristic の 500局勝率（≥55%が合格）**、BC暖機あり/なし（from-scratch）の同計算量比較、recency/self_play_prob/entropy_coef/τ の ablation。本ランは `uv run python scripts/train_osfp.py --iterations N --games M`（多時間・Docker）。
+- **次（5b）**: CBヘッドRL（各局でデッキ sample→勝敗逆伝播・相手デッキ多様化）＝デッキONアーム。CB の個体識別には学習カード埋め込みが要る（Phase4 所見）ため、5b と併せて検討。
 
 ---
 

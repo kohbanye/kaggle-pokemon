@@ -13,6 +13,13 @@ the 60-card deck at construction (the learned init behaviour); otherwise the dec
 passed in is used (clean agent-vs-agent comparison on a fixed deck). Every
 decision is wrapped so any error falls back to a guaranteed-legal selection --
 the agent must never crash a match (plan SS D).
+
+Action selection is greedy (argmax) by default -- the strongest single move, used
+for evaluation and submission. With ``temperature > 0`` a single-select decision
+instead samples from the temperature-scaled policy softmax (``reset(seed)`` seeds
+the per-game RNG): this is the stochastic behaviour the Phase-5 OSFP self-play
+collector needs for exploration. Multi-select stays deterministic top-``maxCount``
+(only single-select decisions are cloned / policy-gradient trained).
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ from src.net.cb import build_deck
 from src.net.encode import encode_options, encode_state
 from src.net.features import CardFeatures
 from src.net.model import PolicyValueNet
+from src.net.nn import softmax
 
 from .base import Agent, legal_fallback
 
@@ -51,9 +59,12 @@ class NetAgent(Agent):
         weights: str | Path | None = None,
         seed: int = _DEFAULT_SEED,
         cb_pool: CardPool | None = None,
+        temperature: float = 0.0,
     ) -> None:
         super().__init__(deck)
         self.feats = CardFeatures(engine)
+        self.temperature = float(temperature)
+        self._rng = np.random.default_rng(seed)
         if net is not None:
             self.net = net
         elif weights is not None:
@@ -65,6 +76,10 @@ class NetAgent(Agent):
         if cb_pool is not None:
             with contextlib.suppress(Exception):
                 self.deck = build_deck(self.net, cb_pool, self.feats)
+
+    def reset(self, seed: int) -> None:
+        """Re-seed the per-game sampling RNG (used only when ``temperature > 0``)."""
+        self._rng = np.random.default_rng(seed)
 
     def act(self, obs: dict) -> list[int]:
         select = obs.get("select") or {}
@@ -90,8 +105,15 @@ class NetAgent(Agent):
         if logits.shape[0] != len(options):
             return None
 
-        # Take the top-scoring options. Picking exactly maxCount distinct indices
-        # mirrors the universal legal_fallback (range(maxCount)) -- always legal --
-        # and reduces to a single argmax when maxCount == 1.
+        # Stochastic single-select for self-play exploration: sample one option
+        # from the temperature-scaled softmax. The taken index is what the OSFP
+        # collector logs and the policy-gradient trainer learns from.
+        if max_count == 1 and self.temperature > 0.0:
+            probs = softmax(logits / self.temperature)
+            return [int(self._rng.choice(len(probs), p=probs))]
+
+        # Otherwise take the top-scoring options. Picking exactly maxCount distinct
+        # indices mirrors the universal legal_fallback (range(maxCount)) -- always
+        # legal -- and reduces to a single argmax when maxCount == 1.
         order = np.argsort(logits)[::-1]
         return [int(i) for i in order[:max_count]]

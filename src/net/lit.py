@@ -20,6 +20,13 @@ submission never imports torch. The CB (deck) head is trained the same way --
 masked CE over candidate cards -- by :class:`LitCB` (below), which wraps the same
 net and optimises only the CB layers so the warm-started heads merge into one
 export.
+
+:class:`LitPolicyGradient` (below) is the Phase-5 OSFP self-play trainer: it
+consumes the *same* 5-tuple batch but reinterprets it -- ``targets`` is the action
+actually sampled in self-play and ``values`` is that decision's game return -- and
+optimises a REINFORCE policy-gradient with the value head as baseline (plus an
+entropy bonus). It freezes the CB head (deck held fixed in the play/value-only
+arm), so the BC-warm-started deck weights pass through untouched.
 """
 
 from __future__ import annotations
@@ -166,4 +173,88 @@ class LitCB(L.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         params = [*self.net.cb1.parameters(), *self.net.cb2.parameters()]
+        return torch.optim.Adam(params, lr=self.lr)
+
+
+class LitPolicyGradient(L.LightningModule):
+    """OSFP self-play trainer: REINFORCE + value baseline + entropy (Phase 5a).
+
+    Wraps an existing :class:`TorchPolicyValueNet` (warm-started from BC) and
+    improves the **play (policy) and value** heads from self-play returns. The
+    batch is the same 5-tuple the BC collate produces, reinterpreted for RL:
+
+    - ``targets`` = the option index the behaviour policy **actually sampled**
+      (not a teacher's choice);
+    - ``values``  = that decision's **return** -- the deciding slot's episodic
+      game outcome in ``[-1, 1]`` (``gamma = 1`` -> the raw final result).
+
+    The update is REINFORCE with the value head as a baseline::
+
+        advantage   = (return - V(s)).detach()
+        policy_loss = -(advantage * log pi(a|s)).mean()
+        value_loss  =  mse(V(s), return)
+        loss        =  policy_loss + value_coef * value_loss - entropy_coef * H
+
+    The **CB head is frozen** (only trunk/policy/value are optimised): the deck is
+    held fixed in this arm, so the BC-cloned deck weights are exported unchanged.
+    PPO clipping / V-Trace are deliberately omitted -- one training pass over
+    freshly generated, near-on-policy data makes the importance ratio ~1, so they
+    are later ablations rather than MVP machinery.
+    """
+
+    def __init__(
+        self,
+        net: TorchPolicyValueNet,
+        *,
+        lr: float = 1e-3,
+        value_coef: float = 0.5,
+        entropy_coef: float = 0.01,
+    ) -> None:
+        super().__init__()
+        self.net = net
+        self.lr = lr
+        self.value_coef = value_coef
+        self.entropy_coef = entropy_coef
+
+    def training_step(
+        self,
+        batch: Sequence[torch.Tensor],
+        batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
+    ) -> torch.Tensor:
+        states, options, option_mask, targets, returns = batch
+        logits = self.net.policy_logits(states, options)
+        logits = logits.masked_fill(~option_mask, _NEG_INF)
+        logp = F.log_softmax(logits, dim=1)
+        logp_taken = logp.gather(1, targets.unsqueeze(1)).squeeze(1)
+
+        values = self.net.value(states)
+        advantage = (returns - values).detach()
+        policy_loss = -(advantage * logp_taken).mean()
+        value_loss = F.mse_loss(values, returns)
+
+        # Masked entropy. Padded options carry logp = -inf; multiplying that by its
+        # probability (0) is 0 * -inf = nan, and -- crucially -- masking the product
+        # *after* the multiply still leaves a nan in the backward pass (the mul's
+        # grad multiplies the saved -inf input). So zero the -inf out of logp
+        # *before* the product: masked probs are already 0, so 0 * 0 = 0 cleanly.
+        safe_logp = logp.masked_fill(~option_mask, 0.0)
+        entropy = -(logp.exp() * safe_logp).sum(dim=1).mean()
+
+        loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+        self.log_dict(
+            {
+                "loss": loss,
+                "policy_loss": policy_loss,
+                "value_loss": value_loss,
+                "entropy": entropy,
+            },
+            prog_bar=False,
+        )
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        # Freeze the CB head: train trunk/policy/value only (deck held fixed).
+        params = [
+            p for name, p in self.net.named_parameters() if not name.startswith("cb")
+        ]
         return torch.optim.Adam(params, lr=self.lr)
