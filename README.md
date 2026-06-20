@@ -102,8 +102,12 @@ need). Measured baseline: `greedy` beats `random` **0.908 [0.879, 0.930]** over
 
 ## Plan & research
 
-- **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan (eval harness → deck →
-  heuristic → search → ISMCTS → learned value → distill), with keep/drop criteria.
+- **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan converging on the OSFP
+  target (eval harness → deck-space scaffolding → heuristic → net skeleton (CB+BT heads)
+  → BC warm-start → OSFP self-play → test-time search → distill), with keep/drop criteria.
+- **[docs/research/osfp-cardgame-2303.05197.md](docs/research/osfp-cardgame-2303.05197.md)** —
+  the **target paper** (Hearthstone via end-to-end policy + Optimistic Smooth Fictitious
+  Play): OSFP, the no-search architecture, improved techniques, and how it maps to this comp.
 - **[docs/research/game-ai-survey.md](docs/research/game-ai-survey.md)** — cited survey of
   game-AI algorithms (MCTS/ISMCTS, MuZero family, CFR/ReBeL/DeepNash) and their fit here.
 
