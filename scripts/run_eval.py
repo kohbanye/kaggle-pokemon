@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))  # make `src` importable when run as a script
 CG_PARENT = ROOT / "data" / "sample_submission"
 sys.path.insert(0, str(CG_PARENT))
 
-from cg.api import all_attack  # noqa: E402
+from cg.api import all_attack, all_card_data  # noqa: E402
 from cg.game import battle_finish, battle_select, battle_start  # noqa: E402
 
 from src.agents import Agent, build_agent  # noqa: E402
@@ -47,9 +47,31 @@ def read_deck(path: Path) -> list[int]:
     return deck
 
 
-def load_attack_damage() -> dict[int, int]:
-    """Map attackId -> damage from the engine, for greedy's attack ranking."""
-    return {a.attackId: a.damage for a in all_attack()}
+def load_engine_data() -> dict:
+    """Engine-derived card/attack stats injected into agents (see src.agents).
+
+    Heuristic agents read these; greedy uses only the per-attack damage. Kept as
+    plain ints/dicts so the agents never need to import the (Linux-only) engine.
+    """
+    attacks = {
+        a.attackId: {"dmg": int(a.damage), "cost": [int(e) for e in a.energies]}
+        for a in all_attack()
+    }
+    cards = {
+        c.cardId: {
+            "hp": int(c.hp),
+            "retreat": int(c.retreatCost),
+            "type": int(c.energyType),
+            "weak": None if c.weakness is None else int(c.weakness),
+            "ex": bool(c.ex),
+            "mega": bool(c.megaEx),
+            "basic": bool(c.basic),
+            "ctype": int(c.cardType),
+            "attacks": list(c.attacks),
+        }
+        for c in all_card_data()
+    }
+    return {"attacks": attacks, "cards": cards}
 
 
 def play_game(
@@ -132,15 +154,15 @@ def run_match(  # noqa: PLR0913 - a CLI runner legitimately threads its config
     name_b: str,
     deck_a: list[int],
     deck_b: list[int],
-    attack_damage: dict[int, int],
+    engine: dict,
     *,
     games: int,
     base_seed: int,
     swap: bool,
     progress_every: int,
 ) -> list[GameResult]:
-    agent_a = build_agent(name_a, deck_a, attack_damage)
-    agent_b = build_agent(name_b, deck_b, attack_damage)
+    agent_a = build_agent(name_a, deck_a, engine)
+    agent_b = build_agent(name_b, deck_b, engine)
 
     results: list[GameResult] = []
     for g in range(games):
@@ -195,7 +217,7 @@ def main() -> None:
 
     deck_a = read_deck(args.deck_a or args.deck)
     deck_b = read_deck(args.deck_b or args.deck)
-    attack_damage = load_attack_damage()
+    engine = load_engine_data()
 
     tag = args.tag or f"{args.a}_vs_{args.b}_n{args.games}_s{args.seed}"
     print(f"== {args.a} (A) vs {args.b} (B): {args.games} games, "
@@ -203,7 +225,7 @@ def main() -> None:
 
     t0 = time.perf_counter()
     results = run_match(
-        args.a, args.b, deck_a, deck_b, attack_damage,
+        args.a, args.b, deck_a, deck_b, engine,
         games=args.games, base_seed=args.seed, swap=not args.no_swap,
         progress_every=args.progress_every,
     )

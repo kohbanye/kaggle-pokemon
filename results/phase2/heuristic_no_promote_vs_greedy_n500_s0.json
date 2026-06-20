@@ -1,0 +1,28 @@
+{
+  "agent_a": "heuristic_no_promote",
+  "agent_b": "greedy",
+  "games": 500,
+  "a_wins": 237,
+  "b_wins": 263,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 500,
+  "a_winrate": 0.474,
+  "a_winrate_ci95": [
+    0.43059811407349635,
+    0.5177983516305045
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 6.482,
+  "avg_selections": 35.138,
+  "avg_move_ms_a": 0.005878647505976157,
+  "avg_move_ms_b": 0.0014666110144712767,
+  "max_move_ms_a": 0.08320901542901993,
+  "max_move_ms_b": 0.048707996029406786,
+  "avg_game_wall_s": 0.0033661580896005034,
+  "games_per_sec": 297.0745797974926,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 1.6860189590370283
+}

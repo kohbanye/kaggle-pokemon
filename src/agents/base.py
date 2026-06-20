@@ -33,6 +33,37 @@ OPT_SPECIAL_CONDITION = 16
 
 # --- SelectType (mirror of cg.api.SelectType) -----------------------------
 SEL_MAIN = 0
+SEL_CARD = 1
+
+# --- AreaType (mirror of cg.api.AreaType) ---------------------------------
+# Only the in-play areas the policies branch on. An ATTACH/EVOLVE option points
+# at its on-field target via ``inPlayArea`` + ``inPlayIndex``; ``area`` (with
+# ``index``) points at the source card (e.g. the hand slot of the energy).
+AREA_HAND = 2
+AREA_ACTIVE = 4
+AREA_BENCH = 5
+
+# --- CardType (mirror of cg.api.CardType) ---------------------------------
+CARD_POKEMON = 0
+CARD_ITEM = 1
+CARD_TOOL = 2
+CARD_SUPPORTER = 3
+CARD_STADIUM = 4
+CARD_BASIC_ENERGY = 5
+CARD_SPECIAL_ENERGY = 6
+
+# --- EnergyType (mirror of cg.api.EnergyType) -----------------------------
+# Only the two we special-case: COLORLESS in an attack cost means "any energy",
+# and RAINBOW attached energy pays for any single colored requirement.
+ENERGY_COLORLESS = 0
+ENERGY_RAINBOW = 10
+
+# --- SelectContext (mirror of cg.api.SelectContext) -----------------------
+# Promotion contexts: the engine is asking which Pokemon to put in the Active
+# Spot (at set-up, after a Knock Out, or via a switch effect).
+CTX_SETUP_ACTIVE = 1
+CTX_SWITCH = 3
+CTX_TO_ACTIVE = 4
 
 
 def legal_fallback(select: dict) -> list[int]:
