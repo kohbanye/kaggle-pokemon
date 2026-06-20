@@ -116,7 +116,7 @@
 
 ---
 
-## Phase 3 — 状態/行動表現 & ネット骨格（学習の前提インフラ）
+## Phase 3 — 状態/行動表現 & ネット骨格（学習の前提インフラ）✅(完了)
 **目的**: 論文の **end-to-end 方策+価値ネット**を載せるための、観測エンコード・行動分解・推論基盤を作る。ここは“配線”であって、まだ強さは問わない。
 
 **作るもの**
@@ -126,13 +126,13 @@
 - **価値ヘッド**（CB/BTで共有埋め込み、必要なら再帰/履歴で隠れ情報を吸収）。
 - **CPU推論パス**: 重み保存形式＋軽量ランタイム（依存最小）。1手の推論時間を計測。
 
-**達成基準（Exit）**
-- ランダム初期化ネットが**全局面で合法な forward pass**を返し、option-index契約を往復できる（クラッシュ0）。
-- CBヘッドが**常に合法な60枚デッキ**を生成できる（`battle_start` がエラーを返さない）。
-- 1手あたりCPU推論が**手番予算に対し十分なマージン**（探索を被せる余地を残す）。
-- 軽い健全性: ネットが random/greedy の手をある程度模倣できる（学習配線が機能している確認）。
+**達成基準（Exit）**: すべて達成（§Phase 3 メモ・採否台帳参照）。
+- ランダム初期化ネットが**全局面で合法な forward pass**を返し、option-index契約を往復できる（クラッシュ0）。→ 実機 probe で crashes=0 / illegal=0。
+- CBヘッドが**常に合法な60枚デッキ**を生成できる（`battle_start` がエラーを返さない）。→ greedy+sampled 全て errorType=0 受理。
+- 1手あたりCPU推論が**手番予算に対し十分なマージン**（探索を被せる余地を残す）。→ avg ~0.1ms / 最悪 ~6ms。
+- 軽い健全性: ネットが random/greedy の手をある程度模倣できる（学習配線が機能している確認）。→ numpy SGD で policy loss 低下・精度>chance。
 
-**Ablation**: 入力特徴セット・埋め込み次元・再帰の有無を後段(Phase4/5)で振れるよう、**全て構成可能**にしておく。
+**Ablation**: 入力特徴セット・埋め込み次元・再帰の有無を後段(Phase4/5)で振れるよう、**全て構成可能**にしておく（`NetConfig` で hidden/各ヘッド幅、固定特徴の各ブロックを差し替え可能に実装）。
 
 ---
 
@@ -262,6 +262,10 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P1 | **本デッキ評価**（デモ8 mono-aggro＋sample＋random, greedy固定） | — | 80/対(10デッキ) | spread **0.683** | — | コヒーレント確認 | 全デモがランダムを~1.00で圧倒（psychic_aggroのみ~0.45の弱外れ）。周辺: metal 0.744/sample 0.717…psychic 0.103。弱点相性構造あり。デッキ差≫エージェント差を**実デッキで**再確認 |
 | 2026-06-20 | P1 | 提出バンドル スモーク（自己完結 greedy+metal_aggro, 自己対戦） | — | 1局 | — | — | 提出可 | `submission/main.py` が deck.csv読込＋all_attack()打点表(1556)＋98手完走・クラッシュ0。ラダー提出は要 Kaggle 認証（ユーザ操作） |
 | 2026-06-20 | P1 | **初回ラダー提出**（greedy + metal_aggro, tar.gz/CLI, ref 53874111） | — | — | — | **≈602 / 1378位(2174)** | **M1起点** | 検証COMPLETE。516.6→602.6と上昇中＝レート変動継続中。ローカル↔ラダー較正の最初の点。提出手順/ハマり所は CLAUDE.md |
+| 2026-06-20 | P3 | ネット骨格 forward 合法性（純numpy net、提示optionを採点、実機） | — | 6局(probe)+30局(eval) | — | — | **配線OK** | NetAgent が実機で **crashes=0 / illegal=0**（~550選択+30局）。option-index契約往復・value∈[-1,1]。random初期化なので強さは未（net 0/30 vs greedy=想定） |
+| 2026-06-20 | P3 | CBヘッド デッキ生成（greedy+sampled×2, 合法マスク, 実機） | engine `battle_start` | 3デッキ | — | — | **常に合法** | 全て **errorType=0 受理**。distinct names: greedy 15(=4×15名)/sampled 59・56＝混合で多様化。論文「デッキは分布」の足場 |
+| 2026-06-20 | P3 | 学習配線サニティ（numpy SGD で policy 教師あり, 合成データ） | — | — | — | — | **配線OK** | forward+backward+SGD が機能: loss が初期比<0.7 まで低下・精度 chance(0.25)→>0.5。Phase4 BC の素体 |
+| 2026-06-20 | P3 | 推論時間（net 1手, metal_aggro, 実機） | greedy(~0.002ms) | 30局 | — | — | **余裕大** | avg **0.12ms** / 最悪 **6.4ms**。greedy比~50倍だが sub-ms 中心＝探索/学習を載せる予算十分（手番制限に桁違いのマージン） |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -295,6 +299,16 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **なぜ互角か（診断）**: サンプルデッキは40枚エネルギーの高速アグロで**平均~6.7ターン**で決着。両者とも develop→attack の核は同一、勝敗を分けるのは(a)引きの運と(b)多数の CARD サブ選択だが、後者の改善余地は薄い（probe結果: 大半が setup-active=promoteで対応済 / 複select benchは全展開 / prize選択は裏向きで不可視）。**ミラー対戦のため構造的にほぼ対称** → 盤面ヒューリスティックの上積み余地が小さい。
 - **判断**: ここで僅差を追ってシード/構成を選ぶのは §A 違反（ノイズへの過剰適合）。**全特徴を「保留」**とし、デッキ確定後（Phase 1）に再計測する。これは「デッキ選択が支配的レバー」という本プランの中心仮説と整合（実デッキ＋多相手・非ミラーで評価関数の価値が出るはず）。
 - **次の一手の候補**: ① **Phase 1（デッキ選定）を先に**回し、選定デッキ＋非ミラー相手で Phase 2 ablation を再走（最有力）。② サブ選択（サーチ/トラッシュでのカード価値付け）はこのデッキでは薄いが実デッキ次第で再検討。③ 構築物（評価関数・特徴・ablationハーネス）はそのまま **学習の価値教師(Phase4) / 推論時探索のリーフ評価(Phase6)** として流用可。
+
+### Phase 3 メモ（状態/行動表現＆ネット骨格 — 完了）
+
+- **作ったもの（`src/net/`）**: 純 numpy の **方策+価値+CB ネット骨格**。`features.py`（engine 注入の **固定カード特徴**＝card-type/フラグ/HP/エネ型/弱点/最大打点を 40次元へ）/`encode.py`（観測→**固定長 state 191次元**、各 option→**63次元**。me/opp 視点を `yourIndex` で整列、欠損は全ゼロ＝**非クラッシュ**）/`nn.py`（linear・relu・softmax-CE の forward+backward）/`model.py`（`PolicyValueNet`：共有トランク＋value/policy/CB の3ヘッド、`NetConfig` で全幅可変、重み **npz** 保存）/`cb.py`（`legal_next_ids` マスク下で 60枚を逐次生成）/`train.py`（numpy SGD の policy 教師あり）。`src/agents/net_agent.py`＝**純 `dict->list[int]`** の `NetAgent`（提示 option を採点→top を返す＝常に合法、全例外で合法フォールバック）。レジストリに `net` 登録。
+- **設計判断（依存）**: torch は**プロジェクト宣言依存ではない**（wandb 経由で venv に紛れ込むのみ）。**numpy のみが宣言依存** → ネットは**純 numpy で実装**（学習も推論も単一実装、提出は numpy だけ＝PLAN §D「推論依存最小・重みを numpy で読む」に合致、バンドル軽量）。論文の「学習カード埋め込み」は当面**固定特徴の学習射影（MLP）**として実現＝backprop が素直（共有埋め込みの多経路勾配を回避）・未知IDは零ベクトルで頑健。学習埋め込み化は後段で ablation 可。
+- **行動分解の往復**: 論文の autoregressive `(type,target)` を、本コンペの**動的 option リストを直接採点**する形に落とした。engine は合法 option しか出さない＝**0/1合法マスクが自明に成立**し、option-index 契約に**ゼロコストで往復**。multi-select は score 上位 `maxCount` を返す（`legal_fallback` の `range(maxCount)` と同じ常時合法な形）。
+- **実機検証（Docker, `scripts/probe_net.py`）**: ① **CBデッキ** greedy+sampled×2 を `battle_start` が**全て errorType=0 受理**（distinct names 15/59/56＝混合で多様）。② **net vs greedy 4局＋net vs net 2局＋run_eval 30局**で **crashes=0 / illegal=0**（~580選択）。③ **推論時間** avg **0.12ms**・最悪 **6.4ms**（greedy ~0.002ms の~50倍だが sub-ms 中心、手番制限に桁違いの余裕＝探索/価値リーフを載せる予算十分）。net params **21,987**。
+- **学習配線サニティ（ネイティブ, `tests/test_net.py`）**: 合成データ（target=option特徴の argmax）で `train_policy` が **loss を初期比<0.7 へ低下・精度 chance 0.25→>0.5**＝forward+backward+SGD が機能。テスト 95件 green（ruff ALL / ty / pytest）。
+- **強さは未（想定どおり）**: random 初期化なので net は greedy に **0/30**。Phase 3 は“配線”で強さは問わない（exit基準は合法 forward・合法CB・時間予算・学習配線の4点で**全達成**）。
+- **次（Phase 4 へ / Phase 2 再走）**: ① **Phase 4 BC 暖機**＝`heuristic`/`greedy` の対戦ログ（観測,手）を教師に `train.py` を可変 option 長へ一般化して BT/価値/CB を学習（保険提出候補）。② 並行して **Phase 2 ablation を実デッキ・非ミラーで再走**（heuristic 保留の解消）。骨格はそのまま OSFP(Phase5) の初期化に載る。
 
 ---
 
