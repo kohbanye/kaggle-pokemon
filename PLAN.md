@@ -157,9 +157,10 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 
 ## Phase 5 — OSFP 自己対戦学習（中核：論文手法の本体／デッキ↔プレイ同時学習）🚧(5a 配線完了, RLラン待ち)
 
-> **進め方**: 巨大なので ablation 軸「デッキヘッド学習 on/off」で2段に分割。
+> **進め方**: 巨大なので「一度に1能力ずつ足す」方針で段階分割。
 > **5a = デッキOFFアーム**（プレイ+価値ヘッドだけ自己対戦RL・デッキ固定）＝OSFP中核機構を最小構成で確立。**配線・ネイティブ単体テスト完了**（下記 Phase 5a メモ）。実RLランはユーザ起動の Docker ジョブ。
 > **5b = デッキONアーム**（CBヘッドRL・各局でデッキsample→勝敗逆伝播・相手デッキ多様化）＝後の増分。
+> **5c = ネット容量拡張アーム**（観測履歴の再帰=LSTM／学習カード埋め込み）＝memoryless版が頭打ちになったら隠れ情報・カード個体性を取り込む**条件付き**増分（下記 Phase 5c 節）。
 **目的**: 添付論文の中核を実装（アルゴリズム詳細→ **[docs/research/osfp-cardgame-2303.05197.md](docs/research/osfp-cardgame-2303.05197.md)** §3・§5・§6）。**過去チェックポイント混合への smooth best response** を分散自己対戦で学習し、**last-iterate収束**した最終ネットを得る。**デッキ構築(CB)と対戦(BT)を同時に学習**する。**学習ループに探索は入れない**。
 
 **作るもの**
@@ -178,6 +179,31 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 
 **Ablation**: OSFP有無(=BC固定相手 vs 動的混合)、相手混合の重み(直近偏重 on/off)、**デッキヘッド学習 on/off（BCデッキ固定 vs 学習デッキ分布）**、**デッキの混合度（決定的ベスト1 vs 確率混合）**、improved techniques を各1要素。
 **KEEP条件: ローカル＆ラダーで前段(BC/heuristic)を有意に上回る**こと。伸びが出なければ improved techniques の追加 or デッキ表現/プールに投資を戻す。
+
+---
+
+## Phase 5c — 観測履歴の再帰集約（LSTM）でネット容量拡張（隠れ情報を暗黙学習）
+
+> **位置づけ（条件付きアーム）**: Phase 5a/5b は **memoryless ネット**（`encode_state` が「今の `current` だけ」を見る）で OSFP を回す。**それが頭打ち or さらなる伸びが欲しいとき**に、ネット容量を上げて論文の「隠れ情報は決定化せず**観測履歴＋再帰**で暗黙学習」を取り込むのがこの段。**§A の規律どおり「再帰を足して memoryless 版を有意に上回ったら採用、出なければ捨てる」**。学習カード埋め込み（Phase4 で判明した CB 個体識別の壁＝**5b の前提**）と同じ「ネットを重くする」系で、通常は **埋め込み→再帰** の順。安いレバー（チューニング・物量・x86 Linux 並列化）を使い切ってから着手するのが費用対効果的。
+
+**目的**: 相手の手札・山・引きといった隠れ情報を、**観測の履歴を再帰（LSTM 等）で集約**して暗黙的に活かす。今は無視している Kaggle 観測の **`logs`（試合イベント履歴）** を入力に取り込む。論文は LSTM（隠れ256）で観測系列を畳み、決定化も明示的信念状態も使わずに勝敗(±1)から end-to-end 学習している（→ [docs/research/osfp-cardgame-2303.05197.md](docs/research/osfp-cardgame-2303.05197.md) §4）。
+
+**作るもの**
+- **履歴エンコーダ（再帰経路）**: 各意思決定の観測（＋`logs` のイベント差分）を時系列で食い、**局内で隠れ状態を持ち越す**再帰経路。学習側 torch に LSTM（隠れ次元は ablation）、**推論側は numpy で同等の再帰 forward**を実装（提出は numpy 維持。既存の torch↔numpy 橋渡し＝`to_numpy_net`/parity テストを**再帰状態対応に拡張**）。
+- **ステートフルな `NetAgent`**: `act()` 呼び出しをまたいで隠れ状態を保持し、**局頭（`reset(seed)`）で初期化**。提出衛生（クラッシュ0・時間予算）と整合させる。
+- **系列対応の学習パイプライン**: 今の独立 `(state, action)` サンプルを**系列（trajectory）単位**に拡張し、（truncated）BPTT で学習。`bc_data`/`build_policy_samples` と OSFP ループ（`train_osfp`）を**系列バッチ対応**に。
+- **CPU 推論予算の再計測**: LSTM 化で1手推論が重くなるため、numpy 再帰 forward の avg/worst を計測し**10分/試合・手番制限に収まる**ことを確認（現状 avg 0.12ms と桁違いの余裕があるので中容量化の余地は大きい）。
+- （隣接）**学習カード埋め込み**: 固定特徴→学習射影を学習可能化＝CB の個体選択を可能に（5b の前提）。再帰と同じ「容量拡張」軸なので、ここで一緒に ablation してよい。
+
+**達成基準（Exit）**
+- 再帰版が **memoryless 版を有意に上回る**（≥55%, ローカル＆**ラダー**両方）。出なければ **不採用**（軽い memoryless を残す）。
+- torch↔numpy の**再帰 forward parity 一致**（既存 <1e-9 水準）＝「torch で学習→npz→numpy で serving」が安全に往復。
+- **提出衛生維持**: クラッシュ0・**CPU 推論が時間予算内**（worst を計測）・init で必ず合法な60枚。
+
+**Ablation（各1要素）**: 再帰 有/無、隠れ次元、履歴の長さ（truncation 窓）、`logs` 入力 有/無、（隣接）学習カード埋め込み 有/無。
+**KEEP条件**: ローカル＆ラダーで memoryless 版を有意に上回ること。**隠れ情報の利得がこの環境で小さければ捨てて軽い版に戻す**（探索 P6 や蒸留 P7 に投資を回す）。
+
+⚠️ **コスト注意**: numpy 再帰 forward ＋ parity 橋渡し・系列パイプライン（BPTT）・ステートフル agent はいずれも非自明な改修。**memoryless OSFP が頭打ちになってから**着手する（安いレバーを先に使い切る）。論文の 24GPU は主にこの種の大きいネット＋巨大自己対戦パイプラインを止めないための throughput 投資であり、容量拡張と GPU 投資は**セットで判断**する。
 
 ---
 
@@ -231,6 +257,8 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 行動クローン(BC)で暖機 | **使う**（RFコールドスタート回避＋保険提出） | P4 |
 | **OSFP 自己対戦（中核・論文本体）** | **使う**（終着点。GPU予算あり） | P5 |
 | improved techniques（γ/V-Trace/生産消費バランス等） | **1要素ずつ計測して取捨** | P5 |
+| **観測履歴の再帰(LSTM)** で隠れ情報を暗黙学習 | **計測して判断**（memoryless版を有意超なら採用・容量拡張） | P5c |
+| 学習カード埋め込み（固定特徴→学習射影） | **計測して判断**（CB個体選択=5bの前提／容量拡張） | P5b,P5c |
 | 決定化+探索(PIMC/ISMCTS) を**推論時に上乗せ** | **計測して判断**（時間予算内で純ネット超なら採用） | P6 |
 | 方策prior / 手順序付け（探索内） | **計測して判断** | P6 |
 | 方策蒸留(distillation) | **計測して判断**（軽量化の手段） | P7 |
@@ -280,7 +308,9 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P5a | LitPolicyGradient sanity（REINFORCE+baseline+entropy, 合成） | — | — | — | — | **配線OK** | +advで logp↑・value が returns に回帰・**masked entropy が NaN安全**（padding下）・**CBヘッド凍結**（trunk/policy/valueのみ更新）。`run_osfp` 全ループを fake generator でネイティブ検証（test_rl 9ケース）。デッキOFFアーム |
 | 2026-06-20 | P5a | OSFP self-play collect＋loop（Docker `--smoke`, 実機） | — | 3iter×8局 | — | — | **配線OK** | `collect_selfplay`: 8局~1s・winner全decisive・学習者/相手タグ片側ずつ（リーク無）・learner単一選択303=サンプル。`train_osfp --smoke`: opp=random/self を pool から選択・**自己対戦は両スロットlearnerで~2倍サンプル**・iter3でpatience採用・final.npz出力（計6.3s） |
 | 2026-06-20 | P5a | 学習後 net 実機 probe（final.npz, Docker） | — | 6局 | — | — | **PASS** | net vs greedy/net **crash0/illegal0**・worst **1.0ms**。**CBヘッド凍結を実証**（greedy distinct=2/sampled distinct=50＝Phase4と一致＝cb*未更新）。errorType=0 |
-| — | P5a | OSFP net(5a, deck固定) vs BC / heuristic | BC net / heuristic | 500 | — | — | **未計測** | 本RLラン（多時間・Docker・CPU）後に計測。合格＝≥55%（CIが0.5跨がない）。BC暖機あり/なし も実測予定 |
+| 2026-06-20 | P5a | **OSFP net(100iter×256, default) final** vs **BC** | BC net | 500 | **0.546 [0.502, 0.589]** | — | **保留(lean)** | CI下限0.502＝BCを僅かに上回るが≥55%未達（§B 51–55%＝要N増/調整）。metal_aggro固定・argmax・~30分・33ckpt採用 |
+| 2026-06-20 | P5a | OSFP net(同上) final vs **heuristic** | heuristic | 500 | **0.682 [0.640, 0.721]** | — | **改善** | BC(0.604)を~8pp上回る＝OSFPで強くなる方向は出た。ループ内eval(各100局)は~0.50/0.64でノイジー横ばい、**last-iterate(final)が最良**＝OSFPらしい |
+| — | P5a | 残: temperature/lr 調整・N≥1000で vs BC 再計測・BC暖機あり/なし・ラダー | — | — | — | — | **未計測** | vs BC が保留帯なのでチューニング（既定 temp=1.0 は探索過多）＋N増で詰める。ラダー検証は §C |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 

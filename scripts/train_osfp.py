@@ -28,7 +28,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -221,6 +221,22 @@ def run_osfp(
 
     final = cfg.iter_dir / "final.npz"
     net_np.save(final)
+
+    # Persist a structured run history for analysis (scripts/build_osfp_notebook.py).
+    history = {
+        "config": {
+            "iterations": cfg.iterations, "games_per_iter": cfg.games_per_iter,
+            "temperature": cfg.temperature, "lr": cfg.lr,
+            "entropy_coef": cfg.entropy_coef, "eval_every": cfg.eval_every,
+            "seed": cfg.seed, "baselines": cfg.baselines,
+            "bc_weights": str(cfg.bc_weights), "deck": str(cfg.deck),
+        },
+        "final_weights": str(final),
+        "checkpoints": pool.num_checkpoints,
+        "iterations_log": [asdict(s) for s in stats],
+    }
+    (cfg.iter_dir / "history.json").write_text(json.dumps(history, indent=2))
+
     print(f"== done: {final}  checkpoints={pool.num_checkpoints} ==")
     return OsfpResult(final, stats, pool)
 
