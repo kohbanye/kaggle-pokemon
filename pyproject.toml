@@ -37,13 +37,20 @@ pythonpath = ["."]
 [tool.ty.src]
 # cg engine lives under the gitignored data/ download; don't type-check scripts that import it.
 include = ["src", "tests"]
+# torch's nn.Module dynamic attribute model (custom __setattr__/__getattr__) doesn't
+# play well with structural type-checking, so the training-only modules that import
+# torch/Lightning are excluded -- same rationale as the cg-importing scripts above.
+# The submission/inference path (src/net/model.py etc.) stays numpy and is checked.
+exclude = ["src/net/torch_model.py", "src/net/lit.py", "tests/test_net_torch.py"]
 
 [dependency-groups]
 dev = [
     "ipykernel>=7.1.0",
+    "lightning>=2.6.5",
     "nbconvert>=7.17.1",
     "nbformat>=5.10.4",
     "pytest>=9.0.1",
     "ruff>=0.14.6",
+    "torch>=2.12.1",
     "ty>=0.0.1a28",
 ]

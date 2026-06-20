@@ -264,7 +264,7 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P1 | **初回ラダー提出**（greedy + metal_aggro, tar.gz/CLI, ref 53874111） | — | — | — | **≈602 / 1378位(2174)** | **M1起点** | 検証COMPLETE。516.6→602.6と上昇中＝レート変動継続中。ローカル↔ラダー較正の最初の点。提出手順/ハマり所は CLAUDE.md |
 | 2026-06-20 | P3 | ネット骨格 forward 合法性（純numpy net、提示optionを採点、実機） | — | 6局(probe)+30局(eval) | — | — | **配線OK** | NetAgent が実機で **crashes=0 / illegal=0**（~550選択+30局）。option-index契約往復・value∈[-1,1]。random初期化なので強さは未（net 0/30 vs greedy=想定） |
 | 2026-06-20 | P3 | CBヘッド デッキ生成（greedy+sampled×2, 合法マスク, 実機） | engine `battle_start` | 3デッキ | — | — | **常に合法** | 全て **errorType=0 受理**。distinct names: greedy 15(=4×15名)/sampled 59・56＝混合で多様化。論文「デッキは分布」の足場 |
-| 2026-06-20 | P3 | 学習配線サニティ（numpy SGD で policy 教師あり, 合成データ） | — | — | — | — | **配線OK** | forward+backward+SGD が機能: loss が初期比<0.7 まで低下・精度 chance(0.25)→>0.5。Phase4 BC の素体 |
+| 2026-06-20 | P3 | 学習配線サニティ（**torch+Lightning** で policy BC, 合成データ） | — | — | — | — | **配線OK** | torch fwd/bwd/Adam が機能: loss 初期比<0.7・精度 chance(0.25)→>0.5。`Trainer.fit`→npz エクスポート→numpy serving が往復。torch↔numpy forward **parity<1e-9**。Phase4 BC の本体 |
 | 2026-06-20 | P3 | 推論時間（net 1手, metal_aggro, 実機） | greedy(~0.002ms) | 30局 | — | — | **余裕大** | avg **0.12ms** / 最悪 **6.4ms**。greedy比~50倍だが sub-ms 中心＝探索/学習を載せる予算十分（手番制限に桁違いのマージン） |
 
 ### 較正メモ（Phase 0 で確定した運用値）
@@ -302,13 +302,13 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 
 ### Phase 3 メモ（状態/行動表現＆ネット骨格 — 完了）
 
-- **作ったもの（`src/net/`）**: 純 numpy の **方策+価値+CB ネット骨格**。`features.py`（engine 注入の **固定カード特徴**＝card-type/フラグ/HP/エネ型/弱点/最大打点を 40次元へ）/`encode.py`（観測→**固定長 state 191次元**、各 option→**63次元**。me/opp 視点を `yourIndex` で整列、欠損は全ゼロ＝**非クラッシュ**）/`nn.py`（linear・relu・softmax-CE の forward+backward）/`model.py`（`PolicyValueNet`：共有トランク＋value/policy/CB の3ヘッド、`NetConfig` で全幅可変、重み **npz** 保存）/`cb.py`（`legal_next_ids` マスク下で 60枚を逐次生成）/`train.py`（numpy SGD の policy 教師あり）。`src/agents/net_agent.py`＝**純 `dict->list[int]`** の `NetAgent`（提示 option を採点→top を返す＝常に合法、全例外で合法フォールバック）。レジストリに `net` 登録。
-- **設計判断（依存）**: torch は**プロジェクト宣言依存ではない**（wandb 経由で venv に紛れ込むのみ）。**numpy のみが宣言依存** → ネットは**純 numpy で実装**（学習も推論も単一実装、提出は numpy だけ＝PLAN §D「推論依存最小・重みを numpy で読む」に合致、バンドル軽量）。論文の「学習カード埋め込み」は当面**固定特徴の学習射影（MLP）**として実現＝backprop が素直（共有埋め込みの多経路勾配を回避）・未知IDは零ベクトルで頑健。学習埋め込み化は後段で ablation 可。
+- **作ったもの（`src/net/`）**: **方策+価値+CB ネット骨格**。`features.py`（engine 注入の **固定カード特徴**＝card-type/フラグ/HP/エネ型/弱点/最大打点を 40次元へ）/`encode.py`（観測→**固定長 state 191次元**、各 option→**63次元**。me/opp 視点を `yourIndex` で整列、欠損は全ゼロ＝**非クラッシュ**）/`model.py`（`PolicyValueNet`：**numpy** 共有トランク＋value/policy/CB の3ヘッド、`NetConfig` で全幅可変、重み **npz** 保存＝**推論/提出パス**）/`cb.py`（`legal_next_ids` マスク下で 60枚を逐次生成）/`nn.py`（numpy forward 用の he_init・softmax のみ）。**学習側**: `torch_model.py`（同一アーキの torch 版＋numpy 重み橋渡し）/`lit.py`（`LitPolicyValue`＝BC＋価値回帰の Lightning モジュール、可変 option 長は padding＋mask）。`src/agents/net_agent.py`＝**純 `dict->list[int]`** の `NetAgent`（提示 option を採点→top を返す＝常に合法、全例外で合法フォールバック）。レジストリに `net` 登録。
+- **設計判断（学習=torch/Lightning, 推論=numpy の分離）**: **学習は torch + Lightning**（autograd・optimizer・checkpoint・将来の GPU/分散＝Phase5 OSFP に必須。`torch`/`lightning` は **dev 依存**に宣言）。**提出/推論は純 numpy forward を維持**（PLAN §D「推論依存最小・重みを numpy で読む・CPU・手番時間」に合致、バンドル軽量。Kaggle サンドボックスに torch がある保証もない）。橋渡し＝`torch_model.py` が**同一アーキを torch で持ち、重みを numpy dict に正確変換**（`to_numpy_net`/`from_numpy_net`）。**parity テストで torch↔numpy forward の数値一致(<1e-9)を保証**＝「torch で学習→npz エクスポート→numpy で serving」が安全に往復。論文の「学習カード埋め込み」は当面**固定特徴の学習射影（MLP）**として実現＝勾配が素直・未知IDは零ベクトルで頑健（学習埋め込み化は後段で ablation 可）。
 - **行動分解の往復**: 論文の autoregressive `(type,target)` を、本コンペの**動的 option リストを直接採点**する形に落とした。engine は合法 option しか出さない＝**0/1合法マスクが自明に成立**し、option-index 契約に**ゼロコストで往復**。multi-select は score 上位 `maxCount` を返す（`legal_fallback` の `range(maxCount)` と同じ常時合法な形）。
 - **実機検証（Docker, `scripts/probe_net.py`）**: ① **CBデッキ** greedy+sampled×2 を `battle_start` が**全て errorType=0 受理**（distinct names 15/59/56＝混合で多様）。② **net vs greedy 4局＋net vs net 2局＋run_eval 30局**で **crashes=0 / illegal=0**（~580選択）。③ **推論時間** avg **0.12ms**・最悪 **6.4ms**（greedy ~0.002ms の~50倍だが sub-ms 中心、手番制限に桁違いの余裕＝探索/価値リーフを載せる予算十分）。net params **21,987**。
-- **学習配線サニティ（ネイティブ, `tests/test_net.py`）**: 合成データ（target=option特徴の argmax）で `train_policy` が **loss を初期比<0.7 へ低下・精度 chance 0.25→>0.5**＝forward+backward+SGD が機能。テスト 95件 green（ruff ALL / ty / pytest）。
+- **学習配線サニティ（torch/Lightning, `tests/test_net_torch.py`）**: 合成データ（target=option特徴の argmax）で `LitPolicyValue.policy_loss` が **loss を初期比<0.7 へ低下・精度 chance 0.25→>0.5**。`Trainer.fit`→`to_numpy_net().save()`→`PolicyValueNet.load()` が往復し、**torch↔numpy forward の parity<1e-9**。padding マスクで余剰 option を確実に除外。テスト **99件 green**（ruff ALL / ty / pytest）。
 - **強さは未（想定どおり）**: random 初期化なので net は greedy に **0/30**。Phase 3 は“配線”で強さは問わない（exit基準は合法 forward・合法CB・時間予算・学習配線の4点で**全達成**）。
-- **次（Phase 4 へ / Phase 2 再走）**: ① **Phase 4 BC 暖機**＝`heuristic`/`greedy` の対戦ログ（観測,手）を教師に `train.py` を可変 option 長へ一般化して BT/価値/CB を学習（保険提出候補）。② 並行して **Phase 2 ablation を実デッキ・非ミラーで再走**（heuristic 保留の解消）。骨格はそのまま OSFP(Phase5) の初期化に載る。
+- **次（Phase 4 へ / Phase 2 再走）**: ① **Phase 4 BC 暖機**＝`heuristic`/`greedy` の対戦ログ（観測,手,結果）を `(states,options,mask,targets,values)` バッチに整形し `LitPolicyValue` で BT/価値を学習（CBヘッドも同型の masked-CE で）。保険提出候補。② 並行して **Phase 2 ablation を実デッキ・非ミラーで再走**（heuristic 保留の解消）。骨格はそのまま OSFP(Phase5) の初期化に載る。
 
 ---
 

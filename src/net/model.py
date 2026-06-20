@@ -13,9 +13,9 @@ A shared trunk feeds three heads, mirroring the paper's shared-embedding net:
   context-free by design -- it just emits a card distribution.
 
 Weights are a flat ``dict[str, ndarray]`` saved/loaded as a single ``.npz``, so
-the submission runtime is numpy alone (plan SS D). Phase 3 only needs the
-random-init forward; the matching backward lives in :mod:`src.net.nn` /
-:mod:`src.net.train` for the learning-wiring sanity.
+the submission runtime is numpy alone (plan SS D). Training happens in the torch
+mirror (:mod:`src.net.torch_model`) and the trained weights are exported back
+into this dict; a parity test keeps the two forwards identical.
 """
 
 from __future__ import annotations

@@ -14,11 +14,18 @@ The plan converges on an OSFP self-play policy+value net with a deck-constructio
   CB (scores candidate cards for deck construction). Weights save/load as ``.npz``
   so the submission needs only numpy (plan SS D: minimal inference deps).
 - :mod:`src.net.cb`       -- sequential, legal-masked 60-card deck generation.
-- :mod:`src.net.train`    -- a numpy SGD step used for the Phase-3 learning-wiring
-  sanity (and reused as the Phase-4 BC trainer).
 
-The forward path is pure numpy because numpy is the one declared runtime
-dependency (torch is not), which keeps the agent a light, self-contained bundle.
+Training lives apart, in torch + Lightning, so it never burdens the submission:
+
+- :mod:`src.net.torch_model` -- the same net in torch, with an exact weight bridge
+  to/from the numpy parameter dict (``to_numpy_net`` / ``from_numpy_net``).
+- :mod:`src.net.lit`         -- a Lightning module for behaviour-cloning warm-start
+  (Phase 4) and beyond.
+
+The *serving* forward (model.py) is pure numpy because numpy is the one declared
+runtime dependency; torch/Lightning are dev-only training deps. Train in torch,
+export the weights to ``.npz``, and serve them from numpy -- a parity test keeps
+the two forwards identical. This keeps the agent a light, self-contained bundle.
 """
 
 from __future__ import annotations

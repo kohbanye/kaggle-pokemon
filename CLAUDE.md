@@ -55,7 +55,17 @@ docker run --platform=linux/amd64 --rm -v "$PWD":/work -w /work ptcg-sim \
 
 Card-data analysis (`src/cards.py`, the EDA notebook) does **not** need the engine and
 runs natively. Because of this split, `ty` is scoped to `src`/`tests` only (scripts that
-import the gitignored `cg` are excluded), and `ruff` excludes `notebooks/`.
+import the gitignored `cg` are excluded — as are the torch/Lightning **training** modules
+`src/net/torch_model.py`, `src/net/lit.py` and `tests/test_net_torch.py`, whose `nn.Module`
+dynamic attributes don't structurally type-check), and `ruff` excludes `notebooks/`.
+
+**Net (Phase 3): train in torch, serve in numpy.** The policy/value/CB net is trained with
+torch + Lightning (`torch`/`lightning` are **dev** deps), but the **submission/inference**
+forward (`src/net/model.py`) is **pure numpy** so the agent stays a light, numpy-only bundle
+(no torch in the bundle; the Kaggle sandbox may not even have it). `src/net/torch_model.py`
+holds the same architecture in torch plus an exact weight bridge (`to_numpy_net` /
+`from_numpy_net`); a **parity test** pins the two forwards together. Train → export `.npz` →
+load into `NetAgent`. numpy is the only declared *runtime* dependency.
 
 ## Submitting to the ladder
 
@@ -109,6 +119,11 @@ kaggle competitions leaderboard pokemon-tcg-ai-battle --download --path /tmp  # 
   helpers; `REGISTRY` (in `__init__.py`) maps names used by `--a`/`--b`. Baselines:
   `random` and `greedy` (develop-the-board-then-attack; it must develop, not attack ASAP —
   attacking with an empty bench loses on "no Active Pokémon").
+- `src/net/` — the Phase-3 policy/value/CB net skeleton (see the train/serve split above).
+  `features.py` (fixed per-card features) + `encode.py` (obs/option → fixed vectors) +
+  `model.py` (numpy `PolicyValueNet`, the serving forward) + `cb.py` (legal-masked 60-card
+  deck gen) feed `agents/net_agent.py` (`net` in the registry). `torch_model.py` / `lit.py`
+  are the torch+Lightning training side. `scripts/probe_net.py` validates it in-engine.
 - `src/harness/` — **pure** result attribution (`result.py`) and Wilson-CI win-rate
   aggregation (`stats.py`); unit-tested. The engine-touching match driver is **not** here.
 - `scripts/run_eval.py` — the Phase-0 battle runner (imports `cg`, **Docker-only**): drives

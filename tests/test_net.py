@@ -25,7 +25,6 @@ from src.net.encode import (
 )
 from src.net.features import CARD_FEAT_DIM, CardFeatures
 from src.net.model import NetConfig, PolicyValueNet
-from src.net.train import policy_accuracy, train_policy
 
 # --- shared fixtures (mirror the sample deck, like test_heuristic) ---------
 
@@ -287,20 +286,3 @@ def test_act_empty_options_returns_empty_legal() -> None:
                       "option": []},
            "current": {"yourIndex": 0, "players": []}, "logs": []}
     assert agent.act(obs) == []
-
-
-# --- learning wiring: SGD drives the policy loss down ---------------------
-
-def test_policy_training_reduces_loss_and_beats_chance() -> None:
-    rng = np.random.default_rng(0)
-    batch, k = 96, 4
-    states = rng.standard_normal((batch, STATE_DIM))
-    options = rng.standard_normal((batch, k, OPTION_DIM))
-    # Target = the option whose first feature is largest: a signal the policy
-    # head sees directly, so a working forward+backward+SGD must learn it.
-    targets = options[:, :, 0].argmax(axis=1)
-
-    n = net()
-    losses = train_policy(n, states, options, targets, lr=0.1, steps=300)
-    assert losses[-1] < losses[0] * 0.7  # loss fell substantially
-    assert policy_accuracy(n, states, options, targets) > 0.5  # vs 0.25 chance
