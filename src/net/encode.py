@@ -24,13 +24,20 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.agents.base import AREA_ACTIVE, AREA_BENCH, AREA_HAND
 from src.net.features import CARD_FEAT_DIM
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from src.net.features import CardFeatures
+
+# AreaType (mirror of cg.api.AreaType) -- the in-play areas an option points at.
+# Mirrored locally (like NUM_OPTION_TYPES below and features.py's enum sizes) so
+# the net layer stays decoupled from src.agents (avoids an import cycle: agents
+# imports the net, so the net must not import agents).
+AREA_HAND = 2
+AREA_ACTIVE = 4
+AREA_BENCH = 5
 
 # OptionType spans 0..16 (cg.api.OptionType); one-hot width for an option's type.
 NUM_OPTION_TYPES = 17

@@ -1,0 +1,159 @@
+"""Train the Phase-4 BC warm-start net (host / native; no engine needed).
+
+Reads the teacher logs + engine dump from ``scripts/collect_bc.py``, clones the
+policy head and regresses the value head (:class:`LitPolicyValue`), then clones
+the CB head on the demo decklists (:class:`LitCB`), and exports the trained
+weights to a single numpy ``.npz`` the submission / ``NetAgent`` loads. Train in
+torch + Lightning, serve in numpy (plan SS D). Prints held-out policy top-1
+accuracy, value sign accuracy, and a CB legality / demo-overlap sanity check.
+
+  uv run python scripts/train_bc.py --data data/bc --out data/bc/bc_net.npz
+"""
+
+import argparse
+import sys
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))  # make `src` importable when run as a script
+
+import lightning as L  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+from torch.utils.data import DataLoader  # noqa: E402
+
+from src.deck import build_pool, is_legal, load_deck_csv  # noqa: E402
+from src.net.bc_data import (  # noqa: E402
+    CBDataset,
+    PolicyDataset,
+    PolicySample,
+    build_policy_samples,
+    cb_supervision,
+    collate_cb,
+    collate_policy,
+    game_files,
+    iter_games,
+    load_engine_json,
+)
+from src.net.cb import build_deck  # noqa: E402
+from src.net.features import CardFeatures  # noqa: E402
+from src.net.lit import LitCB, LitPolicyValue  # noqa: E402
+from src.net.model import NetConfig  # noqa: E402
+
+
+def _trainer(epochs: int) -> L.Trainer:
+    return L.Trainer(
+        max_epochs=epochs, accelerator="cpu", devices=1, logger=False,
+        enable_checkpointing=False, enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+
+
+def evaluate(lit: LitPolicyValue, samples: list[PolicySample]) -> tuple[float, float]:
+    """Held-out policy top-1 accuracy and value sign accuracy (on decisive games)."""
+    if not samples:
+        return 0.0, 0.0
+    states, options, mask, targets, values = collate_policy(samples)
+    with torch.no_grad():
+        logits = lit.net.policy_logits(states, options)
+        logits = logits.masked_fill(~mask, float("-inf"))
+        pol_acc = (logits.argmax(dim=1) == targets).float().mean().item()
+        vpred = lit.net.value(states)
+    decisive = values != 0
+    if decisive.any():
+        agree = (vpred[decisive] > 0) == (values[decisive] > 0)
+        val_acc = agree.float().mean().item()
+    else:
+        val_acc = 0.0
+    return pol_acc, val_acc
+
+
+def _overlap(deck: list[int], demo: list[int]) -> float:
+    """Multiset overlap fraction |deck ∩ demo| / len(deck) between two decks."""
+    inter = sum((Counter(deck) & Counter(demo)).values())
+    return inter / max(len(deck), 1)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train the Phase-4 BC net")
+    parser.add_argument("--data", type=Path, default=ROOT / "data" / "bc")
+    parser.add_argument("--out", type=Path, default=ROOT / "data" / "bc" / "bc_net.npz")
+    parser.add_argument("--decks", type=Path, default=ROOT / "decklists")
+    parser.add_argument("--teachers", default="heuristic", help="comma-separated")
+    parser.add_argument(
+        "--discount", type=float, default=None,
+        help="discounted-return gamma; omit for the raw final outcome",
+    )
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--cb-epochs", type=int, default=40)
+    parser.add_argument("--cb-shuffles", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--val-frac", type=float, default=0.1)
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+
+    engine = load_engine_json(args.data / "engine.json")
+    feats = CardFeatures(engine)
+    teachers = {t for t in args.teachers.split(",") if t}
+
+    games = list(iter_games(game_files(args.data)))
+    samples = build_policy_samples(
+        games, feats, teachers=teachers, discount=args.discount,
+    )
+    if not samples:
+        raise SystemExit(f"no policy samples for teachers={teachers} under {args.data}")
+
+    rng = np.random.default_rng(args.seed)
+    perm = rng.permutation(len(samples)).tolist()
+    n_val = int(len(samples) * args.val_frac)
+    val_set = {perm[i] for i in range(n_val)}
+    train = [s for i, s in enumerate(samples) if i not in val_set]
+    val = [samples[i] for i in perm[:n_val]]
+    print(
+        f"games={len(games)} policy samples={len(samples)} "
+        f"(train {len(train)}, val {len(val)}) teachers={teachers} "
+        f"discount={args.discount}",
+    )
+
+    torch.manual_seed(args.seed)
+    lit = LitPolicyValue(NetConfig(), lr=args.lr)
+    loader = DataLoader(
+        PolicyDataset(train), batch_size=args.batch_size, shuffle=True,
+        collate_fn=collate_policy,
+    )
+    _trainer(args.epochs).fit(lit, loader)
+    pol_acc, val_acc = evaluate(lit, val)
+    print(f"val policy top-1 acc: {pol_acc:.3f}  value sign acc: {val_acc:.3f}")
+
+    # CB head: clone the demo decklists on the same net (only cb1/cb2 update).
+    pool = build_pool()
+    demo_decks = [load_deck_csv(p) for p in sorted(args.decks.glob("*.csv"))]
+    card_feats, cb_samples = cb_supervision(
+        demo_decks, pool, feats, np.random.default_rng(args.seed),
+        shuffles=args.cb_shuffles,
+    )
+    print(f"CB samples: {len(cb_samples)} from {len(demo_decks)} demo decks")
+    litcb = LitCB(lit.net, card_feats, lr=args.lr)
+    cb_loader = DataLoader(
+        CBDataset(cb_samples), batch_size=args.batch_size, shuffle=True,
+        collate_fn=collate_cb,
+    )
+    _trainer(args.cb_epochs).fit(litcb, cb_loader)
+
+    net_np = lit.net.double().to_numpy_net()
+    deck = build_deck(net_np, pool, feats)
+    best = max((_overlap(deck, d) for d in demo_decks), default=0.0)
+    print(
+        f"CB greedy deck: legal={is_legal(deck, pool)} "
+        f"best_overlap_vs_demo={best:.2f} distinct_names={len(set(deck))}",
+    )
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    net_np.save(args.out)
+    print(f"saved {args.out}  params={net_np.param_count()}")
+
+
+if __name__ == "__main__":
+    main()

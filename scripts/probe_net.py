@@ -12,8 +12,10 @@ natively by ``tests/test_net.py``):
       python scripts/probe_net.py
 """
 
+import argparse
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -35,13 +37,24 @@ from run_eval import (  # noqa: E402
 from src.agents import build_agent  # noqa: E402
 from src.agents.base import Agent, is_legal, legal_fallback  # noqa: E402
 from src.agents.net_agent import NetAgent  # noqa: E402
-from src.deck import CardPool, build_pool  # noqa: E402
+from src.deck import CardPool, build_pool, load_deck_csv  # noqa: E402
 from src.deck import is_legal as deck_is_legal  # noqa: E402
 from src.net.cb import build_deck  # noqa: E402
 from src.net.features import CardFeatures  # noqa: E402
 from src.net.model import PolicyValueNet  # noqa: E402
 
 MAX_SELECTIONS = 5000
+
+
+def report_cb_overlap(net: PolicyValueNet, pool: CardPool, feats: CardFeatures) -> None:
+    """Print the CB greedy deck's multiset overlap with each demo decklist."""
+    print("\n== CB head: demo-deck overlap (Phase-4 CB BC sanity) ==")
+    deck = build_deck(net, pool, feats)
+    deck_counts = Counter(deck)
+    for path in sorted((ROOT / "decklists").glob("*.csv")):
+        demo = load_deck_csv(path)
+        inter = sum((deck_counts & Counter(demo)).values())
+        print(f"  {path.stem:>16}: overlap {inter}/{len(demo)} = {inter / 60:.2f}")
 
 
 def validate_cb(
@@ -136,14 +149,27 @@ def run_games(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Probe the net agent in-engine")
+    parser.add_argument(
+        "--weights", type=Path, default=None,
+        help="trained .npz to load (default: a random-init net)",
+    )
+    args = parser.parse_args()
+
     engine = load_engine_data()
     feats = CardFeatures(engine)
     pool = build_pool()
-    net = PolicyValueNet.random(np.random.default_rng(0))
-    print(f"net params: {net.param_count()}  pool: {len(pool.cards)} cards")
+    net = (
+        PolicyValueNet.load(args.weights)
+        if args.weights is not None
+        else PolicyValueNet.random(np.random.default_rng(0))
+    )
+    src = args.weights if args.weights is not None else "random-init"
+    print(f"net params: {net.param_count()}  pool: {len(pool.cards)} cards  ({src})")
 
     sample = read_deck(DEFAULT_DECK)
     cb_ok = validate_cb(net, pool, feats, sample)
+    report_cb_overlap(net, pool, feats)
 
     deck = read_deck(ROOT / "decklists" / "metal_aggro.csv")
 

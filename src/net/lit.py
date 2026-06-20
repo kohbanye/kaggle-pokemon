@@ -16,8 +16,10 @@ A batch is the 5-tuple ``(states, options, option_mask, targets, values)``:
 
 After training, export to the numpy serving net with
 ``module.net.to_numpy_net().save(path)`` and load it into ``NetAgent`` -- the
-submission never imports torch. The CB (deck) head is trained the same way in
-Phase 4 (masked CE over candidate cards) and is left out here on purpose.
+submission never imports torch. The CB (deck) head is trained the same way --
+masked CE over candidate cards -- by :class:`LitCB` (below), which wraps the same
+net and optimises only the CB layers so the warm-started heads merge into one
+export.
 """
 
 from __future__ import annotations
@@ -34,7 +36,34 @@ from src.net.torch_model import TorchPolicyValueNet
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from numpy.typing import NDArray
+
 _NEG_INF = float("-inf")
+
+
+def cb_loss(
+    net: TorchPolicyValueNet,
+    card_feats: torch.Tensor,
+    legal_mask: torch.Tensor,
+    target: torch.Tensor,
+    weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Masked cross-entropy of the (context-free) CB head against the demo card.
+
+    ``card_feats`` ``(N_pool, card_dim)`` is the whole pool's fixed features (the
+    CB head scores it once); ``legal_mask`` ``(B, N_pool)`` restricts each sample
+    to its legal next cards (illegal -> -inf, mirroring the deck builder's mask);
+    ``target`` ``(B,)`` is the pool index of the demo deck's card at that step.
+    ``weights`` ``(B,)`` optionally re-weights each step (the inverse-copy weight
+    that stops Basic Energy from dominating -- see :class:`bc_data.CBSample`).
+    """
+    logits = net.card_logits(card_feats)  # (N_pool,)
+    logits = logits.unsqueeze(0).expand(legal_mask.shape[0], -1)  # (B, N_pool)
+    logits = logits.masked_fill(~legal_mask, _NEG_INF)
+    if weights is None:
+        return F.cross_entropy(logits, target)
+    losses = F.cross_entropy(logits, target, reduction="none")
+    return (losses * weights).sum() / weights.sum()
 
 
 class LitPolicyValue(L.LightningModule):
@@ -72,6 +101,16 @@ class LitPolicyValue(L.LightningModule):
         """MSE of the value head against the (discounted) outcome target."""
         return F.mse_loss(self.net.value(states), values)
 
+    def cb_loss(
+        self,
+        card_feats: torch.Tensor,
+        legal_mask: torch.Tensor,
+        target: torch.Tensor,
+        weights: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Masked CE of the CB head (delegates to the module-level :func:`cb_loss`)."""
+        return cb_loss(self.net, card_feats, legal_mask, target, weights)
+
     def training_step(
         self,
         batch: Sequence[torch.Tensor],
@@ -89,3 +128,42 @@ class LitPolicyValue(L.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
+class LitCB(L.LightningModule):
+    """Behaviour-clones the CB (deck) head on the demo decklists.
+
+    Wraps the *same* :class:`TorchPolicyValueNet` as :class:`LitPolicyValue` so
+    the two warm-started halves merge into one export, and optimises **only** the
+    CB layers (``cb1`` / ``cb2``). The CB head is independent of the trunk
+    (``card_logits`` never touches it), so this leaves the policy/value weights
+    exactly as trained. A batch is ``(legal_mask (B, N_pool), target (B,))``; the
+    fixed pool feature matrix is held as a buffer.
+    """
+
+    def __init__(
+        self,
+        net: TorchPolicyValueNet,
+        card_feats: NDArray,
+        lr: float = 1e-3,
+    ) -> None:
+        super().__init__()
+        self.net = net
+        self.register_buffer(
+            "card_feats", torch.as_tensor(card_feats, dtype=torch.float32),
+        )
+        self.lr = lr
+
+    def training_step(
+        self,
+        batch: Sequence[torch.Tensor],
+        batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
+    ) -> torch.Tensor:
+        legal_mask, target, weights = batch
+        loss = cb_loss(self.net, self.card_feats, legal_mask, target, weights)
+        self.log("cb_loss", loss, prog_bar=False)
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        params = [*self.net.cb1.parameters(), *self.net.cb2.parameters()]
+        return torch.optim.Adam(params, lr=self.lr)

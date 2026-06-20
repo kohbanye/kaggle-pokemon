@@ -41,7 +41,13 @@ include = ["src", "tests"]
 # play well with structural type-checking, so the training-only modules that import
 # torch/Lightning are excluded -- same rationale as the cg-importing scripts above.
 # The submission/inference path (src/net/model.py etc.) stays numpy and is checked.
-exclude = ["src/net/torch_model.py", "src/net/lit.py", "tests/test_net_torch.py"]
+exclude = [
+    "src/net/torch_model.py",
+    "src/net/lit.py",
+    "src/net/bc_data.py",
+    "tests/test_net_torch.py",
+    "tests/test_bc.py",
+]
 
 [dependency-groups]
 dev = [

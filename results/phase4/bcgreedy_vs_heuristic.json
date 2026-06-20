@@ -1,0 +1,28 @@
+{
+  "agent_a": "net",
+  "agent_b": "heuristic",
+  "games": 500,
+  "a_wins": 290,
+  "b_wins": 210,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 500,
+  "a_winrate": 0.58,
+  "a_winrate_ci95": [
+    0.5362894568035539,
+    0.6224906487225976
+  ],
+  "verdict": "lean-adopt",
+  "significant": true,
+  "avg_turns": 13.772,
+  "avg_selections": 95.478,
+  "avg_move_ms_a": 0.08524662918281559,
+  "avg_move_ms_b": 0.00993805146589004,
+  "max_move_ms_a": 3.5194159718230367,
+  "max_move_ms_b": 0.3060830058529973,
+  "avg_game_wall_s": 0.014692917445558123,
+  "games_per_sec": 68.06000263088079,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 7.357499296020251
+}
