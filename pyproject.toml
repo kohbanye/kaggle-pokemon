@@ -47,6 +47,7 @@ exclude = [
     "src/net/bc_data.py",
     "tests/test_net_torch.py",
     "tests/test_bc.py",
+    "tests/test_rl.py",
 ]
 
 [dependency-groups]
