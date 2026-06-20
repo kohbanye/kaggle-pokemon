@@ -100,6 +100,22 @@ agent randomness and relies on large N + slot swap + Wilson CI for
 need). Measured baseline: `greedy` beats `random` **0.908 [0.879, 0.930]** over
 500 games; `random` vs `random` sits at **0.498 / 0.512** (harness is fair).
 
+## Submitting to the ladder
+
+Build the self-contained bundle (`submission/main.py` + a deck + `cg/`), package
+it as a `tar.gz`, and submit with the Kaggle CLI (authenticated, online):
+
+```bash
+uv run python scripts/build_submission.py --deck decklists/metal_aggro.csv  # -> build/submission/
+tar -czf build/submission.tar.gz -C build/submission .
+kaggle competitions submit -c pokemon-tcg-ai-battle -f build/submission.tar.gz -m "msg"
+kaggle competitions submissions -c pokemon-tcg-ai-battle                    # check status/score
+```
+
+Scoring is an **Elo ladder** (5 subs/day): a submission validates (`PENDING`→
+`COMPLETE`) then keeps playing, so the score drifts — re-check it. See **CLAUDE.md
+→ "Submitting to the ladder"** for auth setup and the transient-403 retry note.
+
 ## Plan & research
 
 - **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan converging on the OSFP

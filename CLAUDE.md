@@ -57,6 +57,41 @@ Card-data analysis (`src/cards.py`, the EDA notebook) does **not** need the engi
 runs natively. Because of this split, `ty` is scoped to `src`/`tests` only (scripts that
 import the gitignored `cg` are excluded), and `ruff` excludes `notebooks/`.
 
+## Submitting to the ladder
+
+Scoring is an **Elo ladder of agents**, not a fixed test set: a submission first plays a
+*Validation Episode* (vs copies of itself, `PENDING`→`COMPLETE`), then keeps playing real
+opponents so its **score drifts over hours** — re-check, don't treat the first number as
+final. **5 submissions/day.**
+
+The bundle is `submission/main.py` + a deck + `cg/`. `submission/main.py` is a
+**self-contained** greedy agent (mirrors `src/agents/greedy_agent.py`; reads `deck.csv`,
+builds attack damages from the bundled `cg.all_attack()` at startup, legal fallback on any
+error). `ruff`/`ty` skip `submission/` (standalone, deliberately crash-proof).
+
+```bash
+# 1. stage build/submission/ = main.py + deck.csv + cg/  (native; --deck picks the deck)
+uv run python scripts/build_submission.py --deck decklists/metal_aggro.csv
+
+# 2. package: tar.gz with the files at the archive ROOT (not inside a wrapping dir)
+tar -czf build/submission.tar.gz -C build/submission .
+
+# 3. submit  (needs network + an authenticated Kaggle CLI; run OUTSIDE any sandbox)
+kaggle competitions submit -c pokemon-tcg-ai-battle -f build/submission.tar.gz -m "msg"
+
+# status / rank
+kaggle competitions submissions -c pokemon-tcg-ai-battle
+kaggle competitions leaderboard pokemon-tcg-ai-battle --download --path /tmp  # grep your TeamName
+```
+
+- **Auth**: `kaggle auth login` (OAUTH, stored at `~/.kaggle/credentials.json`) or a classic
+  `~/.kaggle/kaggle.json` API token. `build/` is gitignored.
+- **Transient 403**: `CreateSubmission` sometimes returns `403 Forbidden` spuriously even when
+  authed + rules-accepted + phone-verified — **just retry**, it goes through. Don't assume it's
+  a rules/permission failure.
+- Method is **file/tar.gz** (the competition ships a `sample_submission/` *folder*); Notebook
+  submission also exists but we use the CLI.
+
 ## Architecture / where things live
 
 - `data/` — **gitignored** competition download. Not present until `download_data.sh` runs.
