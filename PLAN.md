@@ -259,6 +259,8 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-19 | P2 | ablation: drop attack_ko / weakness / bench_dev | full(0.510) | 各500 | 0.504 / 0.506 / 0.512 | — | 中立 | 方策の選択を変えない（弱点は一様倍率で argmax 不変、攻撃は提示済み合法手の最大打点）。評価関数(探索/学習)用に保持 |
 | 2026-06-20 | P1 | デッキ合法性プローブ（engine vs 自作validator, 6変種） | — | — | — | — | **一致確認** | `src/deck.py` の規則が engine と完全一致。errorType: 0=OK / 2=同名5枚 / 3=基本ポケ0 / 4=ACE SPEC×2。size≠60は wrapper の ValueError。全1267プールのランダム合法デッキも受理 |
 | 2026-06-20 | P1 | デッキ評価ハーネス スモーク（sample+random合法3, greedy固定） | — | 60/対 | spread **0.794** | — | ハーネス健全 | サンプル周辺0.983, ランダム0.19–0.56＝デッキ差≫エージェント差(~0.50)。ランダムは極端例、メタデッキで本評価予定 |
+| 2026-06-20 | P1 | **本デッキ評価**（デモ8 mono-aggro＋sample＋random, greedy固定） | — | 80/対(10デッキ) | spread **0.683** | — | コヒーレント確認 | 全デモがランダムを~1.00で圧倒（psychic_aggroのみ~0.45の弱外れ）。周辺: metal 0.744/sample 0.717…psychic 0.103。弱点相性構造あり。デッキ差≫エージェント差を**実デッキで**再確認 |
+| 2026-06-20 | P1 | 提出バンドル スモーク（自己完結 greedy+metal_aggro, 自己対戦） | — | 1局 | — | — | 提出可 | `submission/main.py` が deck.csv読込＋all_attack()打点表(1556)＋98手完走・クラッシュ0。ラダー提出は要 Kaggle 認証（ユーザ操作） |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -271,14 +273,18 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **手番時間**: 両ベースラインとも1手 **平均~0.002ms / 最悪~0.2ms**。制限時間に対し桁違いに余裕（探索/ネット推論を載せる予算が十分にある）。
 - **足切り閾値は §B の初期値のまま据え置き**（明確採用≥55% / 保留51–55% / 不採用≤51%）。N=500で運用可能と確認できたため変更不要。
 
-### Phase 1 メモ（デッキ合法性の確定 — 進行中）
+### Phase 1 メモ（デッキ空間の足場 — 一巡完了）
 
 - **作ったもの**: `src/deck.py` — デッキ構築規則の **validator（`legality_errors`/`is_legal`）** と、CBヘッド用の **逐次合法マスク（`legal_next_ids`）**＋**ランダム合法デッキ生成（`random_legal_deck`）**。`cg`・pandas 非依存の純関数（`build_pool` のみ card CSV を読む）でネイティブ単体テスト可（`tests/test_deck.py`, 16ケース）。
 - **エンジン規則を確定（`scripts/probe_deck_legality.py`, Docker）**: 自作 validator が **engine と完全一致**。`StartData.errorType` の対応 = **0:OK / 2:同名5枚以上 / 3:基本ポケモン0 / 4:ACE SPEC 2枚以上**。`size≠60` は `battle_start` の `ValueError`（engine 到達前）。**4枚制限は名前単位**（基本エネは免除）。
 - **プール所見**: 全 **1,267枚**。`Basic Pokémon` 1,056・`Trainer` 191・`Energy` 20、ACE SPEC 29枚。**154 の名前が複数 card_id にまたがる** → 4枚制限は ID でなく**名前で数える**実装にしてある。全プールからのランダム合法デッキは engine が受理＝**Standard 等の追加フォーマット制限は（少なくともこの範囲では）検出されず**。
 - **デッキ評価ハーネス**: `scripts/run_deck_eval.py`（`run_eval` 再利用の総当たり＝同一ポリシー・デッキだけ変える）。勝率行列＋周辺ランキング（対 field 平均勝率）＋ spread を出力。スモーク（サンプル＋ランダム合法3, greedy固定, 60戦/対）でサンプルが圧勝＝周辺 **0.983** vs ランダム 0.19–0.56、**デッキ spread 0.794 ≫ エージェント差(~0.50 ミラー)**。「デッキ差＞エージェント差」の一次裏取り（※ランダムは極端例。メタデッキで本評価する）。
-- **未確認（follow-up）**: errorType=1 の意味（不明カードID? 未テスト）／「同名・別ID」を 5枚にしたケースの厳密確認（現プローブは同ID5枚で代理確認）。Radiant 等の特殊上限の有無。
-- **次**: メタ/コミュニティのデッキリスト収集（名前→ID変換, BC教師）→ 本デッキ評価＋初ラダー提出。
+- **デモデッキ（BC教師の素体）**: `src/deckbuild.py` — 外部メタを取り込む代わりに**プールから直接コヒーレントなデッキを構築**（mono-type アグロ8種：強い基本ポケexの技持ち×各色＋一致基本エネ＋サンプル流の draw/search エンジン）。全て engine 合法。`scripts/build_demo_decks.py` で `decklists/*.csv` に出力（`tests/test_deckbuild.py`）。
+- **デッキリスト取込（名前→ID）**: `src/decklists.py` — `<枚数> <カード名>` 形式の人間可読リストを ID 化（同名複数刷りは最小ID代表）。将来の実メタ取込の口（`tests/test_decklists.py`）。
+- **本デッキ評価（`run_deck_eval.py --deck-dir`, Docker, greedy, 80戦/対, 10デッキ）**: デモ8種＋サンプル＋ランダム合法1。全コヒーレントデッキが**ランダムを ~1.00 で圧倒**（=実プレイ可能を確認。例外: psychic_aggro が ~0.45 と弱い外れ値）。**弱点に沿った相性構造**が出現（例: water>fire 0.80, metal>water 0.95）。周辺勝率: metal 0.744 / sample 0.717 / fighting 0.690 … psychic 0.103。**デッキ spread 0.683**（実デッキ同士でも大）＝「デッキ差≫エージェント差(~0.50 ミラー)」を**実デッキで再確認**。結果 `results/deckeval_demo_greedy.json`。
+- **初回ラダー提出（準備完了・提出はユーザ操作）**: `submission/main.py`（**自己完結 greedy**：deck.csv 読込＋`all_attack()` から打点表を起動時生成＋全例外で合法フォールバック）。`scripts/build_submission.py` が `build/submission/`(main.py+deck.csv+cg/) を生成。Docker スモークで**自己対戦が98手で完走・クラッシュ0**を確認。既定デッキ=metal_aggro（ローカル最良）。**残:** `kaggle competitions submit`（要 Kaggle 認証）→ ローカル↔ラダー較正開始。
+- **未確認（follow-up）**: errorType=1 の意味（不明カードID? 未テスト）／「同名・別ID」を 5枚にしたケースの厳密確認（現プローブは同ID5枚で代理確認）。Radiant 等の特殊上限。psychic_aggro が弱い原因（攻撃役の選定 or 相性）。
+- **次（Phase 3 へ）**: 構築物（プール/合法マスク/デモデッキ/評価ハーネス）を土台に、状態/行動表現＋ネット骨格（CB+BTヘッド）。実メタ取込は `src/decklists.py` 経由でいつでも追加可。
 
 ### Phase 2 メモ（ヒューリスティック評価関数の結論）
 

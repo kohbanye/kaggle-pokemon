@@ -37,12 +37,15 @@ DEFAULT_DECK = CG_PARENT / "deck.csv"
 
 
 def load_decks(
-    deck_paths: list[Path], n_random: int, seed: int,
+    deck_paths: list[Path], deck_dir: Path | None, n_random: int, seed: int,
 ) -> tuple[list[str], list[list[int]]]:
-    """Resolve the deck set: explicit files first, then N random legal decks."""
+    """Resolve the deck set: explicit files + a directory's *.csv + N random."""
+    paths = list(deck_paths)
+    if deck_dir is not None:
+        paths.extend(sorted(deck_dir.glob("*.csv")))
     names: list[str] = []
     decks: list[list[int]] = []
-    for path in deck_paths:
+    for path in paths:
         names.append(path.stem)
         decks.append(run_eval.read_deck(path))
     if n_random:
@@ -117,6 +120,8 @@ def main() -> None:
     parser.add_argument("--agent", default="greedy", help="fixed policy (registered)")
     parser.add_argument("--deck", type=Path, action="append", default=[],
                         help="deck file (repeatable)")
+    parser.add_argument("--deck-dir", type=Path, default=None,
+                        help="also load every *.csv in this directory")
     parser.add_argument("--random", type=int, default=0,
                         help="also add N random legal decks")
     parser.add_argument("--games", type=int, default=100, help="games per pair")
@@ -128,11 +133,11 @@ def main() -> None:
 
     deck_paths = list(args.deck)
     n_random = args.random
-    if not deck_paths and not n_random:  # default smoke: sample + 3 random
-        deck_paths = [DEFAULT_DECK]
+    if not deck_paths and args.deck_dir is None and not n_random:
+        deck_paths = [DEFAULT_DECK]  # default smoke: sample + 3 random
         n_random = 3
 
-    names, decks = load_decks(deck_paths, n_random, args.seed)
+    names, decks = load_decks(deck_paths, args.deck_dir, n_random, args.seed)
     if len(decks) < 2:
         raise SystemExit("need >= 2 decks to run a round-robin")
     engine = run_eval.load_engine_data()

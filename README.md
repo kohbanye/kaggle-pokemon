@@ -118,5 +118,12 @@ need). Measured baseline: `greedy` beats `random` **0.908 [0.879, 0.930]** over
 - [x] Methods survey + phased plan written.
 - [x] Phase 0 — eval harness + baselines (random / greedy); greedy beats random
       0.908 [0.879, 0.930] over 500 games, harness calibrated.
-- [ ] Phase 1 — choose deck archetype (biggest lever on Elo).
-- [ ] Phases 2+ — heuristic → search → ablations against the live ladder (5 subs/day).
+- [x] Phase 1 — deck-space scaffolding: legality + legal-deck mask (`src/deck.py`,
+      engine-confirmed), coherent demo decks (`src/deckbuild.py` → `decklists/`),
+      name→id importer (`src/decklists.py`), round-robin deck-eval
+      (`scripts/run_deck_eval.py`; deck spread 0.683 ≫ ~0.50 agent diff), and a
+      self-contained greedy submission bundle (`submission/`, Docker-smoked).
+      Remaining: the actual ladder submission (`scripts/build_submission.py` →
+      `kaggle competitions submit`, needs credentials).
+- [ ] Phase 3+ — net skeleton (CB+BT heads) → BC warm-start → OSFP self-play →
+      test-time search → distill, validated against the live ladder (5 subs/day).

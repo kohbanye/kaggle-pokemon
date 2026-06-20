@@ -14,8 +14,10 @@ dependencies = [
 ]
 
 [tool.ruff]
-# EDA notebooks aren't held to library lint standards.
-extend-exclude = ["notebooks"]
+# EDA notebooks aren't held to library lint standards. The submission bundle is a
+# standalone, deliberately crash-proof artifact (blind excepts, no `src` import)
+# that mirrors the unit-tested src/agents/greedy_agent.py.
+extend-exclude = ["notebooks", "submission"]
 
 [tool.ruff.lint]
 select = ["ALL"]
