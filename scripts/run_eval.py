@@ -21,6 +21,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Protocol
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))  # make `src` importable when run as a script
@@ -32,12 +33,34 @@ from cg.game import battle_finish, battle_select, battle_start  # noqa: E402
 
 from src.agents import Agent, build_agent  # noqa: E402
 from src.agents.base import is_legal, legal_fallback  # noqa: E402
+from src.agents.net_agent import NetAgent  # noqa: E402
+from src.deck import CardPool, build_pool  # noqa: E402
 from src.harness.result import ABORTED, GameResult  # noqa: E402
 from src.harness.stats import summarize  # noqa: E402
 
 DECK_REQUEST = {"select": None, "logs": [], "current": None}
 DEFAULT_DECK = CG_PARENT / "deck.csv"
 MAX_SELECTIONS = 5000  # hard stop; a healthy game finishes in well under this
+
+
+class Recorder(Protocol):
+    """Optional per-decision hook for ``play_game`` (Phase-4 teacher-log collection)."""
+
+    def on_decision(self, slot: int, obs: dict, choice: list[int]) -> None: ...
+    def on_end(self, winner: int) -> None: ...
+
+
+def _make_agent(
+    name: str,
+    deck: list[int],
+    engine: dict,
+    weights: Path | None,
+    cb_pool: CardPool | None,
+) -> Agent:
+    """Build an agent; a ``net`` with a weights path loads the trained BC net."""
+    if name == "net" and weights is not None:
+        return NetAgent(deck, engine, weights=weights, cb_pool=cb_pool)
+    return build_agent(name, deck, engine)
 
 
 def read_deck(path: Path) -> list[int]:
@@ -80,8 +103,14 @@ def play_game(
     *,
     a_is_player0: bool,
     seed: int,
+    recorder: Recorder | None = None,
 ) -> GameResult:
-    """Play one game; agents are addressed by slot via ``current.yourIndex``."""
+    """Play one game; agents are addressed by slot via ``current.yourIndex``.
+
+    When a ``recorder`` is given, each applied decision is reported via
+    ``on_decision(slot, obs, choice)`` (the recorder must deep-copy ``obs`` --
+    ``battle_select`` reuses the dict) and the winner via ``on_end`` at the end.
+    """
     agent_p0.reset(seed)
     agent_p1.reset(seed)
     deck0 = agent_p0(DECK_REQUEST)
@@ -121,6 +150,9 @@ def play_game(
         moves[yidx] += 1
         max_move[yidx] = max(max_move[yidx], dt)
 
+        if recorder is not None:
+            recorder.on_decision(yidx, obs, choice)
+
         obs = battle_select(choice)
         selections += 1
         if selections >= MAX_SELECTIONS:
@@ -130,6 +162,8 @@ def play_game(
     wall = time.perf_counter() - wall0
     turns = obs["current"]["turn"] if obs["current"] is not None else -1
     battle_finish()
+    if recorder is not None:
+        recorder.on_end(winner)
 
     # Re-attribute slot-indexed stats to A / B.
     order = (0, 1) if a_is_player0 else (1, 0)
@@ -160,9 +194,12 @@ def run_match(  # noqa: PLR0913 - a CLI runner legitimately threads its config
     base_seed: int,
     swap: bool,
     progress_every: int,
+    a_weights: Path | None = None,
+    b_weights: Path | None = None,
+    cb_pool: CardPool | None = None,
 ) -> list[GameResult]:
-    agent_a = build_agent(name_a, deck_a, engine)
-    agent_b = build_agent(name_b, deck_b, engine)
+    agent_a = _make_agent(name_a, deck_a, engine, a_weights, cb_pool)
+    agent_b = _make_agent(name_b, deck_b, engine, b_weights, cb_pool)
 
     results: list[GameResult] = []
     for g in range(games):
@@ -213,11 +250,17 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=ROOT / "results", help="log dir")
     parser.add_argument("--tag", default=None, help="output filename stem")
     parser.add_argument("--progress-every", type=int, default=50)
+    parser.add_argument("--a-weights", type=Path, default=None, help="net A weights")
+    parser.add_argument("--b-weights", type=Path, default=None, help="net B weights")
+    parser.add_argument(
+        "--cb", action="store_true", help="net builds its deck from the CB head",
+    )
     args = parser.parse_args()
 
     deck_a = read_deck(args.deck_a or args.deck)
     deck_b = read_deck(args.deck_b or args.deck)
     engine = load_engine_data()
+    cb_pool = build_pool() if args.cb else None
 
     tag = args.tag or f"{args.a}_vs_{args.b}_n{args.games}_s{args.seed}"
     print(f"== {args.a} (A) vs {args.b} (B): {args.games} games, "
@@ -228,6 +271,7 @@ def main() -> None:
         args.a, args.b, deck_a, deck_b, engine,
         games=args.games, base_seed=args.seed, swap=not args.no_swap,
         progress_every=args.progress_every,
+        a_weights=args.a_weights, b_weights=args.b_weights, cb_pool=cb_pool,
     )
     elapsed = time.perf_counter() - t0
 

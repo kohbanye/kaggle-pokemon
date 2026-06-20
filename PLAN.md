@@ -136,7 +136,7 @@
 
 ---
 
-## Phase 4 — 行動クローン(BC)で暖機（自己対戦の前倒し）
+## Phase 4 — 行動クローン(BC)で暖機（自己対戦の前倒し）✅(完了, CBの決定的生成のみ制約あり)
 **目的**: スクラッチRLのコールドスタート（激重）を避けるため、**ヒューリスティック/探索を模倣**して非ランダムな初期方策＋価値を得る。OSFPの初期化に使う。
 
 **作るもの**
@@ -144,11 +144,11 @@
 - **対戦ヘッド(BT)のBC**＋**価値ヘッドの回帰**（試合結果/割引リターンを教師に）。
 - **デッキ構築ヘッド(CB)のBC**: P1で集めた**デッキリスト・デモ**を教師に、合法マスク下でCBヘッドを暖機。これは「デッキ固定」ではなく**学習の初期化**（OSFPで周辺を探索する起点）。
 
-**達成基準（Exit）**
-- BCネットが **`random` に圧勝**し、教師（heuristic/greedy）に**同等以上**まで到達。
-- CBヘッドが**合法かつ既知メタ相当のデッキ分布**を生成できる。
-- 価値ヘッドが試合結果を**ベースライン超**で予測（勝敗判別が偶然超）。
-- このBC版をOSFPの初期重みとして確定（＝Phase5のスタート地点）。
+**達成基準（Exit）**: §Phase 4 メモ・採否台帳参照。BT/価値は全達成、CBは合法だが決定的生成に制約。
+- BCネットが **`random` に圧勝**し、教師（heuristic/greedy）に**同等以上**まで到達。→ **達成**（vs random 0.998 / vs greedy 0.532 / vs heuristic **0.604＝教師超え**, 各500局・実機）。
+- CBヘッドが**合法かつ既知メタ相当のデッキ分布**を生成できる。→ **部分達成**（常に合法・errorType=0。**sampled** decode は distinct=50 で多様だが、**greedy** decode は固定特徴ゆえ distinct=2 に崩壊＝個体選択は学習カード埋め込み待ち）。
+- 価値ヘッドが試合結果を**ベースライン超**で予測（勝敗判別が偶然超）。→ **達成**（符号正解率 0.895 ≫ 0.5）。
+- このBC版をOSFPの初期重みとして確定（＝Phase5のスタート地点）。→ **確定**（`data/bc/bc_net.npz`, heuristic-init）。
 
 **Ablation**: 教師(heuristic vs 探索)・データ量・価値教師(最終結果 vs 割引リターン)、**CBの初期化(デッキBC vs スクラッチ)**を振り、**OSFP初期化として最良の構成**を選ぶ。
 BCだけで既存ベースラインを超えるなら、それ自体を一つの提出候補として確保（保険）。
@@ -266,6 +266,12 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P3 | CBヘッド デッキ生成（greedy+sampled×2, 合法マスク, 実機） | engine `battle_start` | 3デッキ | — | — | **常に合法** | 全て **errorType=0 受理**。distinct names: greedy 15(=4×15名)/sampled 59・56＝混合で多様化。論文「デッキは分布」の足場 |
 | 2026-06-20 | P3 | 学習配線サニティ（**torch+Lightning** で policy BC, 合成データ） | — | — | — | — | **配線OK** | torch fwd/bwd/Adam が機能: loss 初期比<0.7・精度 chance(0.25)→>0.5。`Trainer.fit`→npz エクスポート→numpy serving が往復。torch↔numpy forward **parity<1e-9**。Phase4 BC の本体 |
 | 2026-06-20 | P3 | 推論時間（net 1手, metal_aggro, 実機） | greedy(~0.002ms) | 30局 | — | — | **余裕大** | avg **0.12ms** / 最悪 **6.4ms**。greedy比~50倍だが sub-ms 中心＝探索/学習を載せる予算十分（手番制限に桁違いのマージン） |
+| 2026-06-20 | P4 | **BC net(heuristic教師)** vs random（metal_aggro固定, 実機） | random | 500 | **0.998 [0.989, 1.000]** | — | **採用** | ランダム初期化net(0/30)から一変＝**random圧勝**。Exit「random圧勝」達成 |
+| 2026-06-20 | P4 | BC net(heuristic) vs **greedy** | greedy | 500 | 0.532 [0.488, 0.575] | — | 同等 | CI跨ぎ＝greedyと**同等**（Exit「教師同等以上」を満たす） |
+| 2026-06-20 | P4 | BC net(heuristic) vs **heuristic(教師)** | heuristic | 500 | **0.604 [0.560, 0.646]** | — | **教師超え** | CIが50%跨がず＝**教師をわずかに上回る**（BC平均化＝設計の論理pt4。最終的上積みはP5） |
+| 2026-06-20 | P4 | ablation: **教師 greedy vs heuristic**（同一ログ流用） | heuristic-init各値 | 各500 | greedy-init 0.990/0.488/0.580 | — | heuristic優位 | 全対戦で heuristic-init ≥ greedy-init → **既定=heuristic 確定**（P5初期化） |
+| 2026-06-20 | P4 | 価値ヘッド符号正解率（held-out, 23k samples） | chance 0.5 | — | **0.895** | — | **偶然超** | 実勝敗で学習＝真の信号。Exit「value偶然超」達成（policy top-1 acc 0.874 も同時） |
+| 2026-06-20 | P4 | CB head decode（学習CB, 実機 battle_start） | — | — | — | — | **制約判明** | **greedy decode は distinct=2 に崩壊**（固定特徴＝プロファイル選択＋energyがcap免除）。**sampled decode は distinct=50 で合法**・多様。crash0/illegal0/worst0.87ms |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -310,10 +316,21 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **強さは未（想定どおり）**: random 初期化なので net は greedy に **0/30**。Phase 3 は“配線”で強さは問わない（exit基準は合法 forward・合法CB・時間予算・学習配線の4点で**全達成**）。
 - **次（Phase 4 へ / Phase 2 再走）**: ① **Phase 4 BC 暖機**＝`heuristic`/`greedy` の対戦ログ（観測,手,結果）を `(states,options,mask,targets,values)` バッチに整形し `LitPolicyValue` で BT/価値を学習（CBヘッドも同型の masked-CE で）。保険提出候補。② 並行して **Phase 2 ablation を実デッキ・非ミラーで再走**（heuristic 保留の解消）。骨格はそのまま OSFP(Phase5) の初期化に載る。
 
+### Phase 4 メモ（行動クローン暖機 — 完了, CB決定的生成のみ制約）
+
+- **作ったもの**: ①`scripts/collect_bc.py`（Docker・教師ログ収集）＋`run_eval.play_game` に後方互換な `recorder` フック（適用手の直後に obs を deep-copy 記録、終局で winner）。②`src/net/bc_data.py`（生ログ→`encode_state/encode_options` で 5-tuple、価値ラベル＝手番視点の勝敗±割引、`collate_*`、CB教師データ `cb_supervision`）。③`src/net/lit.py` に `cb_loss`＋`LitCB`（同一ネットの **cb1/cb2 のみ**最適化＝BT/価値と独立）。④`scripts/train_bc.py`（policy/価値→CB を1ネットで学習→`.npz` エクスポート、held-out 評価）。⑤`run_eval` に `--a/b-weights`・`--cb` 配線、`probe_net` に `--weights`＋CB重複レポート。⑥**循環import修正**: `encode.py` が `src.agents.base` から `AREA_*` を import していた箇所を局所ミラーに（net層を agents 非依存化＝`encode` が最初に import されても壊れない）。
+- **学習データ**: heuristic 教師の **400局**（8デモデッキ総当たり×対戦相手 {heuristic,greedy}、`data/bc/`、156MB、収集 **11秒**/Docker）。単一選択判断のみ採用＝**23,261 policy samples**。学習はネイティブ torch+Lightning で **~11秒**（22k params, CPU）。両者の分離は「学習=torch/推論=numpy」方針（[[training-stack-torch-lightning]]）どおり、parityで往復保証済み。
+- **結果（実機・metal_aggro 固定・各500局）**: net(heuristic-init) vs **random 0.998** / **greedy 0.532（同等）** / **heuristic 0.604（教師超え）**。held-out **policy top-1 0.874・value符号 0.895**。**crash 0 / illegal 0 / 最悪 0.87ms**。→ Exit の「random圧勝・教師同等以上・value偶然超・退行なし」を**全達成**。教師をわずかに超えるのは BC 平均化（設計の論理 pt4）。最終的な上積みは Phase5 RL の仕事。
+- **教師 ablation（同一ログ流用）**: greedy 教師でも学習可（`teachers={greedy}`、7,004 samples、val acc 0.954）。実機 vs random/greedy/heuristic = 0.990/0.488/0.580。**全対戦で heuristic-init ≥ greedy-init** → 既定教師 = **heuristic** を確定（プラン既定と一致）。
+- **価値ターゲット ablation（最終 vs 割引）について**: `--discount` つまみは実装済みだが、**NetAgent の対戦は policy ヘッドのみ使用**（価値ヘッドは推論で不使用）ため net 同士の勝率に影響しない＝この ablation は **Phase5（価値を advantage に使う）で評価**するのが正しい。Phase4 では value符号正解率で健全性のみ確認。
+- **CB 所見（重要・アーキ起因の制約）**: CBヘッドは **固定特徴**で各カードを採点（`features.py`：学習カード埋め込みは後段ablation）。ゆえに「カード個体」でなく「**特徴プロファイル**」を順位付けし、**greedy decode は最高プロファイル＋cap免除の基本エネに崩壊**（distinct=2）。inverse-copy 重み（`CBSample.weight`＝1/枚数。エネ支配を抑える）でも個体識別不能の壁は残る。一方 **sampled decode は distinct=50 で合法・多様**（「デッキは分布」と整合）。→ **(a)** 決定的提出は **デモデッキを安全網**（§Phase7 安全網）、**(b)** OSFP(Phase5) では **sampled CB** を相手デッキ多様化に使える、**(c)** CB の個体選択力には **学習カード埋め込み**が必要（後段で ablation）。
+- **提出衛生**: バンドルは numpy のみ（torch非依存）を維持。`bc_net.npz`=22k params/~180KB。`data/bc/`（ログ・engine.json・npz）は gitignore。
+- **次（Phase 5 へ）**: `data/bc/bc_net.npz`（heuristic-init）を **OSFP 自己対戦の初期重み**に確定。Phase5 で「**BC暖機あり vs なし(from-scratch)**」を同計算量で実測（暖機の価値の裏取り＝ユーザ合意事項）し、価値ターゲット(最終 vs 割引)・デッキヘッド学習 on/off を ablation。
+
 ---
 
 ## マイルストーン（目安）
 - **M1**: P0–P1 完了 → 評価基盤＋**デッキ空間の足場（合法マスク/プール/メタデッキ・デモ）**＋初ラダー提出（ローカル↔ラダー較正開始）
-- **M2**: P2–P4 完了 → ヒューリスティック土台＋表現/骨格（CB+BTヘッド）＋**BC暖機（プレイ＋デッキ）**（非ランダム学習方策の保険提出が可能に）
+- **M2**: P2–P4 完了 → ヒューリスティック土台＋表現/骨格（CB+BTヘッド）＋**BC暖機（プレイ＋デッキ）**（非ランダム学習方策の保険提出が可能に） ✅(BT/価値達成・教師超え。CB決定的生成のみ制約＝学習埋め込み待ち)
 - **M3**: P5 完了 → **OSFP自己対戦ネット（デッキ↔プレイ同時学習）がラダーで前段を有意に上回る**（論文中核の達成）
 - **M4**: P6–P7 完了 → 推論時探索の採否を確定＋頑健化した最終提出（〆切 2026-08-16）
