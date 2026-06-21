@@ -310,7 +310,9 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-20 | P5a | 学習後 net 実機 probe（final.npz, Docker） | — | 6局 | — | — | **PASS** | net vs greedy/net **crash0/illegal0**・worst **1.0ms**。**CBヘッド凍結を実証**（greedy distinct=2/sampled distinct=50＝Phase4と一致＝cb*未更新）。errorType=0 |
 | 2026-06-20 | P5a | **OSFP net(100iter×256, default) final** vs **BC** | BC net | 500 | **0.546 [0.502, 0.589]** | — | **保留(lean)** | CI下限0.502＝BCを僅かに上回るが≥55%未達（§B 51–55%＝要N増/調整）。metal_aggro固定・argmax・~30分・33ckpt採用 |
 | 2026-06-20 | P5a | OSFP net(同上) final vs **heuristic** | heuristic | 500 | **0.682 [0.640, 0.721]** | — | **改善** | BC(0.604)を~8pp上回る＝OSFPで強くなる方向は出た。ループ内eval(各100局)は~0.50/0.64でノイジー横ばい、**last-iterate(final)が最良**＝OSFPらしい |
-| — | P5a | 残: temperature/lr 調整・N≥1000で vs BC 再計測・BC暖機あり/なし・ラダー | — | — | — | — | **未計測** | vs BC が保留帯なのでチューニング（既定 temp=1.0 は探索過多）＋N増で詰める。ラダー検証は §C |
+| 2026-06-21 | P5a | **lr↓temp↓**（run2: lr1e-3→3e-4・temp1.0→0.5, 100iter） vs BC | BC net | 500 | 0.554 [0.510, 0.597] | — | **安定化(採用)** | run1 final と**互角**（vs run1 0.490 [0.446,0.534]）＝強さは不変だが、チェックポイント・トレンドの**振動が消え last-iterate が最良**に＝finalを提出可。安定設定として採用 |
+| 2026-06-21 | P5a | **スケール14x**（run3: 同安定設定で 1400iter, 482ckpt） vs BC | BC net | 500 | 0.562 [0.518, 0.605] | — | **天井不変(不採用)** | run2 final と**互角**（vs run2 0.508 [0.464,0.552]）。**~iter350 で頭打ち→1000+iter横ばい**。vs heuristic も ~0.69 で run1/2 と同帯。**「もっと回す」では伸びない**ことを決定的に確認（次は容量/別ヘッド＝5b） |
+| 2026-06-21 | P5a | **結論**: 5a は天井で収束（vs BC ~0.56・vs heuristic ~0.68） | — | — | — | — | **一区切り** | プレイ専用RL（デッキ固定）の上積みは~+8ppで頭打ち。瞬間崩壊は残存（PPO/V-Trace で対処可・天井は上げない）。ボトルネック=データ量でなく**容量/表現**。→ **5b（デッキ学習＝最大レバー）へ**。可視化: `notebooks/02_osfp_training.ipynb` |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 

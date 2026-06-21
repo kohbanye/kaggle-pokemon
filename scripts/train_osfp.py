@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -84,6 +85,7 @@ class OsfpConfig:
     eval_every: int = 5
     eval_games: int = 100
     seed: int = 0
+    keep_games: bool = False  # keep each iter's self-play JSONL (else delete after use)
     decay: float = 0.5
     self_play_prob: float = 0.3
     baseline_floor: float = 0.1
@@ -204,6 +206,10 @@ def run_osfp(
         )
         if samples:
             net_np = _train_step(net_np, samples, cfg)
+        # The iteration's raw JSONL is consumed -- drop it so a long run doesn't
+        # pile up ~100 MB/iter (the trained checkpoint is the durable artifact).
+        if not cfg.keep_games:
+            shutil.rmtree(spec.out, ignore_errors=True)
 
         winrates: dict[str, float] = {}
         if evaluate is not None and n % cfg.eval_every == 0:
@@ -323,6 +329,9 @@ def main() -> None:
     parser.add_argument("--eval-games", type=int, default=100)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-eval", action="store_true")
+    parser.add_argument(
+        "--keep-games", action="store_true", help="keep per-iter JSONL (uses disk)",
+    )
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
     args = parser.parse_args()
 
@@ -334,7 +343,7 @@ def main() -> None:
         baselines=["random", "greedy", "heuristic"], iterations=args.iterations,
         games_per_iter=args.games, temperature=args.temperature, epochs=args.epochs,
         lr=args.lr, entropy_coef=args.entropy_coef, eval_every=args.eval_every,
-        eval_games=args.eval_games, seed=args.seed,
+        eval_games=args.eval_games, seed=args.seed, keep_games=args.keep_games,
     )
     feats = CardFeatures(load_engine_json(args.engine_json))
     opponents: list[tuple[str, str, Path | None]] = [

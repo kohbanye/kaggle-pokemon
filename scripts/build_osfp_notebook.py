@@ -1,9 +1,17 @@
 """Generate notebooks/02_osfp_training.ipynb from source cells.
 
-Visualises a Phase-5 OSFP self-play run written by ``scripts/train_osfp.py``
-(``<run>/history.json``): the win-rate curve vs the fixed opponents over
-training, the samples/checkpoints per iteration, and the clean final eval. Keep
-the content in this .py builder (reviewable in diffs, regenerable). Run:
+Summarises the Phase-5a OSFP self-play experiments produced by
+``scripts/train_osfp.py`` (each run's ``<run>/history.json``):
+
+  run1  lr=1e-3  temp=1.0  100 iter   -- baseline (unstable)
+  run2  lr=3e-4  temp=0.5  100 iter   -- stabilised
+  run3  lr=3e-4  temp=0.5  1400 iter  -- scale test (14x data)
+
+It plots the long run's win-rate curve, the cross-run checkpoint-strength trend,
+and the clean N=500 verdicts, then draws the conclusion (stabilising worked; more
+data did **not** raise the ceiling -> the bottleneck is capacity, not data ->
+Phase 5b deck-head learning). Keep the content in this .py builder (reviewable in
+diffs, regenerable). Run:
 
   uv run python scripts/build_osfp_notebook.py
   uv run jupyter nbconvert --to notebook --execute --inplace \
@@ -30,18 +38,22 @@ def code(text: str) -> None:
 
 md(
     """
-# Pokémon TCG AI Battle — OSFP self-play training (Phase 5a)
+# Pokémon TCG AI Battle — OSFP self-play (Phase 5a) summary
 
-Visualises one **OSFP self-play** run produced by `scripts/train_osfp.py`. We
-warm-start from the Phase-4 behaviour-cloning net (`data/bc/bc_net.npz`) and
-improve the **play + value heads** with REINFORCE on self-play returns, against a
-recency-weighted opponent pool (`random`/`greedy`/`heuristic` + admitted
-checkpoints). The deck is **fixed** (`metal_aggro`) in this arm — deck-head
-learning is OFF (the 5b ablation arm).
+Phase 5a improves the **play + value heads** with REINFORCE on self-play returns
+(OSFP opponent pool, deck **fixed** to `metal_aggro` = deck-head OFF arm), warm-
+started from the Phase-4 BC net. Three experiments:
 
-The run logs, every `eval_every` iterations, the learner's **argmax** win rate vs
-each fixed opponent (100 games/point — noisy, ±~10pp). The question this notebook
-answers: **does self-play RL move strength above the BC starting point?**
+| run | lr | temperature | iterations | note |
+|---|---|---|---|---|
+| **run1** | 1e-3 | 1.0 | 100 | baseline — **unstable** (improve→collapse) |
+| **run2** | 3e-4 | 0.5 | 100 | **stabilised** (lower lr + temperature) |
+| **run3** | 3e-4 | 0.5 | **1400** | **scale test** — 14x more data |
+
+The question: **does self-play RL beat the BC start, and does more data help?**
+Spoiler: it beats BC *modestly* (~+8pp vs heuristic), stabilising fixed the
+oscillation, but **14x more data did not raise the ceiling** — so the bottleneck
+is capacity, not data quantity (→ Phase 5b).
 """,
 )
 
@@ -50,174 +62,188 @@ code(
 import sys, json
 from pathlib import Path
 
-# Make `import src...` work whether run from repo root or notebooks/.
 ROOT = Path.cwd()
 if not (ROOT / "src").exists():
     ROOT = ROOT.parent
 sys.path.insert(0, str(ROOT))
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(style="whitegrid")
 
-RUN_DIR = ROOT / "data" / "osfp" / "run1"   # <- point at another run to re-use
-hist = json.loads((RUN_DIR / "history.json").read_text())
-cfg = hist["config"]
-print("run config:", json.dumps(cfg, ensure_ascii=False))
-print("checkpoints admitted:", hist["checkpoints"])
+RUNS = {r: json.loads((ROOT / "data" / "osfp" / r / "history.json").read_text())
+        for r in ["run1", "run2", "run3"]}
 
-df = pd.DataFrame(hist["iterations_log"])
-print(f"iterations: {len(df)}")
-df.head()
+def eval_curve(hist):
+    rows = [r for r in hist["iterations_log"] if r["winrates"]]
+    df = pd.DataFrame([{"iteration": r["iteration"], **r["winrates"]} for r in rows])
+    return df.set_index("iteration")
+
+for name, h in RUNS.items():
+    c = h["config"]
+    print(f"{name}: lr={c['lr']} temp={c['temperature']} iters={c['iterations']} "
+          f"checkpoints={h['checkpoints']}")
 """,
 )
 
 md(
     """
-## 1. Win-rate curve vs the fixed opponents
+## 1. The long run (run3): win rate is flat over 1400 iterations
 
-The headline chart. Each eval point is the learner's argmax win rate over 100
-games vs that opponent. Reference lines: **0.5** (even) and **BC's Phase-4
-strength vs heuristic (0.604)**. The ★ marks the clean **N=500** eval of the
-final checkpoint (much tighter than the 100-game in-loop points).
+Each point is the learner's argmax win rate over 150 games (noisy, ±~8pp).
+The strength reaches its band by ~iter 350 and **oscillates there for the next
+~1000 iterations — no upward trend**. The sharp drops (≈iter 125 / 975 / 1175)
+are transient single-iteration collapses (residual instability).
 """,
 )
 
 code(
     """
-evals = df[df["winrates"].map(len) > 0].copy()
-wr = pd.json_normalize(list(evals["winrates"]))
-wr.index = list(evals["iteration"])
+wr3 = eval_curve(RUNS["run3"])
 
-fig, ax = plt.subplots(figsize=(11, 5))
-palette = {"random": "#999999", "greedy": "#55a868",
-           "heuristic": "#c44e52", "bc": "#4c72b0"}
-for opp in wr.columns:
-    ax.plot(wr.index, wr[opp], marker="o", label=f"vs {opp}",
-            color=palette.get(opp))
-
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.plot(wr3.index, wr3["heuristic"], marker=".", color="#c44e52", label="vs heuristic")
+ax.plot(wr3.index, wr3["bc"], marker=".", color="#4c72b0", label="vs BC")
 ax.axhline(0.5, ls="--", c="grey", lw=1)
-ax.axhline(0.604, ls=":", c="#4c72b0", lw=1)
-ax.text(wr.index.min(), 0.61, "BC vs heuristic = 0.604", fontsize=8, color="#4c72b0")
-
-fe = hist.get("final_eval_n500", {})
-if fe:
-    x = wr.index.max()
-    ax.scatter([x], [fe["vs_bc"]], marker="*", s=240, c="#4c72b0", zorder=5,
-               edgecolor="k", label=f"FINAL vs bc N=500 = {fe['vs_bc']}")
-    ax.scatter([x], [fe["vs_heuristic"]], marker="*", s=240, c="#c44e52", zorder=5,
-               edgecolor="k", label=f"FINAL vs heuristic N=500 = {fe['vs_heuristic']}")
-
-ax.set_xlabel("iteration (eval points)")
-ax.set_ylabel("learner argmax win rate")
-ax.set_title("OSFP self-play: win rate vs fixed opponents over training")
-ax.set_ylim(0.3, 1.03)
-ax.legend(loc="lower right", fontsize=8, ncol=2)
+ax.axhline(0.604, ls=":", c="#c44e52", lw=1)
+ax.text(20, 0.61, "BC vs heuristic = 0.604", fontsize=8, color="#c44e52")
+ax.set_xlabel("iteration")
+ax.set_ylabel("argmax win rate (150 games/pt)")
+ax.set_title("run3 (lr=3e-4, temp=0.5, 1400 iter): strength is flat, not climbing")
+ax.set_ylim(0.0, 1.0)
+ax.legend(loc="lower right")
 plt.tight_layout()
 plt.show()
 """,
 )
 
+md(
+    """
+## 2. Checkpoint-strength trend (clean N=300, vs heuristic)
+
+Evaluating saved checkpoints across each run. **run1 oscillates** (peaks at
+iter_25 = 0.71 then crashes to 0.61 — last-iterate is *not* best). **run2/run3
+are stable** and the final net is the best — but they all sit in the same
+~0.62-0.69 band. run3's 14x extra iterations (350 to 1400) add **nothing**.
+""",
+)
+
 code(
     """
-# The numbers behind the curve (in-loop, 100 games/point -> noisy).
-summary = wr.describe().T[["mean", "min", "max"]].round(3)
-summary["final_inloop"] = wr.iloc[-1]
-summary
+# Measured N=300 checkpoint evals vs heuristic (frozen results from run_eval).
+TRENDS = {
+    "run1 (unstable)":  {1: 0.610, 25: 0.707, 50: 0.607, 75: 0.647, 100: 0.630},
+    "run2 (stable)":    {1: 0.613, 25: 0.660, 50: 0.650, 75: 0.647, 100: 0.680},
+    "run3 (stable,14x)":{1: 0.537, 350: 0.687, 700: 0.630, 1050: 0.620, 1400: 0.687},
+}
+fig, ax = plt.subplots(figsize=(12, 5))
+colors = {"run1 (unstable)": "#dd8452", "run2 (stable)": "#55a868",
+          "run3 (stable,14x)": "#4c72b0"}
+for name, pts in TRENDS.items():
+    xs, ys = list(pts), list(pts.values())
+    ax.plot(xs, ys, marker="o", label=name, color=colors[name])
+ax.axhline(0.604, ls=":", c="grey", lw=1, label="BC start (0.604)")
+ax.set_xscale("log")
+ax.set_xlabel("iteration (log scale)")
+ax.set_ylabel("win rate vs heuristic (N=300)")
+ax.set_title("Checkpoint strength: run1 oscillates; run2/run3 stable; same ceiling")
+ax.set_ylim(0.5, 0.75)
+ax.legend()
+plt.tight_layout()
+plt.show()
 """,
 )
 
 md(
     """
-## 2. Opponent mix, samples, and checkpoint growth
+## 3. The verdict — clean N=500 evals of the final checkpoints
 
-What the OSFP loop did each iteration: which opponent it faced (self-play /
-scripted baseline / an admitted past checkpoint), how many policy samples it
-trained on (**self-play yields ~2x** because both slots are tagged `learner`),
-and how the checkpoint pool grew (admission by win-rate threshold or patience).
+`final.npz` is the last-iterate net OSFP submits. Head-to-head between runs is the
+decisive test of "did the change help".
 """,
 )
 
 code(
     """
+# Frozen N=500 results (run_eval, metal_aggro, argmax).
+VERDICT = pd.DataFrame([
+    {"comparison": "run1 final vs BC",        "winrate": 0.546, "ci": "[0.502, 0.589]",
+     "read": "lean — barely > 0.5 (保留 band)"},
+    {"comparison": "run2 final vs BC",        "winrate": 0.554, "ci": "[0.510, 0.597]",
+     "read": "lean — same as run1"},
+    {"comparison": "run3 final vs BC",        "winrate": 0.562, "ci": "[0.518, 0.605]",
+     "read": "lean — same as run1/2"},
+    {"comparison": "run2 final vs run1 final","winrate": 0.490, "ci": "[0.446, 0.534]",
+     "read": "EQUAL — stabilising didn't raise strength"},
+    {"comparison": "run3 final vs run2 final","winrate": 0.508, "ci": "[0.464, 0.552]",
+     "read": "EQUAL — 14x data didn't raise strength"},
+])
+VERDICT
+""",
+)
+
+md(
+    """
+## 4. Opponent pool growth (run3)
+
+OSFP admits checkpoints (win-rate threshold or patience) into the recency-weighted
+opponent pool. run3 grew to **482** checkpoints. Self-play iterations yield ~2-3x
+the samples (both slots tagged `learner`).
+""",
+)
+
+code(
+    """
+log3 = pd.DataFrame(RUNS["run3"]["iterations_log"])
+
 def opp_kind(o):
     if o == "self":
         return "self-play"
     if o.endswith(".npz"):
         return "checkpoint"
     return "baseline"
+log3["opp_kind"] = log3["opponent"].map(opp_kind)
+log3["pool_size"] = log3["admitted"].cumsum()  # running count of admitted checkpoints
+palette = {"self-play": "#4c72b0", "checkpoint": "#8172b3", "baseline": "#55a868"}
 
-df["opp_kind"] = df["opponent"].map(opp_kind)
-colors = {"self-play": "#4c72b0", "checkpoint": "#8172b3", "baseline": "#55a868"}
-
-fig, ax = plt.subplots(figsize=(11, 4))
-ax.bar(df["iteration"], df["n_samples"], width=0.9,
-       color=df["opp_kind"].map(colors))
-ax.set_xlabel("iteration")
-ax.set_ylabel("policy samples / iter")
-ax.set_title("Samples per iteration (bar colour = opponent kind) + pool size")
-
+fig, ax = plt.subplots(figsize=(12, 4))
+ax.bar(log3["iteration"], log3["n_samples"], width=1.0,
+       color=log3["opp_kind"].map(palette))
+ax.set_xlabel("iteration"); ax.set_ylabel("policy samples / iter")
+ax.set_title("run3: samples per iteration (colour = opponent kind) + pool size")
 ax2 = ax.twinx()
-ax2.plot(df["iteration"], df["ckpts_after"], c="black", lw=1.6)
+ax2.plot(log3["iteration"], log3["pool_size"], c="black", lw=1.4)
 ax2.set_ylabel("checkpoints in pool")
-
-handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in colors.values()]
-ax.legend(handles, list(colors), loc="upper left", fontsize=8)
+handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in palette.values()]
+ax.legend(handles, list(palette), loc="upper left", fontsize=8)
 plt.tight_layout()
 plt.show()
-
-print(df["opp_kind"].value_counts().to_string())
 """,
 )
 
 md(
     """
-## 3. Final checkpoint — clean N=500 eval
+## Conclusion (Phase 5a)
 
-The in-loop points are 100 games each (±~10pp), too noisy for a keep/drop call.
-These are the **N=500** evals of `final.npz` (the last-iterate net OSFP submits),
-read from `results/` if present.
-""",
-)
+- **It beats BC, modestly**: final nets reach **~0.56 vs BC** and **~0.68 vs
+  heuristic** (BC was 0.604) — a real **~+8pp** but small gain. A valid, stable
+  submission candidate.
+- **Stabilising worked**: lowering lr (1e-3→3e-4) + temperature (1.0→0.5) removed
+  run1's improve→collapse oscillation; the final checkpoint becomes reliably the
+  best (last-iterate). But it did **not** raise strength (run2 ≈ run1).
+- **Scale did NOT help**: 14x more data (run3, 1400 iter) is **statistically
+  equal** to run2 (0.508), and strength plateaus by ~iter 350. **The bottleneck
+  is capacity / representation, not data quantity.**
+- Residual transient collapses persist (PPO-clip / V-Trace would address them, but
+  that's a stability fix, not a ceiling-raiser).
 
-code(
-    """
-for tag, label in [("final_vs_bc", "vs BC net"), ("final_vs_heur", "vs heuristic")]:
-    p = ROOT / "results" / f"{tag}.json"
-    if not p.exists():
-        print(f"{label}: (results/{tag}.json not found)")
-        continue
-    s = json.loads(p.read_text())
-    lo, hi = s["a_winrate_ci95"]
-    print(f"{label:14s}: {s['a_winrate']:.3f}  95% CI [{lo:.3f}, {hi:.3f}]  "
-          f"-> {s['verdict']}")
-""",
-)
-
-md(
-    """
-## Takeaways (honest read)
-
-- **vs random**: ~1.0 throughout — crushed, as expected.
-- **vs heuristic**: the final net reaches **~0.68 (N=500)**, above BC's 0.604 -
-  a real, modest improvement (~+8pp). The in-loop 100-game points oscillate
-  (0.52-0.76) purely from noise.
-- **vs BC head-to-head**: final **0.546 (N=500, CI [0.502, 0.589])** - *barely*
-  above 0.5. This is the §B "保留" band (51-55%), **not** the >=55% clear-adopt
-  bar. So OSFP edged BC but did not clearly beat it.
-- **Shape**: the per-iteration curve is essentially **flat with high variance** -
-  the gain shows up as the **last-iterate** final checkpoint, consistent with
-  OSFP's last-iterate convergence (we submit the final net, not an average).
-
-**Why so modest**: ~100x256 ~= 1M samples is *tiny* for self-play RL (the paper
-used 3.2e8 samples per learning period). And the default `temperature=1.0`
-makes self-play data very exploratory (weak gradient signal).
-
-**Next**: tune (lower/anneal `temperature`, `lr`, epochs/iter), evaluate at
-**N≥1000** to resolve the 保留 band, and run longer / on native x86-64 Linux for
-more data — then the BC-warm-start-vs-from-scratch ablation. See `PLAN.md`
-Phase 5a メモ + 採否台帳.
+**Next — Phase 5b (deck-head learning).** The project's central thesis is *deck
+choice dominates Elo*. Phase 5a trained play on a **single fixed deck**; that lever
+is now capped at ~+8pp. The bigger lever is the **deck itself** — learn the CB
+(deck-construction) head with self-play returns (and a learned card embedding to
+fix the CB's fixed-feature collapse). See `PLAN.md` Phase 5 / Phase 5c, 採否台帳.
 """,
 )
 
