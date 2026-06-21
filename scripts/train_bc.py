@@ -88,6 +88,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--cb-epochs", type=int, default=40)
     parser.add_argument("--cb-shuffles", type=int, default=4)
+    parser.add_argument("--embed-dim", type=int, default=16, help="CB card embedding")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val-frac", type=float, default=0.1)
@@ -118,7 +119,9 @@ def main() -> None:
     )
 
     torch.manual_seed(args.seed)
-    lit = LitPolicyValue(NetConfig(), lr=args.lr)
+    pool = build_pool()  # built early: the net's card embedding is sized to the pool
+    config = NetConfig(n_cards=len(pool.ids()), embed_dim=args.embed_dim)
+    lit = LitPolicyValue(config, lr=args.lr)
     loader = DataLoader(
         PolicyDataset(train), batch_size=args.batch_size, shuffle=True,
         collate_fn=collate_policy,
@@ -127,8 +130,7 @@ def main() -> None:
     pol_acc, val_acc = evaluate(lit, val)
     print(f"val policy top-1 acc: {pol_acc:.3f}  value sign acc: {val_acc:.3f}")
 
-    # CB head: clone the demo decklists on the same net (only cb1/cb2 update).
-    pool = build_pool()
+    # CB head: clone the demo decklists on the same net (cb1/cb2 + cb_embed update).
     demo_decks = [load_deck_csv(p) for p in sorted(args.decks.glob("*.csv"))]
     card_feats, cb_samples = cb_supervision(
         demo_decks, pool, feats, np.random.default_rng(args.seed),

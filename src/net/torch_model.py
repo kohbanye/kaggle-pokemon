@@ -43,8 +43,15 @@ class TorchPolicyValueNet(nn.Module):
         self.value_head = nn.Linear(cfg.hidden, 1)
         self.policy1 = nn.Linear(cfg.hidden + cfg.option_dim, cfg.policy_hidden)
         self.policy2 = nn.Linear(cfg.policy_hidden, 1)
-        self.cb1 = nn.Linear(cfg.card_dim, cfg.cb_hidden)
+        self.cb1 = nn.Linear(cfg.card_dim + cfg.embed_dim, cfg.cb_hidden)
         self.cb2 = nn.Linear(cfg.cb_hidden, 1)
+        # Learned card embedding (Phase 5b): a raw Parameter matrix (NOT nn.Embedding)
+        # so it bridges to numpy un-transposed and the forward can torch.cat it. Last
+        # row is UNK; near-zero init so an untrained row leaves a card at its fixed-
+        # feature ranking. Created last so it doesn't shift the Linear inits above.
+        self.cb_embed = nn.Parameter(
+            torch.randn(cfg.n_cards + 1, cfg.embed_dim) * 0.01,
+        )
 
     # --- forward passes (batch-first) ---------------------------------------
 
@@ -81,6 +88,8 @@ class TorchPolicyValueNet(nn.Module):
         for lin, w, b in self._layer_keys():
             lin.weight.copy_(torch.as_tensor(params[w].T, dtype=lin.weight.dtype))
             lin.bias.copy_(torch.as_tensor(params[b], dtype=lin.bias.dtype))
+        for param, key in self._matrix_keys():  # raw tables: copied WITHOUT transpose
+            param.copy_(torch.as_tensor(params[key], dtype=param.dtype))
 
     @torch.no_grad()
     def to_numpy_params(self) -> dict[str, NDArray[np.float64]]:
@@ -89,6 +98,8 @@ class TorchPolicyValueNet(nn.Module):
         for lin, w, b in self._layer_keys():
             out[w] = lin.weight.detach().cpu().numpy().T.astype(np.float64)
             out[b] = lin.bias.detach().cpu().numpy().astype(np.float64)
+        for param, key in self._matrix_keys():  # raw tables: NOT transposed
+            out[key] = param.detach().cpu().numpy().astype(np.float64)
         return out
 
     def to_numpy_net(self) -> PolicyValueNet:
@@ -106,6 +117,15 @@ class TorchPolicyValueNet(nn.Module):
             (self.cb1, "cb_w1", "cb_b1"),
             (self.cb2, "cb_w2", "cb_b2"),
         ]
+
+    def _matrix_keys(self) -> list[tuple[nn.Parameter, str]]:
+        """(param, numpy-key) for raw matrices bridged WITHOUT transpose.
+
+        The card embedding is a row-indexed table ``(n_cards+1, embed_dim)``, not a
+        transposed Linear weight, so it must round-trip un-transposed (a stray
+        ``.T`` would corrupt it -- or shape-mismatch when n_cards != embed_dim).
+        """
+        return [(self.cb_embed, "cb_embed")]
 
 
 def from_numpy_net(net: PolicyValueNet) -> TorchPolicyValueNet:

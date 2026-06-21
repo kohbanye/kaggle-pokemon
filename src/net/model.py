@@ -44,6 +44,13 @@ class NetConfig:
     hidden: int = 64
     policy_hidden: int = 32
     cb_hidden: int = 32
+    # Learned card embedding for the CB head (Phase 5b). The head's input width is
+    # ``card_dim + embed_dim`` (fixed features concatenated with the embedding row);
+    # ``n_cards`` is the build pool size, so the table is ``(n_cards + 1, embed_dim)``
+    # (the trailing row is UNK). ``n_cards == 0`` => a 1-row UNK-only table (the
+    # default config used by parity tests; real CB nets pass the pool size).
+    embed_dim: int = 16
+    n_cards: int = 0
 
 
 # Small output-head init so random logits start near-uniform (stable softmax).
@@ -82,10 +89,13 @@ class PolicyValueNet:
         p["policy_b1"] = np.zeros(cfg.policy_hidden)
         p["policy_w2"] = rng.standard_normal((cfg.policy_hidden, 1)) * _HEAD_SCALE
         p["policy_b2"] = np.zeros(1)
-        p["cb_w1"] = he_init(rng, cfg.card_dim, cfg.cb_hidden)
+        p["cb_w1"] = he_init(rng, cfg.card_dim + cfg.embed_dim, cfg.cb_hidden)
         p["cb_b1"] = np.zeros(cfg.cb_hidden)
         p["cb_w2"] = rng.standard_normal((cfg.cb_hidden, 1)) * _HEAD_SCALE
         p["cb_b2"] = np.zeros(1)
+        # Near-zero card embedding (last row = UNK): an untrained row contributes
+        # ~0, so a card is ranked by its fixed features alone until BC/RL moves it.
+        p["cb_embed"] = rng.standard_normal((cfg.n_cards + 1, cfg.embed_dim)) * 0.01
         return cls(cfg, p)
 
     # --- forward passes -----------------------------------------------------

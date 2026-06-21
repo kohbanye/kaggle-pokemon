@@ -173,6 +173,7 @@ def test_pg_freezes_cb_head() -> None:
 
     assert torch.allclose(net.cb1.weight, before["cb1.weight"])  # CB head frozen
     assert torch.allclose(net.cb2.weight, before["cb2.weight"])
+    assert torch.allclose(net.cb_embed, before["cb_embed"])  # card embedding frozen too
     assert not torch.allclose(net.value_head.weight, before["value_head.weight"])
     assert not torch.allclose(net.policy2.weight, before["policy2.weight"])
 

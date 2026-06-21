@@ -96,7 +96,9 @@ def make_pool() -> CardPool:
 
 
 def net() -> PolicyValueNet:
-    return PolicyValueNet.random(np.random.default_rng(0))
+    # Size the card embedding to make_pool() so the CB head can score that pool.
+    cfg = NetConfig(n_cards=len(make_pool().ids()))
+    return PolicyValueNet.random(np.random.default_rng(0), cfg)
 
 
 # --- card features --------------------------------------------------------
@@ -179,9 +181,10 @@ def test_policy_logits_length_matches_options() -> None:
 
 def test_card_logits_length_matches_cards() -> None:
     n = net()
-    feats = np.random.default_rng(3).standard_normal((7, CARD_FEAT_DIM))
+    cb_in = CARD_FEAT_DIM + NetConfig().embed_dim  # fixed feats + card embedding
+    feats = np.random.default_rng(3).standard_normal((7, cb_in))
     assert n.card_logits(feats).shape == (7,)
-    assert n.card_logits(np.zeros((0, CARD_FEAT_DIM))).shape == (0,)
+    assert n.card_logits(np.zeros((0, cb_in))).shape == (0,)
 
 
 def test_param_count_positive() -> None:

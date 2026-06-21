@@ -64,7 +64,11 @@ def cb_loss(
     ``weights`` ``(B,)`` optionally re-weights each step (the inverse-copy weight
     that stops Basic Energy from dominating -- see :class:`bc_data.CBSample`).
     """
-    logits = net.card_logits(card_feats)  # (N_pool,)
+    # Concatenate the learned card embedding (the pool rows) onto the fixed
+    # features, so gradients flow into cb_embed (Phase 5b). Row order is
+    # sorted(pool.ids()), matching cb_embed's rows.
+    full = torch.cat([card_feats, net.cb_embed[: card_feats.shape[0]]], dim=-1)
+    logits = net.card_logits(full)  # (N_pool,)
     logits = logits.unsqueeze(0).expand(legal_mask.shape[0], -1)  # (B, N_pool)
     logits = logits.masked_fill(~legal_mask, _NEG_INF)
     if weights is None:
@@ -172,7 +176,13 @@ class LitCB(L.LightningModule):
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        params = [*self.net.cb1.parameters(), *self.net.cb2.parameters()]
+        # Train the CB head AND the card embedding (cb_embed); trunk/policy/value
+        # stay frozen (they're not in this list).
+        params = [
+            *self.net.cb1.parameters(),
+            *self.net.cb2.parameters(),
+            self.net.cb_embed,
+        ]
         return torch.optim.Adam(params, lr=self.lr)
 
 

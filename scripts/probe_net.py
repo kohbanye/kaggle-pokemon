@@ -41,7 +41,7 @@ from src.deck import CardPool, build_pool, load_deck_csv  # noqa: E402
 from src.deck import is_legal as deck_is_legal  # noqa: E402
 from src.net.cb import build_deck  # noqa: E402
 from src.net.features import CardFeatures  # noqa: E402
-from src.net.model import PolicyValueNet  # noqa: E402
+from src.net.model import NetConfig, PolicyValueNet  # noqa: E402
 
 MAX_SELECTIONS = 5000
 
@@ -162,7 +162,10 @@ def main() -> None:
     net = (
         PolicyValueNet.load(args.weights)
         if args.weights is not None
-        else PolicyValueNet.random(np.random.default_rng(0))
+        # random fallback: size the card embedding to the pool so the CB head works.
+        else PolicyValueNet.random(
+            np.random.default_rng(0), NetConfig(n_cards=len(pool.cards)),
+        )
     )
     src = args.weights if args.weights is not None else "random-init"
     print(f"net params: {net.param_count()}  pool: {len(pool.cards)} cards  ({src})")
