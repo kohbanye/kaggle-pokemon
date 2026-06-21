@@ -27,8 +27,8 @@ from src.net.bc_data import (
     collate_policy,
 )
 from src.net.encode import OPTION_DIM, STATE_DIM
-from src.net.features import CARD_FEAT_DIM, CardFeatures
-from src.net.lit import LitPolicyGradient, cb_pg_loss
+from src.net.features import CardFeatures
+from src.net.lit import LitPolicyGradient
 from src.net.model import NetConfig, PolicyValueNet
 from src.net.torch_model import TorchPolicyValueNet
 
@@ -290,30 +290,6 @@ def _cb_pool() -> CardPool:
         10: info(10, "A", bp=True), 11: info(11, "B", bp=True),
         20: info(20, "Item"), 30: info(30, "Ace", ace=True), 2: info(2, "E", be=True),
     })
-
-
-def test_cb_pg_loss_raises_advantaged_pick() -> None:
-    torch.manual_seed(0)
-    net = TorchPolicyValueNet(NetConfig(n_cards=6))
-    card_feats = torch.randn(6, CARD_FEAT_DIM)
-    mask = torch.ones(8, 6, dtype=torch.bool)
-    target = torch.zeros(8, dtype=torch.long)  # every step picked card 0
-    advantage = torch.ones(8)  # from a winning deck -> raise card 0's logprob
-    opt = torch.optim.Adam(
-        [*net.cb1.parameters(), *net.cb2.parameters(), net.cb_embed], lr=0.05,
-    )
-
-    def logp_card0() -> float:
-        full = torch.cat([card_feats, net.cb_embed[:6]], dim=-1)
-        logits = net.card_logits(full).unsqueeze(0).expand(8, -1)
-        return torch.log_softmax(logits, dim=1)[:, 0].mean().item()
-
-    first = logp_card0()
-    for _ in range(60):
-        opt.zero_grad()
-        cb_pg_loss(net, card_feats, mask, target, advantage).backward()
-        opt.step()
-    assert logp_card0() > first  # positive advantage made the picked card more likely
 
 
 def test_run_cb_rl_loop_with_fake_generator(tmp_path) -> None:  # noqa: ANN001 - fixture

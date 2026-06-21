@@ -43,7 +43,9 @@ class TorchPolicyValueNet(nn.Module):
         self.value_head = nn.Linear(cfg.hidden, 1)
         self.policy1 = nn.Linear(cfg.hidden + cfg.option_dim, cfg.policy_hidden)
         self.policy2 = nn.Linear(cfg.policy_hidden, 1)
-        self.cb1 = nn.Linear(cfg.card_dim + cfg.embed_dim, cfg.cb_hidden)
+        self.cb1 = nn.Linear(
+            cfg.lstm_hidden + cfg.card_dim + cfg.embed_dim, cfg.cb_hidden,
+        )
         self.cb2 = nn.Linear(cfg.cb_hidden, 1)
         # Learned card embedding (Phase 5b): a raw Parameter matrix (NOT nn.Embedding)
         # so it bridges to numpy un-transposed and the forward can torch.cat it. Last
@@ -52,6 +54,12 @@ class TorchPolicyValueNet(nn.Module):
         self.cb_embed = nn.Parameter(
             torch.randn(cfg.n_cards + 1, cfg.embed_dim) * 0.01,
         )
+        # Deck-build LSTM cell (Phase 5c): input = picked-card embedding, hidden h_t
+        # feeds the CB head so each pick sees the running composition. Its weights
+        # (weight_ih/hh, bias_ih/hh) bridge to numpy in torch's native layout, NOT
+        # transposed. cb_start = the t=0 input token (empty deck).
+        self.cb_lstm = nn.LSTMCell(cfg.embed_dim, cfg.lstm_hidden)
+        self.cb_start = nn.Parameter(torch.randn(cfg.embed_dim) * 0.01)
 
     # --- forward passes (batch-first) ---------------------------------------
 
@@ -119,13 +127,21 @@ class TorchPolicyValueNet(nn.Module):
         ]
 
     def _matrix_keys(self) -> list[tuple[nn.Parameter, str]]:
-        """(param, numpy-key) for raw matrices bridged WITHOUT transpose.
+        """(param, numpy-key) for raw tensors bridged WITHOUT transpose.
 
-        The card embedding is a row-indexed table ``(n_cards+1, embed_dim)``, not a
-        transposed Linear weight, so it must round-trip un-transposed (a stray
-        ``.T`` would corrupt it -- or shape-mismatch when n_cards != embed_dim).
+        The card embedding and the LSTM weights are not transposed Linear weights,
+        so they round-trip un-transposed. The LSTM tensors keep torch's native
+        layout (``weight_ih (4H, in)``, gates packed i,f,g,o) so the numpy forward
+        slices gates identically; a stray ``.T`` shape-mismatches (4H != in != H).
         """
-        return [(self.cb_embed, "cb_embed")]
+        return [
+            (self.cb_embed, "cb_embed"),
+            (self.cb_lstm.weight_ih, "lstm_w_ih"),
+            (self.cb_lstm.weight_hh, "lstm_w_hh"),
+            (self.cb_lstm.bias_ih, "lstm_b_ih"),
+            (self.cb_lstm.bias_hh, "lstm_b_hh"),
+            (self.cb_start, "cb_start"),
+        ]
 
 
 def from_numpy_net(net: PolicyValueNet) -> TorchPolicyValueNet:

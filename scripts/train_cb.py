@@ -36,13 +36,13 @@ from torch.utils.data import DataLoader  # noqa: E402
 
 from src.deck import build_pool  # noqa: E402
 from src.net.bc_data import (  # noqa: E402
-    CBDataset,
-    cb_rl_samples,
-    collate_cb,
+    CBSequenceDataset,
+    cb_rl_sequences,
+    collate_cb_seq,
     load_engine_json,
 )
 from src.net.features import CardFeatures  # noqa: E402
-from src.net.lit import LitCBPolicyGradient  # noqa: E402
+from src.net.lit import LitCBSeqPolicyGradient  # noqa: E402
 from src.net.model import PolicyValueNet  # noqa: E402
 from src.net.torch_model import from_numpy_net  # noqa: E402
 
@@ -120,10 +120,10 @@ def _cb_train_step(
     cfg: CBConfig,
 ) -> PolicyValueNet:
     torch_net = from_numpy_net(net_np)
-    lit = LitCBPolicyGradient(torch_net, card_feats, lr=cfg.lr)
+    lit = LitCBSeqPolicyGradient(torch_net, card_feats, lr=cfg.lr)
     loader = DataLoader(
-        CBDataset(samples), batch_size=cfg.batch_size, shuffle=True,
-        collate_fn=collate_cb,
+        CBSequenceDataset(samples), batch_size=cfg.batch_size, shuffle=True,
+        collate_fn=collate_cb_seq,
     )
     _trainer(cfg.epochs).fit(lit, loader)
     return lit.net.double().to_numpy_net()
@@ -155,7 +155,7 @@ def run_cb_rl(
         records = generate(spec)
         scored = [(r["deck"], _deck_return(r)) for r in records
                   if r["wins"] + r["losses"] > 0]
-        card_feats, samples = cb_rl_samples(scored, pool, feats, normalize=True)
+        card_feats, samples = cb_rl_sequences(scored, pool, feats, normalize=True)
         if samples:
             net_np = _cb_train_step(net_np, card_feats, samples, cfg)
 

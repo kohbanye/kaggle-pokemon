@@ -16,18 +16,21 @@ from src.agents.net_agent import NetAgent
 from src.deck import CardInfo, CardPool
 from src.deck import is_legal as deck_is_legal
 from src.net.bc_data import (
+    CBSequenceDataset,
     PolicyDataset,
     PolicySample,
     build_policy_samples,
     cb_rl_samples,
+    cb_sequences,
     cb_supervision,
     collate_cb,
+    collate_cb_seq,
     collate_policy,
 )
 from src.net.cb import build_deck
 from src.net.encode import OPTION_DIM, STATE_DIM
 from src.net.features import CARD_FEAT_DIM, CardFeatures
-from src.net.lit import LitCB, LitPolicyValue, cb_loss
+from src.net.lit import LitCBSeq, LitPolicyValue
 from src.net.model import NetConfig
 from src.net.torch_model import TorchPolicyValueNet
 
@@ -153,77 +156,44 @@ def test_cb_supervision_targets_are_legal() -> None:
     assert weights.dtype == torch.float32
 
 
-# --- CB loss trains and stays isolated to the CB head ----------------------
+# --- CB sequence: the LSTM deck head trains and stays isolated --------------
 
-def test_cb_loss_trains_and_beats_chance() -> None:
-    torch.manual_seed(0)
-    net = TorchPolicyValueNet(NetConfig(n_cards=6))  # embedding sized to 6 pool cards
-    card_feats = torch.randn(6, CARD_FEAT_DIM)
-    mask = torch.ones(4, 6, dtype=torch.bool)
-    target = torch.tensor([2, 2, 2, 2])
-    opt = torch.optim.Adam(
-        [*net.cb1.parameters(), *net.cb2.parameters(), net.cb_embed], lr=0.05,
+def _seq_trainer() -> L.Trainer:
+    return L.Trainer(
+        max_epochs=40, accelerator="cpu", devices=1, logger=False,
+        enable_checkpointing=False, enable_progress_bar=False,
+        enable_model_summary=False,
     )
-    first = None
-    loss = torch.tensor(0.0)
-    for _ in range(200):
-        opt.zero_grad()
-        loss = cb_loss(net, card_feats, mask, target)
-        first = loss.item() if first is None else first
-        loss.backward()
-        opt.step()
-    assert loss.item() < first * 0.7
 
 
-def test_litcb_updates_only_cb_head() -> None:
-    torch.manual_seed(0)
-    net = TorchPolicyValueNet(NetConfig(n_cards=6))  # embedding sized to 6 pool cards
-    before = {name: p.detach().clone() for name, p in net.named_parameters()}
-    card_feats = np.random.default_rng(0).standard_normal((6, CARD_FEAT_DIM))
-    litcb = LitCB(net, card_feats, lr=0.05)
-    opt = litcb.configure_optimizers()
-    opt.zero_grad()
-    loss = cb_loss(net, litcb.card_feats, torch.ones(3, 6, dtype=torch.bool),
-                   torch.tensor([1, 1, 1]))
-    loss.backward()
-    opt.step()
-    for name, param in net.named_parameters():
-        if not name.startswith("cb"):
-            assert torch.allclose(param, before[name])  # trunk/policy/value untouched
-    # The CB head and its card embedding actually trained. (cb2.bias is a uniform
-    # shift under the softmax, so its gradient is ~0 and it may not move -- don't
-    # require it; check the parts that carry signal.)
-    assert not torch.allclose(net.cb1.weight, before["cb1.weight"])
-    assert not torch.allclose(net.cb2.weight, before["cb2.weight"])
-    assert not torch.allclose(net.cb_embed, before["cb_embed"])
-
-
-def test_embedding_uncollapses_greedy_decode() -> None:
-    # The Phase-5b fix: with a learned card embedding, greedy deck decode can pick
-    # *multiple distinct* cards instead of collapsing to one card + energy (the
-    # fixed-feature failure mode). Clone a demo deck spanning 3 distinct 4-ofs and
-    # assert greedy decode then includes all three.
+def test_lstm_seq_bc_learns_demo_cards() -> None:
+    # Phase 5c: the autoregressive LSTM deck head, BC-cloned on a demo deck, makes
+    # greedy decode pick the demo's distinct cards (legal). Only the CB head + LSTM
+    # train; trunk/policy/value are frozen.
     torch.manual_seed(0)
     pool = _pool()
     net = TorchPolicyValueNet(NetConfig(n_cards=len(pool.ids())))
+    before = {name: p.detach().clone() for name, p in net.named_parameters()}
     deck = [10] * 4 + [11] * 4 + [20] * 4 + [30] + [2] * 47  # legal 60
-    card_feats_np, samples = cb_supervision(
-        [deck], pool, FEATS, np.random.default_rng(0), shuffles=4,
+    card_feats, seqs = cb_sequences(
+        [deck], pool, FEATS, np.random.default_rng(0), shuffles=6,
     )
-    card_feats = torch.as_tensor(card_feats_np, dtype=torch.float32)
-    masks, targets, weights = collate_cb(samples)
-    opt = torch.optim.Adam(
-        [*net.cb1.parameters(), *net.cb2.parameters(), net.cb_embed], lr=0.05,
+    litcb = LitCBSeq(net, card_feats, lr=0.05)
+    loader = DataLoader(
+        CBSequenceDataset(seqs), batch_size=8, collate_fn=collate_cb_seq,
     )
-    for _ in range(300):
-        opt.zero_grad()
-        cb_loss(net, card_feats, masks, targets, weights).backward()
-        opt.step()
+    _seq_trainer().fit(litcb, loader)
+
+    # Frozen / trained checks BEFORE exporting (to_numpy_net's .double() mutates net).
+    for name, param in net.named_parameters():
+        if name.startswith(("trunk", "policy", "value")):
+            assert torch.allclose(param, before[name])  # frozen
+    assert not torch.allclose(net.cb1.weight, before["cb1.weight"])
+    assert not torch.allclose(net.cb_lstm.weight_ih, before["cb_lstm.weight_ih"])
 
     out = build_deck(net.double().to_numpy_net(), pool, FEATS)
     assert deck_is_legal(out, pool)
-    # un-collapsed: greedy now picks all three distinct demo cards (not 1 + energy).
-    assert {10, 11, 20} <= set(out)
+    assert {10, 11, 20} <= set(out)  # the LSTM head learned the demo's distinct cards
 
 
 def test_cb_rl_samples_advantage_and_legal() -> None:

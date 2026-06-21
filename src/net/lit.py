@@ -48,61 +48,6 @@ if TYPE_CHECKING:
 _NEG_INF = float("-inf")
 
 
-def cb_loss(
-    net: TorchPolicyValueNet,
-    card_feats: torch.Tensor,
-    legal_mask: torch.Tensor,
-    target: torch.Tensor,
-    weights: torch.Tensor | None = None,
-) -> torch.Tensor:
-    """Masked cross-entropy of the (context-free) CB head against the demo card.
-
-    ``card_feats`` ``(N_pool, card_dim)`` is the whole pool's fixed features (the
-    CB head scores it once); ``legal_mask`` ``(B, N_pool)`` restricts each sample
-    to its legal next cards (illegal -> -inf, mirroring the deck builder's mask);
-    ``target`` ``(B,)`` is the pool index of the demo deck's card at that step.
-    ``weights`` ``(B,)`` optionally re-weights each step (the inverse-copy weight
-    that stops Basic Energy from dominating -- see :class:`bc_data.CBSample`).
-    """
-    # Concatenate the learned card embedding (the pool rows) onto the fixed
-    # features, so gradients flow into cb_embed (Phase 5b). Row order is
-    # sorted(pool.ids()), matching cb_embed's rows.
-    full = torch.cat([card_feats, net.cb_embed[: card_feats.shape[0]]], dim=-1)
-    logits = net.card_logits(full)  # (N_pool,)
-    logits = logits.unsqueeze(0).expand(legal_mask.shape[0], -1)  # (B, N_pool)
-    logits = logits.masked_fill(~legal_mask, _NEG_INF)
-    if weights is None:
-        return F.cross_entropy(logits, target)
-    losses = F.cross_entropy(logits, target, reduction="none")
-    return (losses * weights).sum() / weights.sum()
-
-
-def cb_pg_loss(
-    net: TorchPolicyValueNet,
-    card_feats: torch.Tensor,
-    legal_mask: torch.Tensor,
-    target: torch.Tensor,
-    advantage: torch.Tensor,
-) -> torch.Tensor:
-    """REINFORCE loss for the CB (deck) head over deck-build steps (Phase 5b-ii).
-
-    Same masked CB logits as :func:`cb_loss`, but each row is one deck-build step
-    of a *sampled* deck and ``advantage`` ``(B,)`` is the baseline-subtracted,
-    normalised deck return shared across that deck's 60 steps. Minimising
-    ``advantage * (-log pi(chosen))`` is REINFORCE -- it raises the probability of
-    picks from above-average decks and lowers below-average ones. Averaged over the
-    batch (NOT over ``advantage.sum()``: signed advantages would make that
-    normaliser blow up or flip sign -- the load-bearing difference from
-    :func:`cb_loss`).
-    """
-    full = torch.cat([card_feats, net.cb_embed[: card_feats.shape[0]]], dim=-1)
-    logits = net.card_logits(full)
-    logits = logits.unsqueeze(0).expand(legal_mask.shape[0], -1)
-    logits = logits.masked_fill(~legal_mask, _NEG_INF)
-    neg_logp = F.cross_entropy(logits, target, reduction="none")  # -log pi(chosen)
-    return (advantage * neg_logp).mean()
-
-
 class LitPolicyValue(L.LightningModule):
     """Behaviour-cloning + value-regression trainer for the policy/value net."""
 
@@ -138,16 +83,6 @@ class LitPolicyValue(L.LightningModule):
         """MSE of the value head against the (discounted) outcome target."""
         return F.mse_loss(self.net.value(states), values)
 
-    def cb_loss(
-        self,
-        card_feats: torch.Tensor,
-        legal_mask: torch.Tensor,
-        target: torch.Tensor,
-        weights: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        """Masked CE of the CB head (delegates to the module-level :func:`cb_loss`)."""
-        return cb_loss(self.net, card_feats, legal_mask, target, weights)
-
     def training_step(
         self,
         batch: Sequence[torch.Tensor],
@@ -165,51 +100,6 @@ class LitPolicyValue(L.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.Adam(self.parameters(), lr=self.lr)
-
-
-class LitCB(L.LightningModule):
-    """Behaviour-clones the CB (deck) head on the demo decklists.
-
-    Wraps the *same* :class:`TorchPolicyValueNet` as :class:`LitPolicyValue` so
-    the two warm-started halves merge into one export, and optimises **only** the
-    CB layers (``cb1`` / ``cb2``). The CB head is independent of the trunk
-    (``card_logits`` never touches it), so this leaves the policy/value weights
-    exactly as trained. A batch is ``(legal_mask (B, N_pool), target (B,))``; the
-    fixed pool feature matrix is held as a buffer.
-    """
-
-    def __init__(
-        self,
-        net: TorchPolicyValueNet,
-        card_feats: NDArray,
-        lr: float = 1e-3,
-    ) -> None:
-        super().__init__()
-        self.net = net
-        self.register_buffer(
-            "card_feats", torch.as_tensor(card_feats, dtype=torch.float32),
-        )
-        self.lr = lr
-
-    def training_step(
-        self,
-        batch: Sequence[torch.Tensor],
-        batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
-    ) -> torch.Tensor:
-        legal_mask, target, weights = batch
-        loss = cb_loss(self.net, self.card_feats, legal_mask, target, weights)
-        self.log("cb_loss", loss, prog_bar=False)
-        return loss
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        # Train the CB head AND the card embedding (cb_embed); trunk/policy/value
-        # stay frozen (they're not in this list).
-        params = [
-            *self.net.cb1.parameters(),
-            *self.net.cb2.parameters(),
-            self.net.cb_embed,
-        ]
-        return torch.optim.Adam(params, lr=self.lr)
 
 
 class LitPolicyGradient(L.LightningModule):
@@ -296,14 +186,66 @@ class LitPolicyGradient(L.LightningModule):
         return torch.optim.Adam(params, lr=self.lr)
 
 
-class LitCBPolicyGradient(L.LightningModule):
-    """REINFORCE trainer for the CB (deck) head on sampled decks (Phase 5b-ii).
+# --- Phase 5c: autoregressive LSTM deck head (sequence training) ------------
 
-    The mirror image of :class:`LitPolicyGradient`: it optimises ONLY the CB head +
-    card embedding (``cb1``/``cb2``/``cb_embed``) and freezes the play/value heads
-    (held at the Phase-5a result), so the only thing learning is the deck
-    distribution. A batch is ``(legal_mask (B, N_pool), target (B,), advantage (B,))``
-    from :func:`~src.net.bc_data.cb_rl_samples`; the pool feature matrix is a buffer.
+
+def cb_sequence_logits(
+    net: TorchPolicyValueNet,
+    card_feats: torch.Tensor,
+    target_rows: torch.Tensor,
+) -> torch.Tensor:
+    """CB logits for every step of a batch of deck-build sequences.
+
+    Runs the deck LSTM over the pick order: at step ``t`` the input is the picked
+    card of step ``t-1`` (``cb_start`` at ``t=0``), the hidden state ``h_t`` is
+    prepended to every candidate's (fixed ⊕ embedding) features, and the CB MLP
+    scores the pool. ``card_feats`` is ``(N_pool, card_dim)``; ``target_rows`` is
+    ``(B, T)`` the pick-order pool rows. Returns ``(B, T, N_pool)``. The per-step
+    loop keeps memory at ``(B, N_pool, ...)`` (never materialises ``(B,T,N,feat)``).
+    """
+    bsz, t_len = target_rows.shape
+    n_pool = card_feats.shape[0]
+    card_matrix = torch.cat([card_feats, net.cb_embed[:n_pool]], dim=-1)
+    hid = net.cb_lstm.hidden_size
+    h = card_feats.new_zeros(bsz, hid)
+    c = card_feats.new_zeros(bsz, hid)
+    out: list[torch.Tensor] = []
+    for t in range(t_len):
+        x = (
+            net.cb_start.unsqueeze(0).expand(bsz, -1)
+            if t == 0
+            else net.cb_embed[target_rows[:, t - 1]]
+        )
+        h, c = net.cb_lstm(x, (h, c))
+        joint = torch.cat(
+            [
+                h.unsqueeze(1).expand(-1, n_pool, -1),
+                card_matrix.unsqueeze(0).expand(bsz, -1, -1),
+            ],
+            dim=-1,
+        )
+        out.append(net.cb2(torch.relu(net.cb1(joint))).squeeze(-1))
+    return torch.stack(out, dim=1)
+
+
+def _cb_seq_params(net: TorchPolicyValueNet) -> list:
+    """CB-head + LSTM + embedding params (trunk/policy/value stay frozen)."""
+    return [
+        *net.cb_lstm.parameters(),
+        net.cb_start,
+        *net.cb1.parameters(),
+        *net.cb2.parameters(),
+        net.cb_embed,
+    ]
+
+
+class LitCBSeq(L.LightningModule):
+    """BC trainer for the autoregressive LSTM deck head (Phase 5c).
+
+    A batch is ``(targets (B,T), legal_masks (B,T,N_pool), weights (B,T), valid
+    (B,T))`` from :func:`~src.net.bc_data.cb_sequences`. Masked cross-entropy at
+    each build step (weighted by the inverse-copy weight), averaged over valid
+    steps. Optimises the CB head + LSTM + card embedding; trunk/policy/value frozen.
     """
 
     def __init__(
@@ -324,15 +266,55 @@ class LitCBPolicyGradient(L.LightningModule):
         batch: Sequence[torch.Tensor],
         batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
     ) -> torch.Tensor:
-        legal_mask, target, advantage = batch
-        loss = cb_pg_loss(self.net, self.card_feats, legal_mask, target, advantage)
-        self.log("cb_pg_loss", loss, prog_bar=False)
+        targets, masks, weights, valid = batch
+        logits = cb_sequence_logits(self.net, self.card_feats, targets)
+        logits = logits.masked_fill(~masks, _NEG_INF)
+        logp = F.log_softmax(logits, dim=-1)
+        chosen = logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1)  # (B,T)
+        w = weights * valid
+        loss = -(chosen * w).sum() / w.sum().clamp(min=1e-8)
+        self.log("cb_seq_loss", loss, prog_bar=False)
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        params = [
-            *self.net.cb1.parameters(),
-            *self.net.cb2.parameters(),
-            self.net.cb_embed,
-        ]
-        return torch.optim.Adam(params, lr=self.lr)
+        return torch.optim.Adam(_cb_seq_params(self.net), lr=self.lr)
+
+
+class LitCBSeqPolicyGradient(L.LightningModule):
+    """REINFORCE trainer for the LSTM deck head on sampled decks (Phase 5b-ii redux).
+
+    Same sequence forward as :class:`LitCBSeq`, but ``weights`` is the deck's
+    (signed, normalised) advantage shared across its steps, and the loss is
+    ``-(advantage * log pi(pick)).sum() / valid.sum()`` (REINFORCE; divided by the
+    valid-step count, NOT by the weight sum -- signed advantages would break that).
+    """
+
+    def __init__(
+        self,
+        net: TorchPolicyValueNet,
+        card_feats: NDArray,
+        lr: float = 1e-3,
+    ) -> None:
+        super().__init__()
+        self.net = net
+        self.register_buffer(
+            "card_feats", torch.as_tensor(card_feats, dtype=torch.float32),
+        )
+        self.lr = lr
+
+    def training_step(
+        self,
+        batch: Sequence[torch.Tensor],
+        batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
+    ) -> torch.Tensor:
+        targets, masks, weights, valid = batch
+        logits = cb_sequence_logits(self.net, self.card_feats, targets)
+        logits = logits.masked_fill(~masks, _NEG_INF)
+        logp = F.log_softmax(logits, dim=-1)
+        chosen = logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        loss = -(chosen * weights * valid).sum() / valid.sum().clamp(min=1)
+        self.log("cb_seq_pg_loss", loss, prog_bar=False)
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        return torch.optim.Adam(_cb_seq_params(self.net), lr=self.lr)

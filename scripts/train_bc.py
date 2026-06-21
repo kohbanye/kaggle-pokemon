@@ -25,12 +25,12 @@ from torch.utils.data import DataLoader  # noqa: E402
 
 from src.deck import build_pool, is_legal, load_deck_csv  # noqa: E402
 from src.net.bc_data import (  # noqa: E402
-    CBDataset,
+    CBSequenceDataset,
     PolicyDataset,
     PolicySample,
     build_policy_samples,
-    cb_supervision,
-    collate_cb,
+    cb_sequences,
+    collate_cb_seq,
     collate_policy,
     game_files,
     iter_games,
@@ -38,7 +38,7 @@ from src.net.bc_data import (  # noqa: E402
 )
 from src.net.cb import build_deck  # noqa: E402
 from src.net.features import CardFeatures  # noqa: E402
-from src.net.lit import LitCB, LitPolicyValue  # noqa: E402
+from src.net.lit import LitCBSeq, LitPolicyValue  # noqa: E402
 from src.net.model import NetConfig  # noqa: E402
 
 
@@ -75,7 +75,7 @@ def _overlap(deck: list[int], demo: list[int]) -> float:
     return inter / max(len(deck), 1)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915 - a training CLI legitimately threads its config
     parser = argparse.ArgumentParser(description="Train the Phase-4 BC net")
     parser.add_argument("--data", type=Path, default=ROOT / "data" / "bc")
     parser.add_argument("--out", type=Path, default=ROOT / "data" / "bc" / "bc_net.npz")
@@ -86,9 +86,12 @@ def main() -> None:
         help="discounted-return gamma; omit for the raw final outcome",
     )
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--cb-epochs", type=int, default=40)
-    parser.add_argument("--cb-shuffles", type=int, default=4)
+    # The LSTM deck head needs more CB BC than the old flat head to learn a balanced
+    # composition (energy/attacker ratio); under-training over-picks one type.
+    parser.add_argument("--cb-epochs", type=int, default=150)
+    parser.add_argument("--cb-shuffles", type=int, default=12)
     parser.add_argument("--embed-dim", type=int, default=16, help="CB card embedding")
+    parser.add_argument("--lstm-hidden", type=int, default=64, help="deck LSTM hidden")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val-frac", type=float, default=0.1)
@@ -120,7 +123,10 @@ def main() -> None:
 
     torch.manual_seed(args.seed)
     pool = build_pool()  # built early: the net's card embedding is sized to the pool
-    config = NetConfig(n_cards=len(pool.ids()), embed_dim=args.embed_dim)
+    config = NetConfig(
+        n_cards=len(pool.ids()), embed_dim=args.embed_dim,
+        lstm_hidden=args.lstm_hidden,
+    )
     lit = LitPolicyValue(config, lr=args.lr)
     loader = DataLoader(
         PolicyDataset(train), batch_size=args.batch_size, shuffle=True,
@@ -130,26 +136,30 @@ def main() -> None:
     pol_acc, val_acc = evaluate(lit, val)
     print(f"val policy top-1 acc: {pol_acc:.3f}  value sign acc: {val_acc:.3f}")
 
-    # CB head: clone the demo decklists on the same net (cb1/cb2 + cb_embed update).
+    # CB head: behaviour-clone the demo decklists with the autoregressive LSTM deck
+    # head (cb_lstm/cb_start/cb1/cb2/cb_embed update; trunk/policy/value frozen).
     demo_decks = [load_deck_csv(p) for p in sorted(args.decks.glob("*.csv"))]
-    card_feats, cb_samples = cb_supervision(
+    card_feats, cb_seqs = cb_sequences(
         demo_decks, pool, feats, np.random.default_rng(args.seed),
         shuffles=args.cb_shuffles,
     )
-    print(f"CB samples: {len(cb_samples)} from {len(demo_decks)} demo decks")
-    litcb = LitCB(lit.net, card_feats, lr=args.lr)
+    print(f"CB sequences: {len(cb_seqs)} from {len(demo_decks)} demo decks")
+    litcb = LitCBSeq(lit.net, card_feats, lr=args.lr)
     cb_loader = DataLoader(
-        CBDataset(cb_samples), batch_size=args.batch_size, shuffle=True,
-        collate_fn=collate_cb,
+        CBSequenceDataset(cb_seqs), batch_size=args.batch_size, shuffle=True,
+        collate_fn=collate_cb_seq,
     )
     _trainer(args.cb_epochs).fit(litcb, cb_loader)
 
     net_np = lit.net.double().to_numpy_net()
     deck = build_deck(net_np, pool, feats)
     best = max((_overlap(deck, d) for d in demo_decks), default=0.0)
+    n_energy = sum(1 for c in deck if pool.cards[c].is_basic_energy)
+    n_poke = sum(1 for c in deck if pool.cards[c].supertype == "Pokemon")
     print(
         f"CB greedy deck: legal={is_legal(deck, pool)} "
-        f"best_overlap_vs_demo={best:.2f} distinct_names={len(set(deck))}",
+        f"best_overlap_vs_demo={best:.2f} distinct={len(set(deck))} "
+        f"energy={n_energy} pokemon={n_poke} (functional if energy in ~[15,35])",
     )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

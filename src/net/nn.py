@@ -32,3 +32,13 @@ def softmax(logits: NDArray[np.float64]) -> NDArray[np.float64]:
     shifted = logits - logits.max(axis=-1, keepdims=True)
     exp = np.exp(shifted)
     return exp / exp.sum(axis=-1, keepdims=True)
+
+
+def sigmoid(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Logistic sigmoid, overflow-safe for large |x| (LSTM gate activation)."""
+    out = np.empty_like(x, dtype=np.float64)
+    pos = x >= 0
+    out[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
+    ex = np.exp(x[~pos])
+    out[~pos] = ex / (1.0 + ex)
+    return out

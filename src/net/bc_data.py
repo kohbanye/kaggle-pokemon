@@ -39,7 +39,7 @@ from src.net.embedding import CardEmbeddingIndex
 from src.net.encode import OPTION_DIM, encode_options, encode_state
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Sequence
 
     from numpy.typing import NDArray
 
@@ -331,3 +331,160 @@ def collate_cb(
     targets = torch.tensor([sample.target_idx for sample in batch], dtype=torch.long)
     weights = torch.tensor([sample.weight for sample in batch], dtype=torch.float32)
     return masks, targets, weights
+
+
+# --- CB *sequences* for the LSTM deck head (Phase 5c) ----------------------
+
+
+@dataclass
+class CBSequence:
+    """One deck as a build *sequence* (for the autoregressive LSTM CB head).
+
+    A deck is processed in pick order through the LSTM: ``targets[t]`` is the pool
+    row picked at step ``t`` (it is also the LSTM input at step ``t+1``);
+    ``legal_masks[t]`` is the legal set at that step; ``weights[t]`` is the
+    inverse-copy weight (BC) or the deck's advantage (RL, constant across steps).
+    """
+
+    targets: NDArray[np.int64]  # (T,) pick-order pool rows
+    legal_masks: NDArray[np.bool_]  # (T, N_pool)
+    weights: NDArray[np.float64]  # (T,)
+
+
+def _step_mask(prefix: list[int], pool: CardPool, index: CardEmbeddingIndex) -> NDArray:
+    """Boolean legal-next mask over the pool for a partial deck ``prefix``."""
+    mask = np.zeros(index.n_pool, dtype=np.bool_)
+    for cid in legal_next_ids(prefix, pool):
+        row = index.row(cid)
+        if row < index.n_pool:
+            mask[row] = True
+    return mask
+
+
+def _deck_sequence(
+    order: list[int],
+    pool: CardPool,
+    index: CardEmbeddingIndex,
+    weight_at: Callable[[int, int], float],
+) -> CBSequence | None:
+    """Turn a pick-ordered deck into a :class:`CBSequence` (None if no valid steps)."""
+    targets: list[int] = []
+    masks: list[NDArray] = []
+    weights: list[float] = []
+    for t, card in enumerate(order):
+        row = index.row(card)
+        if row >= index.n_pool:  # unknown card -> can't supervise this step
+            continue
+        legal = legal_next_ids(order[:t], pool)
+        if card not in legal:
+            continue
+        targets.append(row)
+        masks.append(_step_mask(order[:t], pool, index))
+        weights.append(weight_at(t, card))
+    if not targets:
+        return None
+    return CBSequence(
+        np.array(targets, dtype=np.int64),
+        np.stack(masks),
+        np.array(weights, dtype=np.float64),
+    )
+
+
+def cb_sequences(
+    decks: Sequence[Sequence[int]],
+    pool: CardPool,
+    feats: CardFeatures,
+    rng: np.random.Generator,
+    *,
+    shuffles: int = 1,
+) -> tuple[NDArray[np.float64], list[CBSequence]]:
+    """BC sequences: each demo deck (shuffled) becomes one teacher-forced sequence.
+
+    Returns the fixed ``(N_pool, CARD_FEAT_DIM)`` feature matrix (the LSTM trainer
+    concatenates the live embedding) and one :class:`CBSequence` per deck-shuffle,
+    weighted by the inverse-copy weight ``1 / copies`` (so energy doesn't dominate).
+    """
+    index = CardEmbeddingIndex(pool)
+    card_feats = index.fixed_matrix(feats)
+    seqs: list[CBSequence] = []
+    for deck in decks:
+        counts = Counter(deck)
+        for _ in range(shuffles):
+            order = [deck[i] for i in rng.permutation(len(deck))]
+            seq = _deck_sequence(
+                order, pool, index, lambda _t, card, c=counts: 1.0 / c[card],
+            )
+            if seq is not None:
+                seqs.append(seq)
+    return card_feats, seqs
+
+
+def cb_rl_sequences(
+    decks_with_returns: Sequence[tuple[Sequence[int], float]],
+    pool: CardPool,
+    feats: CardFeatures,
+    *,
+    normalize: bool = True,
+) -> tuple[NDArray[np.float64], list[CBSequence]]:
+    """RL sequences: each sampled deck (pick order) weighted by its advantage.
+
+    Advantage = ``return - batch_mean`` (optionally / batch std), shared across the
+    deck's steps — the REINFORCE signal for the LSTM CB head (Phase 5b-ii redux).
+    """
+    index = CardEmbeddingIndex(pool)
+    card_feats = index.fixed_matrix(feats)
+    returns = np.asarray([r for _, r in decks_with_returns], dtype=np.float64)
+    adv = returns - returns.mean() if returns.size else returns
+    if normalize and adv.size > 1:
+        std = float(adv.std())
+        if std > 1e-8:  # noqa: PLR2004 - tiny-variance guard
+            adv = adv / std
+
+    seqs: list[CBSequence] = []
+    for (deck, _), advantage in zip(decks_with_returns, adv, strict=True):
+        seq = _deck_sequence(
+            list(deck), pool, index, lambda _t, _card, a=float(advantage): a,
+        )
+        if seq is not None:
+            seqs.append(seq)
+    return card_feats, seqs
+
+
+class CBSequenceDataset(Dataset):
+    """A list of :class:`CBSequence`; pair with :func:`collate_cb_seq`."""
+
+    def __init__(self, sequences: list[CBSequence]) -> None:
+        self.sequences = sequences
+
+    def __len__(self) -> int:
+        return len(self.sequences)
+
+    def __getitem__(self, idx: int) -> CBSequence:
+        return self.sequences[idx]
+
+
+def collate_cb_seq(
+    batch: list[CBSequence],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Pad decks to the batch-max length T.
+
+    Returns ``(targets (B,T) long, legal_masks (B,T,N_pool) bool, weights (B,T),
+    valid (B,T) bool)``. Padded steps get a dummy-legal row 0 (so the per-step
+    softmax is never all ``-inf`` -> no nan) and ``valid = False`` (excluded from
+    the loss). Demo decks are all 60 steps, so padding only bites mixed test decks.
+    """
+    bsz = len(batch)
+    max_t = max(seq.targets.shape[0] for seq in batch)
+    n_pool = batch[0].legal_masks.shape[1]
+    targets = torch.zeros(bsz, max_t, dtype=torch.long)
+    masks = torch.zeros(bsz, max_t, n_pool, dtype=torch.bool)
+    weights = torch.zeros(bsz, max_t, dtype=torch.float32)
+    valid = torch.zeros(bsz, max_t, dtype=torch.bool)
+    for i, seq in enumerate(batch):
+        t = seq.targets.shape[0]
+        targets[i, :t] = torch.from_numpy(seq.targets)
+        masks[i, :t] = torch.from_numpy(seq.legal_masks)
+        weights[i, :t] = torch.from_numpy(seq.weights).float()
+        valid[i, :t] = True
+        masks[i, t:, 0] = True  # dummy-legal for padded steps (avoids all-(-inf))
+    return targets, masks, weights, valid

@@ -179,12 +179,14 @@ def test_policy_logits_length_matches_options() -> None:
     assert n.policy_logits(x, np.zeros((0, OPTION_DIM))).shape == (0,)
 
 
-def test_card_logits_length_matches_cards() -> None:
+def test_card_logits_with_state_length() -> None:
     n = net()
-    cb_in = CARD_FEAT_DIM + NetConfig().embed_dim  # fixed feats + card embedding
-    feats = np.random.default_rng(3).standard_normal((7, cb_in))
-    assert n.card_logits(feats).shape == (7,)
-    assert n.card_logits(np.zeros((0, cb_in))).shape == (0,)
+    cfg = NetConfig()
+    h = np.zeros(cfg.lstm_hidden)
+    card_dim = CARD_FEAT_DIM + cfg.embed_dim  # candidate = fixed feats + embedding
+    cards = np.random.default_rng(3).standard_normal((7, card_dim))
+    assert n.card_logits_with_state(h, cards).shape == (7,)
+    assert n.card_logits_with_state(h, np.zeros((0, card_dim))).shape == (0,)
 
 
 def test_param_count_positive() -> None:
