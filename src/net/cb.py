@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from src.deck import DECK_SIZE, legal_next_ids
+from src.net.embedding import CardEmbeddingIndex
 from src.net.nn import softmax
 
 if TYPE_CHECKING:
@@ -34,13 +35,24 @@ def card_scores(
     pool: CardPool,
     feats: CardFeatures,
 ) -> dict[int, float]:
-    """One CB logit per pool card (context-free: computed once for all slots)."""
-    ids = pool.ids()
-    if not ids:
+    """One CB logit per pool card (context-free: computed once for all slots).
+
+    The CB input is the fixed card features concatenated with the learned card
+    embedding (``cb_embed``); both are scored in ``sorted(pool.ids())`` row order
+    via :class:`~src.net.embedding.CardEmbeddingIndex`. A net without a ``cb_embed``
+    param (pre-Phase-5b weights) falls back to fixed features only.
+    """
+    index = CardEmbeddingIndex(pool)
+    if not index.ids:
         return {}
-    matrix = np.stack([feats.vector(cid) for cid in ids])
+    cb_embed = net.params.get("cb_embed")
+    matrix = (
+        index.matrix(feats, cb_embed)
+        if cb_embed is not None
+        else index.fixed_matrix(feats)
+    )
     logits = net.card_logits(matrix)
-    return {cid: float(logit) for cid, logit in zip(ids, logits, strict=True)}
+    return {cid: float(logit) for cid, logit in zip(index.ids, logits, strict=True)}
 
 
 def build_deck(

@@ -32,7 +32,7 @@ import numpy as np
 from src.net.cb import build_deck
 from src.net.encode import encode_options, encode_state
 from src.net.features import CardFeatures
-from src.net.model import PolicyValueNet
+from src.net.model import NetConfig, PolicyValueNet
 from src.net.nn import softmax
 
 from .base import Agent, legal_fallback
@@ -70,7 +70,10 @@ class NetAgent(Agent):
         elif weights is not None:
             self.net = PolicyValueNet.load(weights)
         else:
-            self.net = PolicyValueNet.random(np.random.default_rng(seed))
+            # A random net used for deck building needs its card embedding sized to
+            # the pool, else the CB head can't score it (Phase 5b).
+            cfg = NetConfig(n_cards=len(cb_pool.ids())) if cb_pool else NetConfig()
+            self.net = PolicyValueNet.random(np.random.default_rng(seed), cfg)
         # CB head builds the deck at init when a pool is available; on any error
         # keep the deck passed in (a guaranteed-legal fallback).
         if cb_pool is not None:

@@ -14,17 +14,21 @@ from torch.utils.data import DataLoader
 from src.agents.base import is_legal as selection_is_legal
 from src.agents.net_agent import NetAgent
 from src.deck import CardInfo, CardPool
+from src.deck import is_legal as deck_is_legal
 from src.net.bc_data import (
     PolicyDataset,
     PolicySample,
     build_policy_samples,
+    cb_rl_samples,
     cb_supervision,
     collate_cb,
     collate_policy,
 )
+from src.net.cb import build_deck
 from src.net.encode import OPTION_DIM, STATE_DIM
 from src.net.features import CARD_FEAT_DIM, CardFeatures
 from src.net.lit import LitCB, LitPolicyValue, cb_loss
+from src.net.model import NetConfig
 from src.net.torch_model import TorchPolicyValueNet
 
 # A small hand-written engine dump, exactly as the runner injects it.
@@ -153,12 +157,12 @@ def test_cb_supervision_targets_are_legal() -> None:
 
 def test_cb_loss_trains_and_beats_chance() -> None:
     torch.manual_seed(0)
-    net = TorchPolicyValueNet()
+    net = TorchPolicyValueNet(NetConfig(n_cards=6))  # embedding sized to 6 pool cards
     card_feats = torch.randn(6, CARD_FEAT_DIM)
     mask = torch.ones(4, 6, dtype=torch.bool)
     target = torch.tensor([2, 2, 2, 2])
     opt = torch.optim.Adam(
-        [*net.cb1.parameters(), *net.cb2.parameters()], lr=0.05,
+        [*net.cb1.parameters(), *net.cb2.parameters(), net.cb_embed], lr=0.05,
     )
     first = None
     loss = torch.tensor(0.0)
@@ -173,7 +177,7 @@ def test_cb_loss_trains_and_beats_chance() -> None:
 
 def test_litcb_updates_only_cb_head() -> None:
     torch.manual_seed(0)
-    net = TorchPolicyValueNet()
+    net = TorchPolicyValueNet(NetConfig(n_cards=6))  # embedding sized to 6 pool cards
     before = {name: p.detach().clone() for name, p in net.named_parameters()}
     card_feats = np.random.default_rng(0).standard_normal((6, CARD_FEAT_DIM))
     litcb = LitCB(net, card_feats, lr=0.05)
@@ -184,10 +188,59 @@ def test_litcb_updates_only_cb_head() -> None:
     loss.backward()
     opt.step()
     for name, param in net.named_parameters():
-        if name.startswith("cb"):
-            assert not torch.allclose(param, before[name])
-        else:
+        if not name.startswith("cb"):
             assert torch.allclose(param, before[name])  # trunk/policy/value untouched
+    # The CB head and its card embedding actually trained. (cb2.bias is a uniform
+    # shift under the softmax, so its gradient is ~0 and it may not move -- don't
+    # require it; check the parts that carry signal.)
+    assert not torch.allclose(net.cb1.weight, before["cb1.weight"])
+    assert not torch.allclose(net.cb2.weight, before["cb2.weight"])
+    assert not torch.allclose(net.cb_embed, before["cb_embed"])
+
+
+def test_embedding_uncollapses_greedy_decode() -> None:
+    # The Phase-5b fix: with a learned card embedding, greedy deck decode can pick
+    # *multiple distinct* cards instead of collapsing to one card + energy (the
+    # fixed-feature failure mode). Clone a demo deck spanning 3 distinct 4-ofs and
+    # assert greedy decode then includes all three.
+    torch.manual_seed(0)
+    pool = _pool()
+    net = TorchPolicyValueNet(NetConfig(n_cards=len(pool.ids())))
+    deck = [10] * 4 + [11] * 4 + [20] * 4 + [30] + [2] * 47  # legal 60
+    card_feats_np, samples = cb_supervision(
+        [deck], pool, FEATS, np.random.default_rng(0), shuffles=4,
+    )
+    card_feats = torch.as_tensor(card_feats_np, dtype=torch.float32)
+    masks, targets, weights = collate_cb(samples)
+    opt = torch.optim.Adam(
+        [*net.cb1.parameters(), *net.cb2.parameters(), net.cb_embed], lr=0.05,
+    )
+    for _ in range(300):
+        opt.zero_grad()
+        cb_loss(net, card_feats, masks, targets, weights).backward()
+        opt.step()
+
+    out = build_deck(net.double().to_numpy_net(), pool, FEATS)
+    assert deck_is_legal(out, pool)
+    # un-collapsed: greedy now picks all three distinct demo cards (not 1 + energy).
+    assert {10, 11, 20} <= set(out)
+
+
+def test_cb_rl_samples_advantage_and_legal() -> None:
+    pool = _pool()
+    good = [10, 11, 20, 30, 2, 2]  # a deck that "won" -> positive advantage
+    bad = [2, 2, 2, 10, 11, 20]  # a deck that "lost" -> negative advantage
+    card_feats, samples = cb_rl_samples(
+        [(good, 1.0), (bad, -1.0)], pool, FEATS, normalize=True,
+    )
+    assert card_feats.shape[0] == len(pool.ids())
+    # returns [+1, -1] -> baseline 0, std 1 -> advantages [+1, -1] (shared per deck).
+    weights = [s.weight for s in samples]
+    assert any(w > 0 for w in weights)  # good-deck steps
+    assert any(w < 0 for w in weights)  # bad-deck steps
+    # every logged pick is legal at its step (masks recomputed from the prefix).
+    for s in samples:
+        assert s.legal_mask[s.target_idx]
 
 
 # --- end-to-end: train -> export numpy -> NetAgent legal selection ---------
