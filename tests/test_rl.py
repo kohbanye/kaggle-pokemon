@@ -35,7 +35,7 @@ from src.net.torch_model import TorchPolicyValueNet
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from train_deck_osfp import DeckOsfpConfig, run_deck_osfp  # noqa: E402
+from train_deck_osfp import DeckOsfpConfig, _split, run_deck_osfp  # noqa: E402
 from train_osfp import OsfpConfig, run_osfp  # noqa: E402
 
 # A small hand-written engine dump, exactly as the runner injects it (mirrors
@@ -317,3 +317,12 @@ def test_run_deck_osfp_loop_with_fake_generator(tmp_path) -> None:  # noqa: ANN0
     assert len(result.iterations) == 2
     assert result.final_weights.exists()
     assert all(s.n_samples > 0 for s in result.iterations)
+
+
+def test_split_distributes_decks_across_workers() -> None:
+    # Parallel collector fans decks_per_iter across workers; chunks near-even,
+    # nothing dropped, idle workers when decks < workers.
+    assert _split(16, 6) == [3, 3, 3, 3, 2, 2]
+    assert sum(_split(17, 5)) == 17
+    assert _split(10, 1) == [10]
+    assert _split(3, 8).count(0) == 5  # more workers than decks -> some idle

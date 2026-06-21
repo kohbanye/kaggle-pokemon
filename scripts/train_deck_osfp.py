@@ -29,6 +29,7 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -268,23 +269,55 @@ def _read_records(out: Path) -> list[dict]:
     return [json.loads(line) for line in shard.read_text().splitlines() if line.strip()]
 
 
-def _make_docker_collect(
-    self_play_prob: float,  # noqa: ARG001 - kept for signature symmetry / docs
-) -> Callable[[DeckGenSpec], list[dict]]:
-    def collect(spec: DeckGenSpec) -> list[dict]:
+_SEED_STRIDE = 1_000_000  # space shard seeds far apart so they sample different decks
+
+
+def _split(total: int, parts: int) -> list[int]:
+    """Split ``total`` into ``parts`` near-even chunks (some may be 0)."""
+    base, rem = divmod(total, max(parts, 1))
+    return [base + (1 if i < rem else 0) for i in range(parts)]
+
+
+def _make_docker_collect(workers: int) -> Callable[[DeckGenSpec], list[dict]]:
+    """Build a ``generate`` that fans the deck batch across ``workers`` containers.
+
+    The engine is single-threaded, so parallelism is N independent ``docker run``
+    processes. Shards are seeded far apart (different decks) and a failed shard is
+    skipped (its decks are lost for that iteration) so one flaky container can't
+    abort a long unattended run.
+
+    MEASURED (2026-06-22): on this Mac's **x86-emulated** Docker, workers > 1 is
+    *slower* (w1=9.6 g/s, w2=4.1, w6=3.8 on 15 cores) -- the emulation layer
+    contends, one container already saturates it. So ``--workers`` defaults to 1
+    here; > 1 pays off only on **native x86** (a Linux box / cloud), where there is
+    no emulation and the processes parallelise.
+    """
+    def _shard(spec: DeckGenSpec, k: int, n_decks: int) -> list[dict]:
+        out = spec.out / f"w{k}"
         argv = [
             *DOCKER_PREFIX, "scripts/collect_deck_selfplay.py",
             "--weights", _in_container(spec.weights),
-            "--decks", str(spec.n_decks),
-            "--games-per-deck", str(spec.games_per_deck),
-            "--seed", str(spec.seed), "--out", _in_container(spec.out),
+            "--decks", str(n_decks), "--games-per-deck", str(spec.games_per_deck),
+            "--seed", str(spec.seed + k * _SEED_STRIDE), "--out", _in_container(out),
         ]
         if spec.opp is None:
             argv.append("--self-play")
         else:
             argv += ["--opp-weights", _in_container(Path(spec.opp.ref))]
-        _run(argv, "collect_deck")
-        return _read_records(spec.out)
+        try:
+            _run(argv, f"collect_deck w{k}")
+            return _read_records(out)
+        except (RuntimeError, StopIteration) as exc:
+            print(f"  [warn] shard {k} failed, skipping its decks: {exc}")
+            return []
+
+    def collect(spec: DeckGenSpec) -> list[dict]:
+        sizes = [(k, n) for k, n in enumerate(_split(spec.n_decks, workers)) if n > 0]
+        if len(sizes) <= 1:  # nothing to parallelise
+            return _shard(spec, *sizes[0]) if sizes else []
+        with ThreadPoolExecutor(max_workers=len(sizes)) as ex:
+            shards = ex.map(lambda kn: _shard(spec, kn[0], kn[1]), sizes)
+        return [record for shard in shards for record in shard]
 
     return collect
 
@@ -323,6 +356,11 @@ def main() -> None:
     parser.add_argument("--games-per-deck", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--self-play-prob", type=float, default=0.5)
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="parallel collector containers; >1 ONLY helps on native x86 (under "
+             "this Mac's x86-emulated Docker, extra containers contend and slow down)",
+    )
     parser.add_argument("--eval-every", type=int, default=5)
     parser.add_argument("--eval-games", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
@@ -343,9 +381,10 @@ def main() -> None:
     feats = CardFeatures(load_engine_json(args.engine_json))
     pool = build_pool()
     evaluate = None if args.no_eval else _make_docker_gate(args.gate_deck)
+    print(f"deck self-play: {args.workers} parallel collector(s)")
     run_deck_osfp(
         cfg, pool, feats,
-        generate=_make_docker_collect(args.self_play_prob), evaluate=evaluate,
+        generate=_make_docker_collect(args.workers), evaluate=evaluate,
     )
 
 
