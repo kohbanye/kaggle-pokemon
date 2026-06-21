@@ -316,6 +316,9 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-21 | P5b-i | **学習カード埋め込み**（固定特徴⊕embed16・CB BC再学習・実機probe） | Phase4 CB(distinct=2) | — | — | — | **崩壊解消(達成)** | greedy decode が **distinct 2→16**・engine **errorType=0**・demo重複0.48（sampled 30/29も合法）。crash0/illegal0/worst**0.79ms**・PASS。policy/value不変(0.872/0.893)＝CB独立。連結必須(デモ37種/プール1267)・parity非転置・旧npzは移行。`bc_net_emb.npz`(42,787 params) |
 | 2026-06-21 | P5b-ii | **CBヘッド自己対戦RL**（infra＋スモーク＋ゲート, 実機） | 固定 metal_aggro | gate60 | gate **0.0** | — | **不採用(ゲート不達)** | パイプライン完走（収集→REINFORCE→ゲート）・native test緑(130)・`cb_pg_loss`/`cb_rl_samples`/`LitCBPolicyGradient`/`collect_cb`/`train_cb`。だが BC-CBデッキが metal_aggro に**全敗**。**全デッキ敗北→advantage≈0→REINFORCE信号ゼロ** |
 | 2026-06-21 | P5b | **根本所見**: 文脈自由CB＋per-card decode はデッキ構成を守れない | — | — | — | — | **方針転換** | greedy=**エネルギー0枚**(43ポケ/17トレ/0エネ＝機能せず)・sampled=エネ6–14(metal_aggro 31)。エネ比率のような**大域制約は per-card context-free スコアで表現不可**（greedyがエネを押し出す/inverse-copy重みでも thread 不能）。→ **CB-RL不採用・固定デッキ維持**（§A・Phase7安全網）。デッキ学習には**autoregressive デッキ方策**（各picを部分デッキで条件付け）が必要＝将来課題 |
+| 2026-06-22 | P5c-i | **LSTM自己回帰デッキヘッド**（記憶付き・部分デッキ条件付け, 実機probe） | 5b(0エネ崩壊) | — | — | — | **構成崩壊を解消(達成)** | greedy が **エネ35/ポケ8/重複0.80**（5bは0エネ）・errorType=0・crash0/worst2.46ms PASS。numpy LSTM forward と torch の **parity<1e-9**（非転置bridge・gate順i,f,g,o・H≠in test）。十分なCB BC(150ep/shuffle12/hidden64)が必要（40epでは46/1に偏る） |
+| 2026-06-22 | P5c | ゲート: LSTM greedyデッキ vs 固定metal_aggro（同プレイ頭, 実機） | metal_aggro | 80 | **0.000** | — | **不採用(ゲート不達)** | 構成は均衡だが**型不整合**: Grassエネ35＋Zapdos(雷)/Glastrier＝**技が撃てない**・非ex弱攻撃役8枚。**8デモ横断BCは「汎用骨格」を学ぶがアーキタイプの型一貫性を学べない**→ coherent な metal_aggro に全敗 |
+| 2026-06-22 | P5c | **結論**: LSTMデッキヘッドは正しい器・だがデッキ学習は固定デッキに勝てず | — | — | — | — | **固定デッキ維持** | 器（LSTM・parity・機能デッキ生成）は完成・再利用可。8デモBCで metal_aggro 超えは無理（型一貫性/データ量不足、RLゲートも信号薄）。§A→**固定 metal_aggro 維持**（Phase7安全網）。将来: 単一アーキタイプBC＋curriculum RL |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 

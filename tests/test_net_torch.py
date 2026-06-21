@@ -38,8 +38,10 @@ def test_torch_numpy_forward_parity() -> None:
     rng = np.random.default_rng(0)
     x = rng.standard_normal(STATE_DIM)
     options = rng.standard_normal((6, OPTION_DIM))
-    # card_logits consumes the fixed features concatenated with the card embedding.
-    cards = rng.standard_normal((9, CARD_FEAT_DIM + tnet.config.embed_dim))
+    cfg = tnet.config
+    # card_logits consumes [lstm_hidden ⊕ fixed features ⊕ card embedding].
+    cb_in = cfg.lstm_hidden + CARD_FEAT_DIM + cfg.embed_dim
+    cards = rng.standard_normal((9, cb_in))
 
     with torch.no_grad():
         t_value = tnet.value(torch.as_tensor(x).unsqueeze(0)).item()
@@ -51,6 +53,37 @@ def test_torch_numpy_forward_parity() -> None:
     assert abs(t_value - npnet.value(x)) < 1e-9
     assert np.allclose(t_policy, npnet.policy_logits(x, options), atol=1e-9)
     assert np.allclose(t_cards, npnet.card_logits(cards), atol=1e-9)
+
+
+def test_lstm_cell_parity() -> None:
+    # H != input != 4H so any transpose or gate-order slip shape-fails or differs.
+    cfg = NetConfig(lstm_hidden=7, embed_dim=5, n_cards=4)
+    tnet = TorchPolicyValueNet(cfg).double()
+    npnet = tnet.to_numpy_net()
+    rng = np.random.default_rng(3)
+    x = rng.standard_normal(cfg.embed_dim)
+    h = rng.standard_normal(cfg.lstm_hidden)
+    c = rng.standard_normal(cfg.lstm_hidden)
+
+    with torch.no_grad():
+        th, tc = tnet.cb_lstm(
+            torch.as_tensor(x).unsqueeze(0),
+            (torch.as_tensor(h).unsqueeze(0), torch.as_tensor(c).unsqueeze(0)),
+        )
+    nh, nc = npnet.lstm_step(x, h, c)
+    assert np.allclose(th.squeeze(0).numpy(), nh, atol=1e-9)
+    assert np.allclose(tc.squeeze(0).numpy(), nc, atol=1e-9)
+
+
+def test_lstm_weights_roundtrip_not_transposed() -> None:
+    cfg = NetConfig(lstm_hidden=7, embed_dim=5, n_cards=4)  # H != embed_dim
+    src = PolicyValueNet.random(np.random.default_rng(4), cfg)
+    assert src.params["lstm_w_ih"].shape == (28, 5)  # (4H, in), NOT (5, 28)
+    assert src.params["lstm_w_hh"].shape == (28, 7)  # (4H, H)
+    back = from_numpy_net(src).double().to_numpy_net()
+    for key in ("lstm_w_ih", "lstm_w_hh", "lstm_b_ih", "lstm_b_hh", "cb_start"):
+        assert back.params[key].shape == src.params[key].shape
+        assert np.allclose(back.params[key], src.params[key], atol=1e-9)
 
 
 def test_round_trip_numpy_to_torch_to_numpy() -> None:
