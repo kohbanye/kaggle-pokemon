@@ -19,6 +19,7 @@ from src.net.bc_data import (
     PolicyDataset,
     PolicySample,
     build_policy_samples,
+    cb_rl_samples,
     cb_supervision,
     collate_cb,
     collate_policy,
@@ -223,6 +224,23 @@ def test_embedding_uncollapses_greedy_decode() -> None:
     assert deck_is_legal(out, pool)
     # un-collapsed: greedy now picks all three distinct demo cards (not 1 + energy).
     assert {10, 11, 20} <= set(out)
+
+
+def test_cb_rl_samples_advantage_and_legal() -> None:
+    pool = _pool()
+    good = [10, 11, 20, 30, 2, 2]  # a deck that "won" -> positive advantage
+    bad = [2, 2, 2, 10, 11, 20]  # a deck that "lost" -> negative advantage
+    card_feats, samples = cb_rl_samples(
+        [(good, 1.0), (bad, -1.0)], pool, FEATS, normalize=True,
+    )
+    assert card_feats.shape[0] == len(pool.ids())
+    # returns [+1, -1] -> baseline 0, std 1 -> advantages [+1, -1] (shared per deck).
+    weights = [s.weight for s in samples]
+    assert any(w > 0 for w in weights)  # good-deck steps
+    assert any(w < 0 for w in weights)  # bad-deck steps
+    # every logged pick is legal at its step (masks recomputed from the prefix).
+    for s in samples:
+        assert s.legal_mask[s.target_idx]
 
 
 # --- end-to-end: train -> export numpy -> NetAgent legal selection ---------

@@ -314,6 +314,8 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-21 | P5a | **スケール14x**（run3: 同安定設定で 1400iter, 482ckpt） vs BC | BC net | 500 | 0.562 [0.518, 0.605] | — | **天井不変(不採用)** | run2 final と**互角**（vs run2 0.508 [0.464,0.552]）。**~iter350 で頭打ち→1000+iter横ばい**。vs heuristic も ~0.69 で run1/2 と同帯。**「もっと回す」では伸びない**ことを決定的に確認（次は容量/別ヘッド＝5b） |
 | 2026-06-21 | P5a | **結論**: 5a は天井で収束（vs BC ~0.56・vs heuristic ~0.68） | — | — | — | — | **一区切り** | プレイ専用RL（デッキ固定）の上積みは~+8ppで頭打ち。瞬間崩壊は残存（PPO/V-Trace で対処可・天井は上げない）。ボトルネック=データ量でなく**容量/表現**。→ **5b（デッキ学習＝最大レバー）へ**。可視化: `notebooks/02_osfp_training.ipynb` |
 | 2026-06-21 | P5b-i | **学習カード埋め込み**（固定特徴⊕embed16・CB BC再学習・実機probe） | Phase4 CB(distinct=2) | — | — | — | **崩壊解消(達成)** | greedy decode が **distinct 2→16**・engine **errorType=0**・demo重複0.48（sampled 30/29も合法）。crash0/illegal0/worst**0.79ms**・PASS。policy/value不変(0.872/0.893)＝CB独立。連結必須(デモ37種/プール1267)・parity非転置・旧npzは移行。`bc_net_emb.npz`(42,787 params) |
+| 2026-06-21 | P5b-ii | **CBヘッド自己対戦RL**（infra＋スモーク＋ゲート, 実機） | 固定 metal_aggro | gate60 | gate **0.0** | — | **不採用(ゲート不達)** | パイプライン完走（収集→REINFORCE→ゲート）・native test緑(130)・`cb_pg_loss`/`cb_rl_samples`/`LitCBPolicyGradient`/`collect_cb`/`train_cb`。だが BC-CBデッキが metal_aggro に**全敗**。**全デッキ敗北→advantage≈0→REINFORCE信号ゼロ** |
+| 2026-06-21 | P5b | **根本所見**: 文脈自由CB＋per-card decode はデッキ構成を守れない | — | — | — | — | **方針転換** | greedy=**エネルギー0枚**(43ポケ/17トレ/0エネ＝機能せず)・sampled=エネ6–14(metal_aggro 31)。エネ比率のような**大域制約は per-card context-free スコアで表現不可**（greedyがエネを押し出す/inverse-copy重みでも thread 不能）。→ **CB-RL不採用・固定デッキ維持**（§A・Phase7安全網）。デッキ学習には**autoregressive デッキ方策**（各picを部分デッキで条件付け）が必要＝将来課題 |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 

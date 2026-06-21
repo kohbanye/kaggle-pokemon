@@ -35,6 +35,7 @@ import torch
 from torch.utils.data import Dataset
 
 from src.deck import legal_next_ids
+from src.net.embedding import CardEmbeddingIndex
 from src.net.encode import OPTION_DIM, encode_options, encode_state
 
 if TYPE_CHECKING:
@@ -260,6 +261,52 @@ def cb_supervision(
                     if idx is not None:
                         mask[idx] = True
                 samples.append(CBSample(mask, id_to_idx[target], 1.0 / counts[target]))
+    return card_feats, samples
+
+
+def cb_rl_samples(
+    decks_with_returns: Sequence[tuple[Sequence[int], float]],
+    pool: CardPool,
+    feats: CardFeatures,
+    *,
+    normalize: bool = True,
+) -> tuple[NDArray[np.float64], list[CBSample]]:
+    """Per-deck-step REINFORCE samples from sampled decks + their returns (5b-ii).
+
+    ``decks_with_returns`` is ``[(deck_in_pick_order, mean_return), ...]`` -- each
+    deck was *sampled* from the CB head and scored by playing it K times. The
+    advantage ``return - baseline`` (baseline = batch mean, optionally divided by
+    the batch std) is shared across that deck's 60 build steps and stored as each
+    :class:`CBSample`'s ``weight``. Legal masks are recomputed from the deck prefix
+    (:func:`~src.deck.legal_next_ids`), exactly as the CB head saw them at sampling
+    time -- so we don't have to log the masks, only the pick order. Row order is
+    ``sorted(pool.ids())`` (the embedding's rows), via :class:`CardEmbeddingIndex`.
+    """
+    index = CardEmbeddingIndex(pool)
+    card_feats = index.fixed_matrix(feats)
+    returns = np.asarray([r for _, r in decks_with_returns], dtype=np.float64)
+    adv = returns - returns.mean() if returns.size else returns
+    if normalize and adv.size > 1:
+        std = float(adv.std())
+        if std > 1e-8:  # noqa: PLR2004 - tiny-variance guard
+            adv = adv / std
+
+    samples: list[CBSample] = []
+    for (deck, _), advantage in zip(decks_with_returns, adv, strict=True):
+        for t in range(len(deck)):
+            target = deck[t]
+            row = index.row(target)
+            if row >= index.n_pool:  # unknown card id
+                continue
+            legal = legal_next_ids(list(deck[:t]), pool)
+            if target not in legal:
+                continue
+            mask = np.zeros(index.n_pool, dtype=np.bool_)
+            for cid in legal:
+                r = index.row(cid)
+                if r < index.n_pool:
+                    mask[r] = True
+            samples.append(CBSample(mask, row, float(advantage)))
     return card_feats, samples
 
 

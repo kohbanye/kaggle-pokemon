@@ -20,7 +20,7 @@ into this dict; a parity test keeps the two forwards identical.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -150,10 +150,23 @@ class PolicyValueNet:
         path: str | Path,
         config: NetConfig | None = None,
     ) -> PolicyValueNet:
-        """Load a parameter dict saved by :meth:`save`."""
+        """Load a parameter dict saved by :meth:`save`.
+
+        When ``config`` is omitted, the card-embedding dims (``n_cards`` /
+        ``embed_dim``) are recovered from the saved ``cb_embed`` shape so the torch
+        bridge (``from_numpy_net``) builds a matching-sized net. Other widths keep
+        their defaults (they are the only configuration we vary in practice).
+        """
         with np.load(Path(path)) as data:
             params = {k: np.asarray(data[k], dtype=np.float64) for k in data.files}
-        return cls(config or NetConfig(), params)
+        if config is None:
+            config = NetConfig()
+            emb = params.get("cb_embed")
+            if emb is not None:
+                config = replace(
+                    config, n_cards=int(emb.shape[0]) - 1, embed_dim=int(emb.shape[1]),
+                )
+        return cls(config, params)
 
     def param_count(self) -> int:
         """Total number of scalar parameters (for logging / budget checks)."""
