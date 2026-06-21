@@ -319,6 +319,8 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-22 | P5c-i | **LSTM自己回帰デッキヘッド**（記憶付き・部分デッキ条件付け, 実機probe） | 5b(0エネ崩壊) | — | — | — | **構成崩壊を解消(達成)** | greedy が **エネ35/ポケ8/重複0.80**（5bは0エネ）・errorType=0・crash0/worst2.46ms PASS。numpy LSTM forward と torch の **parity<1e-9**（非転置bridge・gate順i,f,g,o・H≠in test）。十分なCB BC(150ep/shuffle12/hidden64)が必要（40epでは46/1に偏る） |
 | 2026-06-22 | P5c | ゲート: LSTM greedyデッキ vs 固定metal_aggro（同プレイ頭, 実機） | metal_aggro | 80 | **0.000** | — | **不採用(ゲート不達)** | 構成は均衡だが**型不整合**: Grassエネ35＋Zapdos(雷)/Glastrier＝**技が撃てない**・非ex弱攻撃役8枚。**8デモ横断BCは「汎用骨格」を学ぶがアーキタイプの型一貫性を学べない**→ coherent な metal_aggro に全敗 |
 | 2026-06-22 | P5c | **結論**: LSTMデッキヘッドは正しい器・だがデッキ学習は固定デッキに勝てず | — | — | — | — | **固定デッキ維持** | 器（LSTM・parity・機能デッキ生成）は完成・再利用可。8デモBCで metal_aggro 超えは無理（型一貫性/データ量不足、RLゲートも信号薄）。§A→**固定 metal_aggro 維持**（Phase7安全網）。将来: 単一アーキタイプBC＋curriculum RL |
+| 2026-06-22 | P5c→修正 | **方針転換**: 固定デッキはスケールしない／「vs固定で全敗=ゼロ信号」は設計ミス | — | — | — | — | **vs固定を撤去** | ユーザ指摘: 自己対戦なら試合は無限生成可＝「データ不足」は誤り。真因は **(a) スコアリングを“デッキ vs デッキ自己対戦”に直す ＋ (b) 計算速度**。固定デッキ前提を捨てる |
+| 2026-06-22 | P5d | **デッキ自己対戦OSFP** 実装＋実機スモーク（相手デッキもCBサンプル＝自分/過去ckpt・同凍結プレイ頭） | — | 3iter×4×4 | self mean_wr **0.44–0.69** | — | **設計確立(信号あり)** | `collect_deck_selfplay`＋`train_deck_osfp`(OpponentPool＋LitCBSeqPolicyGradient)。相手=自分のデッキ分布→対称で約0.5・**勝敗ばらつき→advantage≠0＝信号常時あり**(5b-iiの全敗ゼロ信号を解消)。`collect_cb`/`train_cb`(vs固定)は**削除**。学習の伸びは長時間run=計算力(後で・クラウド) |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 

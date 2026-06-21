@@ -35,7 +35,7 @@ from src.net.torch_model import TorchPolicyValueNet
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from train_cb import CBConfig, run_cb_rl  # noqa: E402
+from train_deck_osfp import DeckOsfpConfig, run_deck_osfp  # noqa: E402
 from train_osfp import OsfpConfig, run_osfp  # noqa: E402
 
 # A small hand-written engine dump, exactly as the runner injects it (mirrors
@@ -280,7 +280,7 @@ def test_run_osfp_loop_with_fake_generator(tmp_path) -> None:  # noqa: ANN001 - 
     assert selection_is_legal(agent(obs), obs["select"])
 
 
-# --- Phase 5b-ii: CB-head policy gradient ---------------------------------
+# --- deck self-play OSFP loop ---------------------------------------------
 
 def _cb_pool() -> CardPool:
     def info(cid: int, name: str, *, bp: bool = False, be: bool = False,
@@ -292,25 +292,28 @@ def _cb_pool() -> CardPool:
     })
 
 
-def test_run_cb_rl_loop_with_fake_generator(tmp_path) -> None:  # noqa: ANN001 - fixture
+def test_run_deck_osfp_loop_with_fake_generator(tmp_path) -> None:  # noqa: ANN001
     pool = _cb_pool()
     bc = tmp_path / "bc.npz"
     PolicyValueNet.random(
         np.random.default_rng(0), NetConfig(n_cards=len(pool.ids())),
     ).save(bc)
 
+    # Decks of varied strength -> the deck self-play advantage is non-zero (the fix
+    # for the vs-fixed design where every deck lost). The fake generator stands in
+    # for the Docker deck-self-play collector (opponent decks drawn from the net).
     def fake_gen(_spec) -> list[dict]:  # noqa: ANN001 - injected stub
         return [
             {"deck": [10, 11, 20, 30, 2, 2], "wins": w, "losses": lo, "draws": 0}
             for w, lo in [(8, 2), (2, 8), (5, 5), (7, 3)]
         ]
 
-    cfg = CBConfig(
-        init_weights=bc, iter_dir=tmp_path / "cb", opp_deck=tmp_path / "x.csv",
+    cfg = DeckOsfpConfig(
+        init_weights=bc, iter_dir=tmp_path / "deck", gate_deck=tmp_path / "x.csv",
         iterations=2, decks_per_iter=4, games_per_deck=10, batch_size=8,
         eval_every=100, seed=0,
     )
-    result = run_cb_rl(cfg, pool, FEATS, generate=fake_gen, evaluate=None)
+    result = run_deck_osfp(cfg, pool, FEATS, generate=fake_gen, evaluate=None)
     assert len(result.iterations) == 2
     assert result.final_weights.exists()
     assert all(s.n_samples > 0 for s in result.iterations)

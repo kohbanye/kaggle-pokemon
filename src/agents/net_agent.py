@@ -59,6 +59,7 @@ class NetAgent(Agent):
         weights: str | Path | None = None,
         seed: int = _DEFAULT_SEED,
         cb_pool: CardPool | None = None,
+        sample_deck: bool = False,
         temperature: float = 0.0,
     ) -> None:
         super().__init__(deck)
@@ -74,11 +75,16 @@ class NetAgent(Agent):
             # the pool, else the CB head can't score it (Phase 5b).
             cfg = NetConfig(n_cards=len(cb_pool.ids())) if cb_pool else NetConfig()
             self.net = PolicyValueNet.random(np.random.default_rng(seed), cfg)
-        # CB head builds the deck at init when a pool is available; on any error
-        # keep the deck passed in (a guaranteed-legal fallback).
+        # CB head builds the deck at init when a pool is available; on any error keep
+        # the deck passed in (a guaranteed-legal fallback). ``sample_deck`` draws the
+        # 60 cards from the masked CB softmax (deck self-play exploration); otherwise
+        # greedy argmax (deterministic eval / submission). ``self.deck`` is the deck
+        # in CB pick order -- what the deck-self-play collector records for REINFORCE.
         if cb_pool is not None:
             with contextlib.suppress(Exception):
-                self.deck = build_deck(self.net, cb_pool, self.feats)
+                self.deck = build_deck(
+                    self.net, cb_pool, self.feats, self._rng, greedy=not sample_deck,
+                )
 
     def reset(self, seed: int) -> None:
         """Re-seed the per-game sampling RNG (used only when ``temperature > 0``)."""

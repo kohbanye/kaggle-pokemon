@@ -252,6 +252,20 @@ def test_cb_pool_overrides_deck_at_construction() -> None:
     assert deck_is_legal(out, pool)
 
 
+def test_sample_deck_builds_legal_and_varies() -> None:
+    # Deck self-play needs sampled (not greedy) decks for exploration; different
+    # seeds must give different legal decks (else the loop sees one deck forever).
+    pool = make_pool()
+    decks = []
+    for seed in (1, 2, 3):
+        agent = NetAgent(DECK, ENGINE, cb_pool=pool, sample_deck=True, seed=seed)
+        out = agent(DECK_REQUEST)
+        assert len(out) == DECK_SIZE
+        assert deck_is_legal(out, pool)
+        decks.append(tuple(out))
+    assert len(set(decks)) > 1  # sampling explores -- not all identical
+
+
 def test_act_returns_legal_single_select() -> None:
     agent = NetAgent(DECK, ENGINE)
     options = [{"type": 13, "attackId": 1043}, {"type": 13, "attackId": 1047},
