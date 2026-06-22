@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -97,6 +98,8 @@ class JointOsfpConfig:
     max_play_samples: int = 20000  # subsample play decisions per iter (see build_...)
     value_coef: float = 0.5
     entropy_coef: float = 0.01
+    deck_entropy_coef: float = 0.05  # deck-arm entropy bonus (anti-collapse)
+    deck_kl_coef: float = 1.0  # deck-arm KL(BC||cur) anchor (anti-collapse)
     eval_every: int = 5
     eval_games: int = 200
     seed: int = 0
@@ -181,18 +184,28 @@ def _split_records(records: list[dict]) -> tuple[list[dict], list[dict]]:
     return games, decks
 
 
-def _joint_train_step(
+def _joint_train_step(  # noqa: PLR0913 - threads the joint update's inputs
     net_np: PolicyValueNet,
     play_samples: list,
     deck_card_feats: object,
     deck_samples: list,
     cfg: JointOsfpConfig,
+    ref_net: object = None,
 ) -> PolicyValueNet:
-    """One joint update over both arms via a CombinedLoader (no head frozen)."""
+    """One joint update over both arms in a single fit.
+
+    The play and deck loaders share one ``CombinedLoader``/optimizer so the shared
+    embedding gets play and deck gradients in the same pass. ``max_size_cycle``
+    repeats the tiny deck loader to play's ~78 batches, but ``lit.deck_batches``
+    bounds the deck loss to the first (real) deck batch(es) only -- one deck epoch,
+    not ~78 -- which is what kept the BC-balanced deck from collapsing to all-energy.
+    """
     torch_net = from_numpy_net(net_np)
     lit = LitJointPolicyGradient(
         torch_net, deck_card_feats, lr=cfg.lr,
         value_coef=cfg.value_coef, entropy_coef=cfg.entropy_coef,
+        deck_entropy_coef=cfg.deck_entropy_coef, deck_kl_coef=cfg.deck_kl_coef,
+        ref_net=ref_net,
     )
     loaders: dict[str, DataLoader] = {}
     if play_samples:
@@ -201,14 +214,15 @@ def _joint_train_step(
             collate_fn=collate_policy,
         )
     if deck_samples:
-        loaders["deck"] = DataLoader(
+        deck_loader = DataLoader(
             CBSequenceDataset(deck_samples), batch_size=cfg.batch_size, shuffle=True,
             collate_fn=collate_cb_seq,
         )
+        loaders["deck"] = deck_loader
+        lit.deck_batches = len(deck_loader)  # deck loss on one epoch only, not cycled
     if not loaders:
         return net_np
-    combined = CombinedLoader(loaders, mode="max_size_cycle")
-    _trainer(cfg.epochs).fit(lit, combined)
+    _trainer(cfg.epochs).fit(lit, CombinedLoader(loaders, mode="max_size_cycle"))
     return lit.net.double().to_numpy_net()
 
 
@@ -234,6 +248,8 @@ def run_joint_osfp(
         threshold=cfg.threshold, patience=cfg.patience,
     )
     net_np = PolicyValueNet.load(cfg.init_weights)
+    # Frozen BC reference for the deck-arm KL anchor (built once; never trained).
+    ref_net = from_numpy_net(PolicyValueNet.load(cfg.init_weights))
 
     stats: list[JointIterStat] = []
     for n in range(1, cfg.iterations + 1):
@@ -257,7 +273,7 @@ def run_joint_osfp(
                   if r["wins"] + r["losses"] > 0]
         card_feats, deck_samples = cb_rl_sequences(scored, pool, feats, normalize=True)
         net_np = _joint_train_step(
-            net_np, play_samples, card_feats, deck_samples, cfg,
+            net_np, play_samples, card_feats, deck_samples, cfg, ref_net,
         )
 
         gate: float | None = None
@@ -281,6 +297,13 @@ def run_joint_osfp(
             f"play={len(play_samples)} deck={len(deck_samples)} mean_wr={mean_wr:.3f} "
             f"gate={gate} admitted={admitted} ckpts={history.num_checkpoints}",
         )
+
+        # The per-iteration game logs (raw-obs JSONL) are transient -- already read
+        # into `games`/`decks` above -- and ~140 MB each, so drop them or a long run
+        # fills the disk. The npz checkpoints stay (the pool references admitted ones).
+        shutil.rmtree(spec.out, ignore_errors=True)
+        if gate is not None:
+            shutil.rmtree(cfg.iter_dir / f"gate_{n}", ignore_errors=True)
 
     final = cfg.iter_dir / "joint_final.npz"
     net_np.save(final)
@@ -468,6 +491,14 @@ def main() -> None:
         "--max-play-samples", type=int, default=20000,
         help="subsample play decisions per iter before encoding/training",
     )
+    parser.add_argument(
+        "--deck-entropy-coef", type=float, default=0.05,
+        help="deck-arm entropy bonus (anti-collapse)",
+    )
+    parser.add_argument(
+        "--deck-kl-coef", type=float, default=1.0,
+        help="deck-arm KL(BC||cur) anchor toward the BC deck head (anti-collapse)",
+    )
     parser.add_argument("--no-eval", action="store_true")
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
     args = parser.parse_args()
@@ -482,6 +513,7 @@ def main() -> None:
         self_play_prob=args.self_play_prob, eval_every=args.eval_every,
         eval_games=args.eval_games, seed=args.seed,
         max_play_samples=args.max_play_samples,
+        deck_entropy_coef=args.deck_entropy_coef, deck_kl_coef=args.deck_kl_coef,
     )
     feats = CardFeatures(load_engine_json(args.engine_json))
     pool = build_pool()

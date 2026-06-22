@@ -245,7 +245,7 @@ class LitJointPolicyGradient(L.LightningModule):
     data keeps the importance ratio ~1.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - keyword-only training hyperparameters
         self,
         net: TorchPolicyValueNet,
         card_feats: NDArray,
@@ -253,6 +253,9 @@ class LitJointPolicyGradient(L.LightningModule):
         lr: float = 1e-3,
         value_coef: float = 0.5,
         entropy_coef: float = 0.01,
+        deck_entropy_coef: float = 0.0,
+        deck_kl_coef: float = 0.0,
+        ref_net: TorchPolicyValueNet | None = None,
     ) -> None:
         super().__init__()
         self.net = net
@@ -262,6 +265,26 @@ class LitJointPolicyGradient(L.LightningModule):
         self.lr = lr
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
+        # Deck-arm anti-collapse regularisers. Unlike the play arm, the deck
+        # REINFORCE has no natural floor: with no entropy term and no anchor, and
+        # the cap-exempt basic energy pickable up to 59x, it collapses to an
+        # all-energy / one-Pokemon deck within ~2 iterations (measured). ``deck_kl``
+        # anchors each per-step distribution to a frozen reference (the BC net) --
+        # mode-covering KL(ref||cur), i.e. soft distillation toward the balanced BC
+        # deck head -- and ``deck_entropy`` keeps the distribution from sharpening.
+        self.deck_entropy_coef = deck_entropy_coef
+        self.deck_kl_coef = deck_kl_coef
+        # The deck loader is tiny (one batch) next to play's ~78, so a single
+        # CombinedLoader cycles it ~78x per epoch -> the deck loss applied ~78x
+        # (collapse + wasted GPU). The loop sets this to the deck loader's real
+        # batch count; ``training_step`` computes the deck loss only on the first
+        # that many steps (= exactly one deck epoch), keeping play and deck both at
+        # one epoch in a *single* fit (one Lightning setup, no double-fit overhead).
+        self.deck_batches = 10**9
+        self.ref_net = ref_net
+        if ref_net is not None:
+            for p in ref_net.parameters():
+                p.requires_grad_(requires_grad=False)
 
     def _play_loss(self, batch: Sequence[torch.Tensor]) -> torch.Tensor:
         (
@@ -292,15 +315,44 @@ class LitJointPolicyGradient(L.LightningModule):
         logits = logits.masked_fill(~masks, _NEG_INF)
         logp = F.log_softmax(logits, dim=-1)
         chosen = logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
-        return -(chosen * weights * valid).sum() / valid.sum().clamp(min=1)
+        denom = valid.sum().clamp(min=1)
+        pg = -(chosen * weights * valid).sum() / denom
+
+        # Zero the -inf out of logp (masked candidates) before any product so a
+        # masked 0 * -inf never becomes a nan in the backward pass.
+        safe_logp = logp.masked_fill(~masks, 0.0)
+        prob = logp.exp()  # 0 at masked candidates
+
+        # Entropy bonus: keep the per-step pick distribution from sharpening onto
+        # the degenerate all-energy mode (subtract, like the play arm).
+        entropy = ((prob * safe_logp).sum(-1) * valid).sum() / denom  # = -H
+        loss = pg + self.deck_entropy_coef * entropy
+
+        # BC anchor: mode-covering KL(ref||cur) per step = soft distillation toward
+        # the frozen BC deck head, which forces the distribution to keep mass on the
+        # Pokemon/Trainer cards the balanced BC deck used instead of collapsing.
+        if self.ref_net is not None and self.deck_kl_coef > 0:
+            with torch.no_grad():
+                ref_logits = cb_sequence_logits(self.ref_net, self.card_feats, targets)
+                ref_logits = ref_logits.masked_fill(~masks, _NEG_INF)
+                ref_logp = F.log_softmax(ref_logits, dim=-1)
+                ref_safe = ref_logp.masked_fill(~masks, 0.0)
+                ref_prob = ref_logp.exp()  # 0 at masked candidates
+            kl = ((ref_prob * (ref_safe - safe_logp)).sum(-1) * valid).sum() / denom
+            loss = loss + self.deck_kl_coef * kl
+        return loss
 
     def training_step(
         self,
         batch: dict,
-        batch_idx: int,  # noqa: ARG002 - required by the Lightning step signature
+        batch_idx: int,
     ) -> torch.Tensor:
         play = self._play_loss(batch["play"]) if "play" in batch else None
-        deck = self._deck_loss(batch["deck"]) if "deck" in batch else None
+        deck = (
+            self._deck_loss(batch["deck"])
+            if "deck" in batch and batch_idx < self.deck_batches
+            else None
+        )
         terms = [t for t in (play, deck) if t is not None]
         loss = sum(terms)
         self.log_dict(
@@ -314,5 +366,7 @@ class LitJointPolicyGradient(L.LightningModule):
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        # No freezing: trunk/policy/value AND cb/lstm AND the shared embedding.
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        # Optimise the learner net only -- trunk/policy/value AND cb/lstm AND the
+        # shared embedding, no freezing. ``self.net.parameters()`` (not
+        # ``self.parameters()``) deliberately excludes the frozen ``ref_net`` anchor.
+        return torch.optim.Adam(self.net.parameters(), lr=self.lr)
