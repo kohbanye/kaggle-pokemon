@@ -37,14 +37,16 @@ from src.net.bc_data import (  # noqa: E402
     load_engine_json,
 )
 from src.net.cb import build_deck  # noqa: E402
+from src.net.embedding import CardEmbeddingIndex  # noqa: E402
 from src.net.features import CardFeatures  # noqa: E402
 from src.net.lit import LitCBSeq, LitPolicyValue  # noqa: E402
 from src.net.model import NetConfig  # noqa: E402
 
 
 def _trainer(epochs: int) -> L.Trainer:
+    accelerator = "gpu" if torch.cuda.is_available() else "cpu"
     return L.Trainer(
-        max_epochs=epochs, accelerator="cpu", devices=1, logger=False,
+        max_epochs=epochs, accelerator=accelerator, devices=1, logger=False,
         enable_checkpointing=False, enable_progress_bar=False,
         enable_model_summary=False,
     )
@@ -54,12 +56,16 @@ def evaluate(lit: LitPolicyValue, samples: list[PolicySample]) -> tuple[float, f
     """Held-out policy top-1 accuracy and value sign accuracy (on decisive games)."""
     if not samples:
         return 0.0, 0.0
-    states, options, mask, targets, values = collate_policy(samples)
+    (
+        states, state_rows, state_mask, options, mask, option_rows, targets, values,
+    ) = collate_policy(samples)
     with torch.no_grad():
-        logits = lit.net.policy_logits(states, options)
+        logits = lit.net.policy_logits(
+            states, state_rows, state_mask, options, option_rows,
+        )
         logits = logits.masked_fill(~mask, float("-inf"))
         pol_acc = (logits.argmax(dim=1) == targets).float().mean().item()
-        vpred = lit.net.value(states)
+        vpred = lit.net.value(states, state_rows, state_mask)
     decisive = values != 0
     if decisive.any():
         agree = (vpred[decisive] > 0) == (values[decisive] > 0)
@@ -92,6 +98,9 @@ def main() -> None:  # noqa: PLR0915 - a training CLI legitimately threads its c
     parser.add_argument("--cb-shuffles", type=int, default=12)
     parser.add_argument("--embed-dim", type=int, default=16, help="CB card embedding")
     parser.add_argument("--lstm-hidden", type=int, default=64, help="deck LSTM hidden")
+    parser.add_argument("--hidden", type=int, default=64, help="shared trunk width")
+    parser.add_argument("--policy-hidden", type=int, default=32, help="play head width")
+    parser.add_argument("--cb-hidden", type=int, default=32, help="deck head width")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val-frac", type=float, default=0.1)
@@ -102,9 +111,14 @@ def main() -> None:  # noqa: PLR0915 - a training CLI legitimately threads its c
     feats = CardFeatures(engine)
     teachers = {t for t in args.teachers.split(",") if t}
 
+    # Pool/index built early: the play head now embeds card ids via the shared table,
+    # so sample building needs the card-id -> embedding-row map (same as serving).
+    pool = build_pool()
+    index = CardEmbeddingIndex(pool)
+
     games = list(iter_games(game_files(args.data)))
     samples = build_policy_samples(
-        games, feats, teachers=teachers, discount=args.discount,
+        games, feats, index, teachers=teachers, discount=args.discount,
     )
     if not samples:
         raise SystemExit(f"no policy samples for teachers={teachers} under {args.data}")
@@ -122,10 +136,10 @@ def main() -> None:  # noqa: PLR0915 - a training CLI legitimately threads its c
     )
 
     torch.manual_seed(args.seed)
-    pool = build_pool()  # built early: the net's card embedding is sized to the pool
     config = NetConfig(
         n_cards=len(pool.ids()), embed_dim=args.embed_dim,
-        lstm_hidden=args.lstm_hidden,
+        lstm_hidden=args.lstm_hidden, hidden=args.hidden,
+        policy_hidden=args.policy_hidden, cb_hidden=args.cb_hidden,
     )
     lit = LitPolicyValue(config, lr=args.lr)
     loader = DataLoader(

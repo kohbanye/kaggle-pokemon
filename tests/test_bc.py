@@ -28,7 +28,7 @@ from src.net.bc_data import (
     collate_policy,
 )
 from src.net.cb import build_deck
-from src.net.encode import OPTION_DIM, STATE_DIM
+from src.net.encode import OPTION_DIM, SLOT_MAX, STATE_DIM, STATE_EMBED_SLOTS
 from src.net.features import CARD_FEAT_DIM, CardFeatures
 from src.net.lit import LitCBSeq, LitPolicyValue
 from src.net.model import NetConfig
@@ -47,6 +47,16 @@ ENGINE = {
     "attacks": {100: {"dmg": 20, "cost": [0]}, 101: {"dmg": 90, "cost": [1, 1]}},
 }
 FEATS = CardFeatures(ENGINE)
+
+
+def _sample(
+    state: np.ndarray, options: np.ndarray, target: int, value: float,
+) -> PolicySample:
+    """A PolicySample with empty (UNK) shared-embedding rows for the play head."""
+    rows = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.intp)
+    mask = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.bool_)
+    opt_rows = np.zeros(options.shape[0], dtype=np.intp)
+    return PolicySample(state, rows, mask, options, opt_rows, target, value)
 
 
 def _decision(slot: int, agent: str, target: int, n_options: int = 2) -> dict:
@@ -90,15 +100,13 @@ def _pool() -> CardPool:
 def test_collate_policy_shapes_and_mask() -> None:
     rng = np.random.default_rng(0)
     samples = [
-        PolicySample(
-            rng.standard_normal(STATE_DIM),
-            rng.standard_normal((k, OPTION_DIM)),
-            0,
-            0.5,
-        )
+        _sample(rng.standard_normal(STATE_DIM), rng.standard_normal((k, OPTION_DIM)),
+                0, 0.5)
         for k in (2, 3, 1)
     ]
-    states, options, mask, targets, values = collate_policy(samples)
+    states, _state_rows, _state_mask, options, mask, _opt_rows, targets, values = (
+        collate_policy(samples)
+    )
     assert states.shape == (3, STATE_DIM)
     assert options.shape == (3, 3, OPTION_DIM)  # padded to batch-max K = 3
     assert mask.dtype == torch.bool
@@ -219,12 +227,8 @@ def test_train_export_and_netagent_legal(tmp_path) -> None:  # noqa: ANN001 - py
     torch.manual_seed(0)
     rng = np.random.default_rng(0)
     samples = [
-        PolicySample(
-            rng.standard_normal(STATE_DIM),
-            rng.standard_normal((3, OPTION_DIM)),
-            int(rng.integers(3)),
-            float(rng.choice([-1.0, 1.0])),
-        )
+        _sample(rng.standard_normal(STATE_DIM), rng.standard_normal((3, OPTION_DIM)),
+                int(rng.integers(3)), float(rng.choice([-1.0, 1.0])))
         for _ in range(64)
     ]
     loader = DataLoader(

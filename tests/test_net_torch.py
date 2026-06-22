@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.net.encode import OPTION_DIM, STATE_DIM
+from src.net.encode import OPTION_DIM, SLOT_MAX, STATE_DIM, STATE_EMBED_SLOTS
 from src.net.features import CARD_FEAT_DIM
 from src.net.lit import LitPolicyValue
 from src.net.model import NetConfig, PolicyValueNet
@@ -32,26 +32,39 @@ def _trainer() -> L.Trainer:
 
 def test_torch_numpy_forward_parity() -> None:
     torch.manual_seed(0)
-    tnet = TorchPolicyValueNet().double()  # float64 to match the numpy net exactly
+    # n_cards > 0 so the shared card embedding is non-trivial in both forwards.
+    cfg = NetConfig(n_cards=8)
+    tnet = TorchPolicyValueNet(cfg).double()  # float64 to match the numpy net exactly
     npnet = tnet.to_numpy_net()
 
     rng = np.random.default_rng(0)
-    x = rng.standard_normal(STATE_DIM)
-    options = rng.standard_normal((6, OPTION_DIM))
-    cfg = tnet.config
+    x = rng.standard_normal(STATE_DIM)  # fixed state features
+    options = rng.standard_normal((6, OPTION_DIM))  # fixed option features
+    # Embedding rows index cb_embed's n_cards + 1 rows (the last is UNK).
+    rows = rng.integers(0, cfg.n_cards + 1, size=(STATE_EMBED_SLOTS, SLOT_MAX))
+    mask = rng.random((STATE_EMBED_SLOTS, SLOT_MAX)) > 0.4
+    mask[1, :] = False  # an empty slot must contribute a zero block (parity edge)
+    option_rows = rng.integers(0, cfg.n_cards + 1, size=6)
     # card_logits consumes [lstm_hidden ⊕ fixed features ⊕ card embedding].
     cb_in = cfg.lstm_hidden + CARD_FEAT_DIM + cfg.embed_dim
     cards = rng.standard_normal((9, cb_in))
 
+    def t(a: np.ndarray) -> torch.Tensor:
+        return torch.as_tensor(a).unsqueeze(0)
+
     with torch.no_grad():
-        t_value = tnet.value(torch.as_tensor(x).unsqueeze(0)).item()
-        t_policy = tnet.policy_logits(
-            torch.as_tensor(x).unsqueeze(0), torch.as_tensor(options).unsqueeze(0),
-        ).squeeze(0).numpy()
+        t_value = tnet.value(t(x), t(rows), t(mask)).item()
+        t_policy = (
+            tnet.policy_logits(t(x), t(rows), t(mask), t(options), t(option_rows))
+            .squeeze(0)
+            .numpy()
+        )
         t_cards = tnet.card_logits(torch.as_tensor(cards)).numpy()
 
-    assert abs(t_value - npnet.value(x)) < 1e-9
-    assert np.allclose(t_policy, npnet.policy_logits(x, options), atol=1e-9)
+    assert abs(t_value - npnet.value(x, rows, mask)) < 1e-9
+    assert np.allclose(
+        t_policy, npnet.policy_logits(x, rows, mask, options, option_rows), atol=1e-9,
+    )
     assert np.allclose(t_cards, npnet.card_logits(cards), atol=1e-9)
 
 
@@ -106,12 +119,21 @@ def test_cb_embed_roundtrip_not_transposed() -> None:
 
 # --- Lightning policy loss actually trains --------------------------------
 
+def _empty_rows(batch: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """Zero state-embedding rows + all-False mask (UNK / zero contribution)."""
+    rows = torch.zeros(batch, STATE_EMBED_SLOTS, SLOT_MAX, dtype=torch.long)
+    mask = torch.zeros(batch, STATE_EMBED_SLOTS, SLOT_MAX, dtype=torch.bool)
+    return rows, mask
+
+
 def test_policy_loss_trains_and_beats_chance() -> None:
     torch.manual_seed(0)
     batch, k = 96, 4
     states = torch.randn(batch, STATE_DIM)
+    state_rows, state_mask = _empty_rows(batch)
     options = torch.randn(batch, k, OPTION_DIM)
     mask = torch.ones(batch, k, dtype=torch.bool)
+    option_rows = torch.zeros(batch, k, dtype=torch.long)
     # Target = the option whose first feature is largest -- a signal the policy
     # head sees directly, so a working forward/backward/optim must learn it.
     targets = options[:, :, 0].argmax(dim=1)
@@ -121,25 +143,33 @@ def test_policy_loss_trains_and_beats_chance() -> None:
     first = None
     for _ in range(200):
         opt.zero_grad()
-        loss = lit.policy_loss(states, options, mask, targets)
+        loss = lit.policy_loss(
+            states, state_rows, state_mask, options, mask, option_rows, targets,
+        )
         first = loss.item() if first is None else first
         loss.backward()
         opt.step()
     assert loss.item() < first * 0.7
 
     with torch.no_grad():
-        acc = (lit.net.policy_logits(states, options).argmax(dim=1) == targets)
-    assert acc.float().mean().item() > 0.5  # vs 0.25 chance
+        logits = lit.net.policy_logits(
+            states, state_rows, state_mask, options, option_rows,
+        )
+    assert (logits.argmax(dim=1) == targets).float().mean().item() > 0.5  # vs 0.25
 
 
 def test_padding_mask_excludes_options() -> None:
     # A padded (masked-out) option must never be chosen, even with a huge logit.
     lit = LitPolicyValue()
     states = torch.zeros(1, STATE_DIM)
+    state_rows, state_mask = _empty_rows(1)
     options = torch.zeros(1, 3, OPTION_DIM)
     mask = torch.tensor([[True, True, False]])
+    option_rows = torch.zeros(1, 3, dtype=torch.long)
     targets = torch.tensor([0])
-    loss = lit.policy_loss(states, options, mask, targets)
+    loss = lit.policy_loss(
+        states, state_rows, state_mask, options, mask, option_rows, targets,
+    )
     assert torch.isfinite(loss)  # masking to -inf must not produce nan/inf loss
 
 
@@ -149,12 +179,18 @@ def test_trainer_fit_and_export(tmp_path) -> None:  # noqa: ANN001 - pytest fixt
     torch.manual_seed(0)
     batch, k = 32, 4
     states = torch.randn(batch, STATE_DIM)
+    state_rows, state_mask = _empty_rows(batch)
     options = torch.randn(batch, k, OPTION_DIM)
     mask = torch.ones(batch, k, dtype=torch.bool)
+    option_rows = torch.zeros(batch, k, dtype=torch.long)
     targets = options[:, :, 0].argmax(dim=1)
     values = torch.zeros(batch)
     loader = DataLoader(
-        TensorDataset(states, options, mask, targets, values), batch_size=8,
+        TensorDataset(
+            states, state_rows, state_mask, options, mask, option_rows,
+            targets, values,
+        ),
+        batch_size=8,
     )
 
     lit = LitPolicyValue(lr=0.05)
@@ -166,6 +202,12 @@ def test_trainer_fit_and_export(tmp_path) -> None:  # noqa: ANN001 - pytest fixt
     lit.net.double().to_numpy_net().save(path)
     served = PolicyValueNet.load(path)
     x = np.random.default_rng(0).standard_normal(STATE_DIM)
+    nrows = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.intp)
+    nmask = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.bool_)
     with torch.no_grad():
-        t_value = lit.net.value(torch.as_tensor(x).unsqueeze(0)).item()
-    assert abs(t_value - served.value(x)) < 1e-9
+        t_value = lit.net.value(
+            torch.as_tensor(x).unsqueeze(0),
+            torch.as_tensor(nrows).unsqueeze(0),
+            torch.as_tensor(nmask).unsqueeze(0),
+        ).item()
+    assert abs(t_value - served.value(x, nrows, nmask)) < 1e-9

@@ -29,6 +29,7 @@ from src.net.features import CARD_FEAT_DIM
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+    from src.net.embedding import CardEmbeddingIndex
     from src.net.features import CardFeatures
 
 # AreaType (mirror of cg.api.AreaType) -- the in-play areas an option points at.
@@ -68,6 +69,15 @@ OPTION_DIM = (
     + _OPTION_ATTACK_WIDTH
     + _OPTION_NUMBER_WIDTH
 )
+
+# Learned-embedding card slots in the state (shared card embedding, Phase 5d): the
+# four board groups whose cards get a learned embedding fed into the play head.
+# Each slot is a padded row list (+ mask); the forward masked-means each slot's
+# embeddings, so a single-card slot (active) and a multi-card slot (bench) use the
+# same machinery. SLOT_MAX caps cards per slot (bench is <=5 in standard rules; 8
+# leaves headroom). Order: my active, opp active, my bench, opp bench.
+STATE_EMBED_SLOTS = 4
+SLOT_MAX = 8
 
 # Normalisers (see features.py: scale only needs to be sane, not exact).
 _ENERGY_NORM = 4.0
@@ -191,18 +201,16 @@ def encode_state(
     ])
 
 
-def encode_option(
+def _option_target(
     option: dict,
     current: dict | None,
     your_index: int,
-    feats: CardFeatures,
-) -> NDArray[np.float64]:
-    """Encode one presented ``Option`` into an :data:`OPTION_DIM` vector."""
-    opt_type = int(option.get("type", -1))
-    type_onehot = np.zeros(NUM_OPTION_TYPES, dtype=np.float64)
-    if 0 <= opt_type < NUM_OPTION_TYPES:
-        type_onehot[opt_type] = 1.0
+) -> tuple[int | None, int, int]:
+    """Resolve the option's target ``(card_id, target_area, owner)``.
 
+    Shared by :func:`encode_option` (fixed features) and :func:`option_card_rows`
+    (embedding rows) so the two never disagree on which card an option acts on.
+    """
     players = (current or {}).get("players") or []
     owner = int(option.get("playerIndex", your_index))
     # Prefer the on-field Pokemon the option acts on; fall back to its source card.
@@ -217,6 +225,22 @@ def encode_option(
     target_id: int | None = None
     if 0 <= owner < len(players):
         target_id = _card_id_at(players[owner], target_area, target_index)
+    return target_id, target_area, owner
+
+
+def encode_option(
+    option: dict,
+    current: dict | None,
+    your_index: int,
+    feats: CardFeatures,
+) -> NDArray[np.float64]:
+    """Encode one presented ``Option`` into an :data:`OPTION_DIM` vector."""
+    opt_type = int(option.get("type", -1))
+    type_onehot = np.zeros(NUM_OPTION_TYPES, dtype=np.float64)
+    if 0 <= opt_type < NUM_OPTION_TYPES:
+        type_onehot[opt_type] = 1.0
+
+    target_id, target_area, owner = _option_target(option, current, your_index)
     target_feat = feats.vector(target_id)
 
     flags = [
@@ -256,3 +280,73 @@ def encode_options(
     return np.stack([
         encode_option(opt, current, your_index, feats) for opt in options
     ])
+
+
+# --- learned-embedding row indices (shared card embedding, Phase 5d) ---------
+#
+# These return the ``CardEmbeddingIndex`` rows for the cards the play head should
+# embed; the forward looks the embedding up from ``cb_embed`` (differentiable in
+# torch, so the play loss trains the *shared* table). They never raise -- a missing
+# index or unknown id degrades to the UNK row (``index.n_pool``).
+
+
+def _bench_ids(player: dict) -> list[int | None]:
+    return [pk.get("id") for pk in (player.get("bench") or []) if pk is not None]
+
+
+def state_embed_rows(
+    current: dict | None,
+    your_index: int,
+    index: CardEmbeddingIndex | None,
+) -> tuple[NDArray[np.intp], NDArray[np.bool_]]:
+    """Padded embedding rows + mask for the four state slots.
+
+    Returns ``rows`` ``(STATE_EMBED_SLOTS, SLOT_MAX)`` and ``mask`` (same shape,
+    True where a real card sits). Slot order: my active, opp active, my bench, opp
+    bench. With no ``index`` (or no state) every slot is empty (mask all False), so
+    the masked-mean contributes zeros -- the pre-embedding behaviour.
+    """
+    rows = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.intp)
+    mask = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.bool_)
+    players = (current or {}).get("players") or []
+    if index is None or len(players) < 2:  # noqa: PLR2004 - engine always sends 2
+        return rows, mask
+    me = players[your_index]
+    opp = players[1 - your_index]
+    me_active = _active_pokemon(me)
+    opp_active = _active_pokemon(opp)
+    slots: list[list[int | None]] = [
+        [me_active.get("id")] if me_active is not None else [],
+        [opp_active.get("id")] if opp_active is not None else [],
+        _bench_ids(me),
+        _bench_ids(opp),
+    ]
+    for s, ids in enumerate(slots):
+        for j, cid in enumerate(ids[:SLOT_MAX]):
+            rows[s, j] = index.row(cid)
+            mask[s, j] = True
+    return rows, mask
+
+
+def option_embed_rows(
+    options: list[dict],
+    current: dict | None,
+    your_index: int,
+    index: CardEmbeddingIndex | None,
+) -> NDArray[np.intp]:
+    """Embedding row per presented option's target card -- ``(len(options),)``.
+
+    Unknown / untargeted options (and a missing ``index``) map to the UNK row.
+    """
+    if not options:
+        return np.zeros(0, dtype=np.intp)
+    unk = index.n_pool if index is not None else 0
+    if index is None:
+        return np.full(len(options), unk, dtype=np.intp)
+    return np.asarray(
+        [
+            index.row(_option_target(opt, current, your_index)[0])
+            for opt in options
+        ],
+        dtype=np.intp,
+    )

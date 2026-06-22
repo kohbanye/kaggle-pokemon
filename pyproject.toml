@@ -58,6 +58,21 @@ dev = [
     "nbformat>=5.10.4",
     "pytest>=9.0.1",
     "ruff>=0.14.6",
-    "torch>=2.12.1",
+    # Pinned to a CUDA-12.4 build: this training box has an A100 on driver 550
+    # (max CUDA 12.4), and torch's newer wheels need a newer driver. On Linux x86-64
+    # torch comes from the cu124 index (GPU); elsewhere (e.g. the ARM dev Mac) it
+    # resolves from PyPI (CPU/MPS). Train torch / serve numpy: never touches submit.
+    "torch==2.6.0",
     "ty>=0.0.1a28",
+]
+
+# GPU torch only on Linux x86-64 (this training box); other platforms use PyPI.
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu124", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
 ]
