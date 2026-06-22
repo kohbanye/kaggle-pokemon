@@ -18,7 +18,9 @@ from src.deck import is_legal as deck_is_legal
 from src.net.cb import build_deck
 from src.net.encode import (
     OPTION_DIM,
+    SLOT_MAX,
     STATE_DIM,
+    STATE_EMBED_SLOTS,
     encode_option,
     encode_options,
     encode_state,
@@ -101,6 +103,13 @@ def net() -> PolicyValueNet:
     return PolicyValueNet.random(np.random.default_rng(0), cfg)
 
 
+def _no_embed() -> tuple[np.ndarray, np.ndarray]:
+    """Empty state-embedding rows + mask (every slot UNK / zero contribution)."""
+    rows = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.intp)
+    mask = np.zeros((STATE_EMBED_SLOTS, SLOT_MAX), dtype=np.bool_)
+    return rows, mask
+
+
 # --- card features --------------------------------------------------------
 
 def test_card_feature_dim_and_unknown_is_zero() -> None:
@@ -165,18 +174,22 @@ def test_encode_options_stacks() -> None:
 
 def test_value_is_bounded_and_deterministic() -> None:
     n = net()
+    rows, mask = _no_embed()
     x = np.random.default_rng(1).standard_normal(STATE_DIM)
-    v = n.value(x)
+    v = n.value(x, rows, mask)
     assert -1.0 <= v <= 1.0
-    assert v == n.value(x)
+    assert v == n.value(x, rows, mask)
 
 
 def test_policy_logits_length_matches_options() -> None:
     n = net()
+    rows, mask = _no_embed()
     x = np.zeros(STATE_DIM)
     opts = np.random.default_rng(2).standard_normal((5, OPTION_DIM))
-    assert n.policy_logits(x, opts).shape == (5,)
-    assert n.policy_logits(x, np.zeros((0, OPTION_DIM))).shape == (0,)
+    opt_rows = np.zeros(5, dtype=np.intp)
+    assert n.policy_logits(x, rows, mask, opts, opt_rows).shape == (5,)
+    empty = np.zeros((0, OPTION_DIM))
+    assert n.policy_logits(x, rows, mask, empty, np.zeros(0, np.intp)).shape == (0,)
 
 
 def test_card_logits_with_state_length() -> None:
@@ -198,8 +211,9 @@ def test_save_load_round_trip(tmp_path) -> None:  # noqa: ANN001 - pytest fixtur
     path = tmp_path / "weights.npz"
     n.save(path)
     loaded = PolicyValueNet.load(path)
+    rows, mask = _no_embed()
     x = np.random.default_rng(4).standard_normal(STATE_DIM)
-    assert loaded.value(x) == n.value(x)
+    assert loaded.value(x, rows, mask) == n.value(x, rows, mask)
     for k, v in n.params.items():
         assert np.array_equal(loaded.params[k], v)
 
@@ -207,7 +221,9 @@ def test_save_load_round_trip(tmp_path) -> None:  # noqa: ANN001 - pytest fixtur
 def test_custom_config_dims() -> None:
     cfg = NetConfig(hidden=8, policy_hidden=4, cb_hidden=4)
     n = PolicyValueNet.random(np.random.default_rng(0), cfg)
-    assert n.params["trunk_w1"].shape == (STATE_DIM, 8)
+    # trunk1 now takes the fixed state ⊕ the four slot embeddings.
+    trunk_in = STATE_DIM + STATE_EMBED_SLOTS * cfg.embed_dim
+    assert n.params["trunk_w1"].shape == (trunk_in, 8)
 
 
 # --- CB deck construction -------------------------------------------------
@@ -250,6 +266,20 @@ def test_cb_pool_overrides_deck_at_construction() -> None:
     out = agent(DECK_REQUEST)
     assert len(out) == DECK_SIZE
     assert deck_is_legal(out, pool)
+
+
+def test_sample_deck_builds_legal_and_varies() -> None:
+    # Deck self-play needs sampled (not greedy) decks for exploration; different
+    # seeds must give different legal decks (else the loop sees one deck forever).
+    pool = make_pool()
+    decks = []
+    for seed in (1, 2, 3):
+        agent = NetAgent(DECK, ENGINE, cb_pool=pool, sample_deck=True, seed=seed)
+        out = agent(DECK_REQUEST)
+        assert len(out) == DECK_SIZE
+        assert deck_is_legal(out, pool)
+        decks.append(tuple(out))
+    assert len(set(decks)) > 1  # sampling explores -- not all identical
 
 
 def test_act_returns_legal_single_select() -> None:

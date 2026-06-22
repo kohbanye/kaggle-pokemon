@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from src.net.encode import STATE_EMBED_SLOTS
 from src.net.model import NetConfig, PolicyValueNet
 
 if TYPE_CHECKING:
@@ -38,10 +39,14 @@ class TorchPolicyValueNet(nn.Module):
         super().__init__()
         cfg = config or NetConfig()
         self.config = cfg
-        self.trunk1 = nn.Linear(cfg.state_dim, cfg.hidden)
+        self.trunk1 = nn.Linear(
+            cfg.state_dim + STATE_EMBED_SLOTS * cfg.embed_dim, cfg.hidden,
+        )
         self.trunk2 = nn.Linear(cfg.hidden, cfg.hidden)
         self.value_head = nn.Linear(cfg.hidden, 1)
-        self.policy1 = nn.Linear(cfg.hidden + cfg.option_dim, cfg.policy_hidden)
+        self.policy1 = nn.Linear(
+            cfg.hidden + cfg.option_dim + cfg.embed_dim, cfg.policy_hidden,
+        )
         self.policy2 = nn.Linear(cfg.policy_hidden, 1)
         self.cb1 = nn.Linear(
             cfg.lstm_hidden + cfg.card_dim + cfg.embed_dim, cfg.cb_hidden,
@@ -64,24 +69,56 @@ class TorchPolicyValueNet(nn.Module):
     # --- forward passes (batch-first) ---------------------------------------
 
     def trunk(self, states: torch.Tensor) -> torch.Tensor:
-        """Shared body: ``(B, state_dim) -> (B, hidden)`` (two ReLU layers)."""
+        """Shared body: ``(B, trunk_in) -> (B, hidden)`` (two ReLU layers).
+
+        ``states`` is the embedding-augmented input (fixed ⊕ slot embeddings);
+        build it with :meth:`augment_state`.
+        """
         h = torch.relu(self.trunk1(states))
         return torch.relu(self.trunk2(h))
 
-    def value(self, states: torch.Tensor) -> torch.Tensor:
-        """Value in ``[-1, 1]`` per state: ``(B, state_dim) -> (B,)``."""
-        return torch.tanh(self.value_head(self.trunk(states))).squeeze(-1)
+    def state_embed(self, rows: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """Per-slot masked-mean of embeddings: ``(B,S,SLOT_MAX) -> (B,S*emb)``."""
+        emb = self.cb_embed[rows]  # (B, S, SLOT_MAX, embed_dim)
+        m = mask.unsqueeze(-1).to(emb.dtype)
+        summed = (emb * m).sum(dim=2)  # (B, S, embed_dim)
+        counts = m.sum(dim=2).clamp(min=1.0)  # empty slot -> 0/1 = 0
+        mean = summed / counts
+        return mean.reshape(mean.shape[0], -1)
+
+    def augment_state(
+        self,
+        states: torch.Tensor,
+        rows: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """Concatenate fixed state features with the four slot embeddings."""
+        return torch.cat([states, self.state_embed(rows, mask)], dim=-1)
+
+    def value(
+        self,
+        states: torch.Tensor,
+        rows: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """Value in ``[-1, 1]`` per state: ``(B, state_dim), rows, mask -> (B,)``."""
+        aug = self.augment_state(states, rows, mask)
+        return torch.tanh(self.value_head(self.trunk(aug))).squeeze(-1)
 
     def policy_logits(
         self,
         states: torch.Tensor,
+        rows: torch.Tensor,
+        mask: torch.Tensor,
         options: torch.Tensor,
+        option_rows: torch.Tensor,
     ) -> torch.Tensor:
-        """One logit per option: ``(B, state), (B, K, option) -> (B, K)``."""
-        h = self.trunk(states)
+        """One logit per option: ``(B,state),rows,mask,(B,K,option),(B,K) -> (B,K)``."""
+        h = self.trunk(self.augment_state(states, rows, mask))
         k = options.shape[1]
         h_rep = h.unsqueeze(1).expand(-1, k, -1)
-        joint = torch.cat([h_rep, options], dim=-1)
+        opt_emb = self.cb_embed[option_rows]  # (B, K, embed_dim)
+        joint = torch.cat([h_rep, options, opt_emb], dim=-1)
         return self.policy2(torch.relu(self.policy1(joint))).squeeze(-1)
 
     def card_logits(self, card_feats: torch.Tensor) -> torch.Tensor:

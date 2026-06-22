@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.net.encode import OPTION_DIM, STATE_DIM
+from src.net.encode import OPTION_DIM, STATE_DIM, STATE_EMBED_SLOTS
 from src.net.features import CARD_FEAT_DIM
 from src.net.nn import he_init, sigmoid
 
@@ -85,13 +85,17 @@ class PolicyValueNet:
         """A freshly random-initialised net (He weights, zero/biased small heads)."""
         cfg = config or NetConfig()
         p: dict[str, NDArray[np.float64]] = {}
-        p["trunk_w1"] = he_init(rng, cfg.state_dim, cfg.hidden)
+        p["trunk_w1"] = he_init(
+            rng, cfg.state_dim + STATE_EMBED_SLOTS * cfg.embed_dim, cfg.hidden,
+        )
         p["trunk_b1"] = np.zeros(cfg.hidden)
         p["trunk_w2"] = he_init(rng, cfg.hidden, cfg.hidden)
         p["trunk_b2"] = np.zeros(cfg.hidden)
         p["value_w"] = rng.standard_normal((cfg.hidden, 1)) * _HEAD_SCALE
         p["value_b"] = np.zeros(1)
-        p["policy_w1"] = he_init(rng, cfg.hidden + cfg.option_dim, cfg.policy_hidden)
+        p["policy_w1"] = he_init(
+            rng, cfg.hidden + cfg.option_dim + cfg.embed_dim, cfg.policy_hidden,
+        )
         p["policy_b1"] = np.zeros(cfg.policy_hidden)
         p["policy_w2"] = rng.standard_normal((cfg.policy_hidden, 1)) * _HEAD_SCALE
         p["policy_b2"] = np.zeros(1)
@@ -118,30 +122,76 @@ class PolicyValueNet:
     # --- forward passes -----------------------------------------------------
 
     def trunk(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
-        """Shared body: ``state -> hidden`` (two ReLU layers). Accepts 1-D or 2-D."""
+        """Shared body: ``state -> hidden`` (two ReLU layers). Accepts 1-D or 2-D.
+
+        ``x`` is the embedding-augmented state (fixed features ⊕ the four slot
+        embeddings); assemble it with :meth:`augment_state`.
+        """
         x2 = np.atleast_2d(x)
         h = np.maximum(0.0, x2 @ self.params["trunk_w1"] + self.params["trunk_b1"])
         return np.maximum(0.0, h @ self.params["trunk_w2"] + self.params["trunk_b2"])
 
-    def value(self, x: NDArray[np.float64]) -> float:
-        """Scalar value in ``[-1, 1]`` for a single state vector."""
-        h = self.trunk(x)
+    def state_embed(
+        self,
+        rows: NDArray[np.intp],
+        mask: NDArray[np.bool_],
+    ) -> NDArray[np.float64]:
+        """Per-slot masked-mean of card embeddings -> ``(STATE_EMBED_SLOTS*emb,)``.
+
+        ``rows``/``mask`` are ``(STATE_EMBED_SLOTS, SLOT_MAX)`` (see
+        :func:`~src.net.encode.state_embed_rows`). An empty slot (mask all False)
+        contributes a zero block, matching the pre-embedding behaviour.
+        """
+        emb = self.params["cb_embed"][rows]  # (S, SLOT_MAX, embed_dim)
+        m = mask[..., None].astype(np.float64)
+        summed = (emb * m).sum(axis=1)  # (S, embed_dim)
+        counts = m.sum(axis=1)  # (S, 1)
+        mean = np.divide(summed, counts, out=np.zeros_like(summed), where=counts > 0)
+        return mean.reshape(-1)
+
+    def augment_state(
+        self,
+        x: NDArray[np.float64],
+        rows: NDArray[np.intp],
+        mask: NDArray[np.bool_],
+    ) -> NDArray[np.float64]:
+        """Concatenate the fixed state vector with its slot embeddings."""
+        x1 = np.asarray(x, dtype=np.float64)
+        return np.concatenate([x1, self.state_embed(rows, mask)])
+
+    def value(
+        self,
+        x: NDArray[np.float64],
+        rows: NDArray[np.intp],
+        mask: NDArray[np.bool_],
+    ) -> float:
+        """Scalar value in ``[-1, 1]`` for a single (fixed) state vector + slot rows."""
+        h = self.trunk(self.augment_state(x, rows, mask))
         v = np.tanh(h @ self.params["value_w"] + self.params["value_b"])
         return float(v.reshape(-1)[0])
 
     def policy_logits(
         self,
         x: NDArray[np.float64],
+        rows: NDArray[np.intp],
+        mask: NDArray[np.bool_],
         option_feats: NDArray[np.float64],
+        option_rows: NDArray[np.intp],
     ) -> NDArray[np.float64]:
-        """One logit per presented option (``option_feats`` is ``(K, option_dim)``)."""
+        """One logit per presented option.
+
+        ``option_feats`` is ``(K, option_dim)`` fixed features; ``option_rows`` is
+        ``(K,)`` embedding rows for each option's target card (the shared card
+        embedding is concatenated before scoring).
+        """
         k = option_feats.shape[0]
         if k == 0:
             return np.zeros(0, dtype=np.float64)
-        h = self.trunk(x)[0]  # (hidden,)
+        h = self.trunk(self.augment_state(x, rows, mask))[0]  # (hidden,)
+        opt_emb = self.params["cb_embed"][option_rows]  # (K, embed_dim)
         joint = np.concatenate(
-            [np.tile(h, (k, 1)), option_feats], axis=1,
-        )  # (K, hidden+option_dim)
+            [np.tile(h, (k, 1)), option_feats, opt_emb], axis=1,
+        )  # (K, hidden+option_dim+embed_dim)
         z = np.maximum(0.0, joint @ self.params["policy_w1"] + self.params["policy_b1"])
         return (z @ self.params["policy_w2"] + self.params["policy_b2"]).reshape(-1)
 
@@ -210,12 +260,10 @@ class PolicyValueNet:
     ) -> PolicyValueNet:
         """Load a parameter dict saved by :meth:`save`.
 
-        When ``config`` is omitted, the embedding dims (``n_cards`` / ``embed_dim``)
-        and ``lstm_hidden`` are recovered from the saved ``cb_embed`` / ``lstm_w_hh``
-        shapes so the torch bridge (``from_numpy_net``) builds a matching-sized net.
-        Other widths keep their defaults (they are the only ones we vary). Weights
-        saved before the Phase-5c LSTM lack ``lstm_w_ih`` and are rejected -- they
-        must be re-trained (the LSTM has no pre-image in the old weights).
+        When ``config`` is omitted, **every** layer width is recovered from the saved
+        weight shapes, so any-sized net round-trips (the torch bridge builds a
+        matching net). Weights saved before the Phase-5c LSTM lack ``lstm_w_ih`` and
+        are rejected -- they must be re-trained (the LSTM has no pre-image).
         """
         with np.load(Path(path)) as data:
             params = {k: np.asarray(data[k], dtype=np.float64) for k in data.files}
@@ -223,11 +271,21 @@ class PolicyValueNet:
             if "lstm_w_ih" not in params:
                 msg = "pre-LSTM weights; retrain with scripts/train_bc.py"
                 raise ValueError(msg)
-            emb = params["cb_embed"]
+            embed_dim = int(params["cb_embed"].shape[1])
+            hidden = int(params["trunk_w1"].shape[1])
             config = replace(
                 NetConfig(),
-                n_cards=int(emb.shape[0]) - 1,
-                embed_dim=int(emb.shape[1]),
+                # trunk1 in = state_dim + STATE_EMBED_SLOTS*embed_dim; policy1 in =
+                # hidden + option_dim + embed_dim -- invert both for the fixed dims.
+                state_dim=(
+                    int(params["trunk_w1"].shape[0]) - STATE_EMBED_SLOTS * embed_dim
+                ),
+                option_dim=int(params["policy_w1"].shape[0]) - hidden - embed_dim,
+                hidden=hidden,
+                policy_hidden=int(params["policy_w1"].shape[1]),
+                cb_hidden=int(params["cb_w1"].shape[1]),
+                embed_dim=embed_dim,
+                n_cards=int(params["cb_embed"].shape[0]) - 1,
                 lstm_hidden=int(params["lstm_w_hh"].shape[1]),
             )
         return cls(config, params)

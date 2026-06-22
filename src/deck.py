@@ -67,6 +67,22 @@ class CardPool:
         return list(self.cards)
 
 
+def card_kind(pool: CardPool, card_id: int) -> str:
+    """Coarse card type for composition logic: ``energy`` / ``pokemon`` / ``trainer``.
+
+    Unknown ids fall to ``trainer`` (the residual class). Special Energy counts as
+    ``energy`` (supertype-based, not just Basic Energy).
+    """
+    card = pool.cards.get(card_id)
+    if card is None:
+        return "trainer"
+    if card.supertype == "Energy":
+        return "energy"
+    if card.supertype == "Pokemon":
+        return "pokemon"
+    return "trainer"
+
+
 def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
     """Build the card pool from the competition card CSVs (needs pandas/data)."""
     df = load_cards(lang=lang, data_dir=data_dir)

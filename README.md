@@ -53,6 +53,9 @@ bash scripts/download_data.sh   # after accepting the rules on the website
 Accept the competition rules first or downloads 403:
 <https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/rules>
 
+To clone and run the deck self-play loop on another (native x86-64) machine for
+speed, see [docs/running-on-a-server.md](docs/running-on-a-server.md).
+
 ## EDA
 
 ```bash

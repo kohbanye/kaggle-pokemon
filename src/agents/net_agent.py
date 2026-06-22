@@ -30,7 +30,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from src.net.cb import build_deck
-from src.net.encode import encode_options, encode_state
+from src.net.embedding import CardEmbeddingIndex
+from src.net.encode import (
+    encode_options,
+    encode_state,
+    option_embed_rows,
+    state_embed_rows,
+)
 from src.net.features import CardFeatures
 from src.net.model import NetConfig, PolicyValueNet
 from src.net.nn import softmax
@@ -59,6 +65,8 @@ class NetAgent(Agent):
         weights: str | Path | None = None,
         seed: int = _DEFAULT_SEED,
         cb_pool: CardPool | None = None,
+        sample_deck: bool = False,
+        build_deck_from_net: bool = True,
         temperature: float = 0.0,
     ) -> None:
         super().__init__(deck)
@@ -74,11 +82,22 @@ class NetAgent(Agent):
             # the pool, else the CB head can't score it (Phase 5b).
             cfg = NetConfig(n_cards=len(cb_pool.ids())) if cb_pool else NetConfig()
             self.net = PolicyValueNet.random(np.random.default_rng(seed), cfg)
-        # CB head builds the deck at init when a pool is available; on any error
-        # keep the deck passed in (a guaranteed-legal fallback).
-        if cb_pool is not None:
+        # The pool (when given) maps card ids -> shared-embedding rows for the play
+        # head, independent of deck building. ``None`` => every play-head card lookup
+        # falls back to the UNK row (still legal, just identity-blind).
+        self._index = CardEmbeddingIndex(cb_pool) if cb_pool is not None else None
+        # CB head builds the deck at init when a pool is available and
+        # ``build_deck_from_net`` (default); on any error keep the deck passed in (a
+        # guaranteed-legal fallback). ``sample_deck`` draws the 60 cards from the
+        # masked CB softmax (self-play exploration); otherwise greedy argmax
+        # (deterministic eval / submission). ``self.deck`` is the deck in CB pick
+        # order -- what the joint self-play collector records for REINFORCE. Pass
+        # ``build_deck_from_net=False`` to keep a fixed deck but still get the index.
+        if cb_pool is not None and build_deck_from_net:
             with contextlib.suppress(Exception):
-                self.deck = build_deck(self.net, cb_pool, self.feats)
+                self.deck = build_deck(
+                    self.net, cb_pool, self.feats, self._rng, greedy=not sample_deck,
+                )
 
     def reset(self, seed: int) -> None:
         """Re-seed the per-game sampling RNG (used only when ``temperature > 0``)."""
@@ -104,7 +123,11 @@ class NetAgent(Agent):
         your_index = int(current.get("yourIndex", 0))
         state_vec = encode_state(current, your_index, self.feats)
         option_feats = encode_options(options, current, your_index, self.feats)
-        logits = self.net.policy_logits(state_vec, option_feats)
+        rows, mask = state_embed_rows(current, your_index, self._index)
+        option_rows = option_embed_rows(options, current, your_index, self._index)
+        logits = self.net.policy_logits(
+            state_vec, rows, mask, option_feats, option_rows,
+        )
         if logits.shape[0] != len(options):
             return None
 
