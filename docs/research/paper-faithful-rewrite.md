@@ -43,4 +43,29 @@ technique that stops the trace vanishing):
 
 PPO surrogate uses the V-Trace advantage with ratio clipping `±ε`. On-policy
 (ratio≡1) V-Trace collapses to the Monte-Carlo return — the unit test pins this.
+
+## Episode / learner design (stages 3–4)
+
+One **episode** = one player's trajectory in one game: the 60 deck picks (CB head)
+followed by the battle decisions (BT head), terminal reward ±1, γ=1.
+
+- **Battle arm** — full V-Trace over the battle steps: the recurrent play LSTM
+  gives a per-step value `V(h_t)`; V-Trace turns (behaviour log-probs, target
+  log-probs, values, terminal reward) into value targets `vs` and PG advantages.
+  PPO clipped surrogate + value MSE + entropy. This is the faithful core.
+- **Deck arm** — the deck LSTM has no per-pick value head, so the deck picks share
+  one baseline: `advantage = return − V(battle-start)` (the play value at the first
+  battle decision, `values[:,0]`). This is REINFORCE-with-a-learned-baseline (the
+  shared value), PPO-clipped against the pick behaviour log-probs, plus a small
+  entropy bonus. It **replaces** the Phase-5d batch-mean baseline + the deck KL/
+  entropy anti-collapse hacks: a real value baseline is what those hacks approximated.
+
+A standard entropy bonus is kept on both arms — that is the paper's SBR entropy
+regularisation, not a Pokémon-specific hack. What we drop are the deck-collapse KL
+anchor and the hand-tuned deck-entropy coefficient.
+
+**Behaviour log-probs are recorded at collection time** (the actor's `μ(a|s)` for
+each sampled action and each deck pick), so the learner can form the importance
+ratio. Battle trajectories are kept whole (no per-decision subsampling — that would
+break the recurrence); cost is controlled by sampling whole games instead.
 </content>

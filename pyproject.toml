@@ -49,8 +49,10 @@ exclude = [
     "src/net/lit_vtrace.py",
     "src/net/recurrent_torch.py",
     "src/net/bc_data.py",
+    "src/net/trajectory_data.py",
     "tests/test_net_torch.py",
     "tests/test_recurrent_parity.py",
+    "tests/test_vtrace_learner.py",
     "tests/test_bc.py",
     "tests/test_rl.py",
 ]
