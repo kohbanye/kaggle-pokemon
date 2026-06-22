@@ -6,12 +6,17 @@ properties (on-policy == Monte-Carlo, clipping, padding-invariance).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from src.net.vtrace import ppo_policy_loss, vtrace
 
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike, NDArray
 
-def _logp(probs: np.ndarray) -> np.ndarray:
+
+def _logp(probs: ArrayLike) -> NDArray[np.float64]:
     return np.log(np.asarray(probs, dtype=np.float64))
 
 
