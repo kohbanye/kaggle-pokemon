@@ -26,10 +26,25 @@ pieces (hero-separate models, the cheat/c5 variant) are dropped.
 ## Build stages (each verifiable before the next)
 
 1. **V-Trace + PPO math** — `src/net/vtrace.py`, pure numpy, unit-tested. ✅
-2. **Recurrent net** — play-side LSTM in torch + numpy serving + parity test; stateful `NetAgent`.
-3. **Trajectory data** — collector records behaviour log-probs + step order + rewards; one episode = CB picks ⊕ BT moves; padded-sequence dataset.
-4. **Learner** — `LitVtracePPO`: recurrent forward → V-Trace targets → PPO clipped surrogate + entropy + value MSE, one update over both heads + shared trunk/LSTM/embedding.
-5. **Actor-learner loop** — `scripts/train_paper_osfp.py`: FIFO queue of trajectories, producer/consumer balance, OSFP opponent sampling via `OpponentPool`.
+2. **Recurrent net** — `src/net/recurrent_model.py` (numpy serving, stateful) +
+   `src/net/recurrent_torch.py` (torch mirror + sequence forward); exact parity
+   test; `src/agents/recurrent_agent.py` (stateful serving). ✅
+3. **Trajectory data** — `src/net/trajectory_data.py`: episodes (CB picks ⊕ BT
+   moves) with behaviour log-probs; `collate_episodes` → aligned battle/deck
+   batches. `src/net/deck_sample.py` records per-pick log-probs. ✅
+4. **Learner** — `src/net/lit_vtrace.py` `LitVtracePPO`: recurrent forward →
+   V-Trace targets → PPO surrogate + entropy + value MSE over both heads + shared
+   trunk/LSTM/embedding. Synthetic integration test. ✅
+5. **Actor-learner loop** — `scripts/collect_paper_selfplay.py` (trajectory
+   collector + gate) + `scripts/train_paper_osfp.py` (FIFO episode queue → one
+   V-Trace/PPO update → OSFP `OpponentPool` admission). Native smoke verified. ✅
+
+**Status: all five stages implemented and committed** on `feat/osfp-paper-faithful`.
+Verified natively: lint/type/unit gate green; a 3-iteration smoke runs
+collect→queue→V-Trace/PPO→gate→admit and the final checkpoint round-trips into the
+serving agent. Not yet done: a real (long) training run + a ladder A/B vs the
+Phase-5d net, and an optional BC warm-start of the recurrent net (currently random
+init; the shared layers could be seeded from the existing BC net).
 
 ## V-Trace notes (stage 1)
 
