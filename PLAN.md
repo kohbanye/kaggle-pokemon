@@ -155,12 +155,13 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 
 ---
 
-## Phase 5 — OSFP 自己対戦学習（中核：論文手法の本体／デッキ↔プレイ同時学習）🚧(5a 配線完了, RLラン待ち)
+## Phase 5 — OSFP 自己対戦学習（中核：論文手法の本体／デッキ↔プレイ同時学習）🚧(5d 統合ループ実装・GPU/速度整備済, 本RLラン待ち)
 
-> **進め方**: 巨大なので「一度に1能力ずつ足す」方針で段階分割。
-> **5a = デッキOFFアーム**（プレイ+価値ヘッドだけ自己対戦RL・デッキ固定）＝OSFP中核機構を最小構成で確立。**配線・ネイティブ単体テスト完了**（下記 Phase 5a メモ）。実RLランはユーザ起動の Docker ジョブ。
-> **5b = デッキONアーム**（CBヘッドRL・各局でデッキsample→勝敗逆伝播・相手デッキ多様化）＝後の増分。
-> **5c = ネット容量拡張アーム**（観測履歴の再帰=LSTM／学習カード埋め込み）＝memoryless版が頭打ちになったら隠れ情報・カード個体性を取り込む**条件付き**増分（下記 Phase 5c 節）。
+> **進め方（更新）**: 当初は「1能力ずつ(5a→5b→5c)」だったが、5a(プレイRL)が天井・5b(文脈自由CB)が破綻・5c(LSTMデッキ頭)が固定デッキに勝てず、ユーザ指摘で**「固定デッキ前提を捨て、デッキ↔プレイを自己対戦で同時学習する」論文どおりの形へ収束**。**5d = 統合 joint OSFP**（πBT+πCB+**共有カード埋め込み**を1更新で同時学習）に各アームを畳んだ（下記 Phase 5d メモ）。器(LSTMデッキ頭・共有埋め込み・parity・OpponentPool)は 5a–5c の成果を再利用。
+> **5a = デッキOFFアーム**（プレイ+価値だけRL・デッキ固定）= 天井 ~vs BC 0.56 で収束（台帳 6/21）。
+> **5b = デッキONアーム（文脈自由CB）** = 全敗ゼロ信号＋構成崩壊で**破綻**→自己対戦スコアリング(5d)へ。
+> **5c = LSTMデッキ頭＋学習埋め込み** = 器は完成・parity一致。だが固定デッキ超え不可。**5d で本領**。
+> **5d = 統合 joint OSFP（現在地）** = 5a–5c を統合。CB重みのtype-target化＋構成制約greedyでデッキ品質を是正、GPU/サブサンプリング/obsコピー除去で **1iter 726→50s**。本格RLランはこの上で。
 **目的**: 添付論文の中核を実装（アルゴリズム詳細→ **[docs/research/osfp-cardgame-2303.05197.md](docs/research/osfp-cardgame-2303.05197.md)** §3・§5・§6）。**過去チェックポイント混合への smooth best response** を分散自己対戦で学習し、**last-iterate収束**した最終ネットを得る。**デッキ構築(CB)と対戦(BT)を同時に学習**する。**学習ループに探索は入れない**。
 
 **作るもの**
@@ -322,6 +323,13 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 | 2026-06-22 | P5c→修正 | **方針転換**: 固定デッキはスケールしない／「vs固定で全敗=ゼロ信号」は設計ミス | — | — | — | — | **vs固定を撤去** | ユーザ指摘: 自己対戦なら試合は無限生成可＝「データ不足」は誤り。真因は **(a) スコアリングを“デッキ vs デッキ自己対戦”に直す ＋ (b) 計算速度**。固定デッキ前提を捨てる |
 | 2026-06-22 | P5d | **デッキ自己対戦OSFP** 実装＋実機スモーク（相手デッキもCBサンプル＝自分/過去ckpt・同凍結プレイ頭） | — | 3iter×4×4 | self mean_wr **0.44–0.69** | — | **設計確立(信号あり)** | `collect_deck_selfplay`＋`train_deck_osfp`(OpponentPool＋LitCBSeqPolicyGradient)。相手=自分のデッキ分布→対称で約0.5・**勝敗ばらつき→advantage≠0＝信号常時あり**(5b-iiの全敗ゼロ信号を解消)。`collect_cb`/`train_cb`(vs固定)は**削除**。学習の伸びは長時間run=計算力(後で・クラウド) |
 | 2026-06-22 | P5d-速度 | スループット実測（単一）＋コレクタK並列(Docker)実装・実測 | — | 512試合 | **9.6–11.6 試合/秒** | — | **本Macでは並列無効・コードは保持** | 単一: ~11.6試合/秒＝7hで**~25万試合**(論文3.2億の0.08%)。並列実測: x86エミュ(aarch64上x86_64・VM=15コア全使用可)が**並列で競合**→ w1=9.6 / w2=4.1 / w6=3.8 試合/秒＝**workers>1は逆に遅い**(1コンテナでエミュ飽和)。∴既定`--workers 1`。**>1はnative x86(クラウド/Linux)でのみ有効**＝真の高速化はエミュ撤廃(クラウド) |
+| 2026-06-22 | P5d-native | **native x86機(16コア+A100)へ移行**・並列スケール実測 | — | — | — | — | **線形スケール(条件付き)** | 真因はエミュでなく **numpy OpenBLAS の過剰サブスクリプション**: 各コンテナが全コア分のBLASスレッドを起動し競合。**1スレ固定で workers≈線形**(64試合/コンテナ: 1→16並列で 4.9→57 試合/秒, ~12並列まで線形)。pin無しは8並列で各15x遅。`--native`(Docker層除去)で起動/デーモン競合も消えさらに速い。`train_*osfp`の`DOCKER_PREFIX`にスレ固定+ `--native`追加 |
+| 2026-06-22 | P5d-engine | エンジンが現実型デッキ(低エネ+ドロー/サーチ)を扱えるか実機検証 | — | — | — | — | **完全サポート確認** | サポート61/グッズ77が本物のテキストで実装。**実際にプレイして効果発火を確認**(Billy=ドロー+条件分岐, Buddy-Buddy Poffin=デッキサーチでベンチ展開)。∴エンジン側に低エネ現実型の制約なし(=デッキ空間は本物のモダンポケカ) |
+| 2026-06-22 | P5d-heuristic | TCGベストプラクティス(掘ってから貼る/need-awareサブ選択)を heuristic に反映 | full heuristic(mirror) | 各300 | dig_first **0.42**(lowE) / card_select 0.47 | — | **不採用(撤回)** | 教科書手順を入れても **neutral〜悪化**。1-ply heuristic は「掘る」判断が雑で行動数上限に達しエネ貼りを取り逃す=生産的に掘れない。§A→両方revert。**play質の向上は手書きルールでなくRL(πBT)が筋**(joint OSFPの価値の裏付け) |
+| 2026-06-22 | P5d-CB重み | **CB BC の type-target 重み**(タイプ別総重み=物理比率, タイプ内は等重み) | inverse-copy(energy=3) | — | — | — | **エネ枯渇解消(採用)** | `1/copies`がエネを52%→学習重み11%に潰していた(=energy枯渇)のを修正。sampled デッキが **demo構成(31/12/17)に一致**。Phase4/5cの「greedy 0/46エネ崩壊」「型不整合」の根本側を是正。`cb_sequences`の`_type_target_weights` |
+| 2026-06-22 | P5d-greedy | **構成制約付き greedy decode**(各タイプをネット自身のsampled平均でcap) | 無制約greedy(0/46エネ) | — | — | — | **機能デッキ化(採用)** | argmax が最頻カード(単エネ)を増幅する脆さを是正。greedy デッキ **energy=29/pokemon=15/distinct=10**(=[15,35]内・機能的)。sampled は無制約のままで RL の探索自由を維持。`build_deck`の`_type_caps`/`card_kind`(`src/deck.py`) |
+| 2026-06-22 | P5d-joint | **joint OSFP 実装**(πBT+πCB+**共有カード埋め込み**を同時学習) | 旧 5a/5b/5c 分離ループ | 1iter | self mean_wr ~0.5 | — | **統合ループ確立** | 共有埋め込みを**playヘッドにも注入**(encode行関数・numpy/torch forward両方で lookup・parity<1e-9維持・任意サイズ load可)。`LitJointPolicyGradient`(凍結なし1更新, CombinedLoader)。旧 `train_osfp`/`train_deck_osfp`/2コレクタを**削除**し `train_joint_osfp`+`collect_joint_selfplay` に統合。BC再訓練で初期分布も健全化 |
+| 2026-06-22 | P5d-GPU/速度 | GPU修復(torch cu124, **A100**)+学習GPU化+サブサンプリング+obsコピー除去 | 元(CPU・間引きなし) | — | — | — | **1iter 726→50s(14.5x)** | torch を cu124 ビルドに固定(Linux x86のみ; Mac非影響)。更新の GPU speedup **31x(小)/57x(0.44M大)**。play決定を~2万にサブサンプル(encode前にコレクタで間引き=deepcopy~9x減)。0.44Mネットを GPU **60s** で訓練・機能デッキ。**500iter=一晩/1000iter=~14h**(元8.4日) |
 
 ### 較正メモ（Phase 0 で確定した運用値）
 
@@ -386,6 +394,18 @@ BCだけで既存ベースラインを超えるなら、それ自体を一つの
 - **検証（Docker `--smoke` 実機・配線確認済み）**: `collect_selfplay` 8局~1s・全decisive・タグ正常（learner/opp 片側ずつ＝リーク無）。`train_osfp --smoke`（3iter×8局, 6.3s）が pool 選択→収集→PG学習→採用→export を完走（**自己対戦は両スロットlearnerで~2倍サンプル**＝タグ規約が機能、iter3 で patience 採用）。学習後 `final.npz` を実機 probe＝**crash0/illegal0/worst1.0ms・PASS**、**CBヘッド凍結を実証**（greedy distinct=2/sampled 50＝Phase4と一致）。
 - **未計測（ユーザ起動の本RLラン待ち）**: **OSFP net vs BC/heuristic の 500局勝率（≥55%が合格）**、BC暖機あり/なし（from-scratch）の同計算量比較、recency/self_play_prob/entropy_coef/τ の ablation。本ランは `uv run python scripts/train_osfp.py --iterations N --games M`（多時間・Docker）。
 - **次（5b）**: CBヘッドRL（各局でデッキ sample→勝敗逆伝播・相手デッキ多様化）＝デッキONアーム。CB の個体識別には学習カード埋め込みが要る（Phase4 所見）ため、5b と併せて検討。
+
+### Phase 5d メモ（統合 joint OSFP — 実装・速度整備完了, 本RLラン待ち）
+
+- **方針の収束**: 5a(プレイ天井)・5b(文脈自由CB破綻)・5c(LSTM頭でも固定デッキ超え不可)を経て、**論文どおり「デッキ↔プレイを自己対戦で同時学習」**に一本化。**固定デッキ前提・vs固定スコアリングを撤去**（ユーザ指摘: 自己対戦なら試合は無限生成可＝「データ不足」は誤り。真因は(a)スコアリングをデッキ vs デッキ自己対戦に直す＋(b)計算速度）。
+- **作ったもの**: `scripts/train_joint_osfp.py`（`run_joint_osfp`：1更新で **play+価値+デッキ+共有埋め込み**を凍結なし最適化）＋`scripts/collect_joint_selfplay.py`（1ゲームから play 遷移とデッキ W/L の両方を出力）。旧 `train_osfp`/`train_deck_osfp`/`collect_selfplay`/`collect_deck_selfplay` を**削除**。`LitJointPolicyGradient`＝`CombinedLoader{play,deck}`で両アーム同時。
+- **共有埋め込み（論文の要）**: 学習カード埋め込みを**playヘッドにも注入**（`encode.py` が盤面ポケモン/各optionの対象カードの埋め込み行を出し、numpy/torch forward が全カード位置で lookup）。**parity<1e-9 維持**、`load()` は重み形状から**全層幅を復元**（任意サイズ可）。両ヘッドの損失が同一 `cb_embed` に勾配を流す＝真の共有表現。
+- **デッキ品質の是正（5b/5cの崩壊を根本解決）**: ①**CB BC の type-target 重み**（タイプ別総重み=物理比率・タイプ内は等重み）→ sampled デッキが demo構成(31/12/17)に一致（`1/copies`はエネを11%に潰していた）。②**構成制約付き greedy decode**（各タイプをネット自身のsampled平均でcap）→ 決定的デッキが **energy=29/pokemon=15** と機能的（無制約 argmax は単エネを46枚に増幅して崩壊）。sampled は無制約のまま＝RLの探索自由を維持。**色不整合**（虹ポケ+単色エネ）は次の課題（RL淘汰 or 色コミット条件付け）。
+- **エンジン所見**: 実機検証で**現実型デッキ(低エネ+ドロー/サーチ)を完全サポート**（ドロー/サーチ効果が発火）。∴デッキ空間は本物のモダンポケカ＝低エネ archetype も成立しうる（ただしパイロット(エージェント)の力量とセット）。
+- **play質は手書きでなくRL**: TCGベストプラクティス(掘ってから貼る/need-awareサブ選択)を heuristic に入れても**ベースライン超えず(撤回)**。1-ply heuristic は生産的に掘れない＝**play の上積みは πBT の RL が筋**（joint の価値の裏付け）。
+- **速度整備（本RLランの前提）**: **GPU修復**（torch を cu124 ビルドに固定＝A100稼働, Linux x86のみ・Mac非影響）＋学習GPU化＋**play決定のサブサンプリング**（~2万/iter, encode前にコレクタで間引き）＋**obsコピー除去**（deepcopyを~9x減）で **1 joint iter 726→50s（14.5x）**。更新の GPU speedup 31x(小)/57x(0.44M大)。0.44Mネット訓練 GPU **60s**。**500iter≈一晩 / 1000iter≈14h**（元8.4日）。ボトルネックはエンジンでなく**毎iterのサンプル処理+学習**だった（GPUが効く所）。
+- **未計測（本RLラン待ち）**: 統合ループを長め(500–1000iter)に回した時の **gate(greedyデッキ vs metal_aggro) と vs BC/heuristic の勝率推移**（≥55%が合格）。色不整合がRLで淘汰されるか。チェックポイントは毎iter `jointiter_N.npz` 保存＋良いものは OpponentPool 採択。
+- **次**: 大ネットで 500–1000iter 実走→gate推移を観察（一晩〜半日）。伸びれば improved techniques(PPO/V-Trace)・色コミット・更なる容量/台数。横ばいなら表現/プール/単一アーキタイプ curriculum を再検討。
 
 ---
 
