@@ -162,28 +162,27 @@ def build_episodes(
     feats: CardFeatures,
     index: CardEmbeddingIndex,
     pool: CardPool,
-    *,
-    teachers: set[str] | None = None,
 ) -> list[Episode]:
     """Encode raw ``"game"`` records into :class:`Episode` objects.
 
-    Each game line carries ``winner``, the learner ``deck`` (pick order) +
-    ``deck_logp``, and ``decisions`` (each with ``slot``/``agent``/``obs``/
-    ``choice``/``logp``). ``teachers`` restricts which slots become episodes (the
-    learner's; self-play tags both). A game yields one episode per qualifying slot.
+    Each game line carries ``winner``, ``decisions`` (each with ``slot``/``obs``/
+    ``choice``/``logp``) and ``decks``: a ``{slot: {deck, deck_logp}}`` map holding
+    one entry **per learner slot** (the collector only logs learner decks -- both
+    slots in self-play, one vs an opponent). A game yields one episode per such slot,
+    each with that slot's own deck and single-select battle decisions.
     """
     episodes: list[Episode] = []
     for game in games:
         winner = int(game.get("winner", -1))
         decisions = game.get("decisions") or []
-        deck = [int(c) for c in (game.get("deck") or [])]
-        deck_logp = [float(x) for x in (game.get("deck_logp") or [])]
-        deck_arrays = _deck_arrays(deck, deck_logp, pool, index)
-        if deck_arrays is None:
-            continue
-        slots = {int(d.get("slot", 0)) for d in decisions
-                 if teachers is None or d.get("agent") in teachers}
-        for slot in sorted(slots):
+        decks = game.get("decks") or {}
+        for slot_key, deck_info in decks.items():
+            slot = int(slot_key)
+            deck = [int(c) for c in (deck_info.get("deck") or [])]
+            deck_logp = [float(x) for x in (deck_info.get("deck_logp") or [])]
+            deck_arrays = _deck_arrays(deck, deck_logp, pool, index)
+            if deck_arrays is None:
+                continue
             steps = _battle_steps(decisions, slot, feats, index)
             if not steps:
                 continue
