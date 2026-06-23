@@ -25,12 +25,27 @@ unit-tests natively with a hand-written engine dict.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+
+def load_engine_json(path: str | Path) -> dict:
+    """Load the engine card/attack dump, restoring int keys (JSON stringifies them).
+
+    The collector writes the engine ``cards``/``attacks`` dump as JSON (string keys);
+    this restores the int card/attack ids :class:`CardFeatures` expects.
+    """
+    raw = json.loads(Path(path).read_text())
+    return {
+        "cards": {int(k): v for k, v in raw.get("cards", {}).items()},
+        "attacks": {int(k): v for k, v in raw.get("attacks", {}).items()},
+    }
 
 # Mirrors of cg.api enums (sizes only -- we never import the Linux-only engine).
 NUM_CARD_TYPES = 7  # CardType 0..6

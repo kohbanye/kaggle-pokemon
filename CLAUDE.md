@@ -56,8 +56,9 @@ docker run --platform=linux/amd64 --rm -v "$PWD":/work -w /work ptcg-sim \
 Card-data analysis (`src/cards.py`, the EDA notebook) does **not** need the engine and
 runs natively. Because of this split, `ty` is scoped to `src`/`tests` only (scripts that
 import the gitignored `cg` are excluded — as are the torch/Lightning **training** modules
-`src/net/torch_model.py`, `src/net/lit.py` and `tests/test_net_torch.py`, whose `nn.Module`
-dynamic attributes don't structurally type-check), and `ruff` excludes `notebooks/`.
+`src/net/torch_model.py`, `src/net/recurrent_torch.py`, `src/net/lit_vtrace.py`,
+`src/net/trajectory_data.py` and their tests, whose `nn.Module` dynamic attributes don't
+structurally type-check), and `ruff` excludes `notebooks/`.
 
 **Net (Phase 3): train in torch, serve in numpy.** The policy/value/CB net is trained with
 torch + Lightning (`torch`/`lightning` are **dev** deps), but the **submission/inference**
@@ -119,11 +120,17 @@ kaggle competitions leaderboard pokemon-tcg-ai-battle --download --path /tmp  # 
   helpers; `REGISTRY` (in `__init__.py`) maps names used by `--a`/`--b`. Baselines:
   `random` and `greedy` (develop-the-board-then-attack; it must develop, not attack ASAP —
   attacking with an empty bench loses on "no Active Pokémon").
-- `src/net/` — the Phase-3 policy/value/CB net skeleton (see the train/serve split above).
-  `features.py` (fixed per-card features) + `encode.py` (obs/option → fixed vectors) +
-  `model.py` (numpy `PolicyValueNet`, the serving forward) + `cb.py` (legal-masked 60-card
-  deck gen) feed `agents/net_agent.py` (`net` in the registry). `torch_model.py` / `lit.py`
-  are the torch+Lightning training side. `scripts/probe_net.py` validates it in-engine.
+- `src/net/` — the policy/value/deck net (see the train/serve split above).
+  `features.py` (fixed per-card features) + `encode.py` (obs/option → fixed vectors) feed the
+  **numpy serving** nets `model.py` (base `PolicyValueNet`) and `recurrent_model.py`
+  (`RecurrentPolicyValueNet` — adds the play-side observation-history LSTM; the canonical
+  paper net), with `deck_factored.py` (the category→card deck factorization that prevents the
+  zero-energy collapse) + `cb.py` (legal-masked 60-card deck gen) + `deck_sample.py`. The
+  **torch training** side mirrors these in `torch_model.py` / `recurrent_torch.py`, trained by
+  `lit_vtrace.py` (`LitVtracePPO`: V-Trace + PPO over `trajectory_data.py` episodes);
+  `vtrace.py` is the pure-numpy correction and `osfp.py` the OSFP opponent pool. Serving
+  agents: `agents/net_agent.py` (base) / `agents/recurrent_agent.py` (recurrent).
+  `scripts/probe_net.py` validates it in-engine.
 - `src/harness/` — **pure** result attribution (`result.py`) and Wilson-CI win-rate
   aggregation (`stats.py`); unit-tested. The engine-touching match driver is **not** here.
 - `scripts/run_eval.py` — the Phase-0 battle runner (imports `cg`, **Docker-only**): drives

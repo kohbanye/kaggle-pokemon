@@ -1,7 +1,7 @@
 """Collect recurrent self-play trajectories for the paper-faithful V-Trace loop.
 
-Unlike ``collect_joint_selfplay`` (independent decisions, subsampled), this logs
-**whole trajectories with behaviour log-probs**, which V-Trace needs:
+This logs **whole trajectories with behaviour log-probs**, which V-Trace needs
+(an earlier collector logged independent, subsampled decisions instead):
 
 - each game writes a ``"game"`` line ``{winner, decks, decisions}`` where
   ``decks`` is ``{slot: {deck, deck_logp}}`` for each learner slot (both in

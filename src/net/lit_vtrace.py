@@ -1,9 +1,8 @@
 """V-Trace + PPO learner (the paper's RL update, Phase-rewrite stage 4).
 
-Replaces the Phase-5d plain-REINFORCE :class:`~src.net.lit.LitJointPolicyGradient`
-with the paper's actual objective (arXiv:2303.05197 SS5): **V-Trace** off-policy
-correction (:mod:`src.net.vtrace`) + a **PPO** clipped surrogate, over whole
-trajectories produced by the recurrent net (:mod:`src.net.recurrent_torch`).
+Implements the paper's training objective (arXiv:2303.05197 SS5): **V-Trace**
+off-policy correction (:mod:`src.net.vtrace`) + a **PPO** clipped surrogate, over
+whole trajectories produced by the recurrent net (:mod:`src.net.recurrent_torch`).
 
 One ``training_step`` consumes an aligned ``(battle, deck)`` batch from
 :func:`~src.net.trajectory_data.collate_episodes` and updates the policy, value and

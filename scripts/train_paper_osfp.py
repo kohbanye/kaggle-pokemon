@@ -9,9 +9,9 @@ opponent each iteration is drawn from the OSFP :class:`~src.net.osfp.OpponentPoo
 (self-play with probability ``self_play_prob``, else a recency-weighted past
 checkpoint); strong checkpoints are admitted back into the pool.
 
-This replaces ``train_joint_osfp`` (plain REINFORCE, memoryless, synchronous). The
-collector / FIFO / V-Trace together are the paper's actor-learner; the OpponentPool
-is the OSFP meta-loop (last-iterate -> submit the final checkpoint directly).
+The collector / FIFO / V-Trace together are the paper's actor-learner; the
+OpponentPool is the OSFP meta-loop (last-iterate -> submit the final checkpoint
+directly).
 
   uv run python scripts/train_paper_osfp.py --smoke --native
   uv run python scripts/train_paper_osfp.py --native --workers 14 --iterations 500
@@ -39,9 +39,8 @@ import torch  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 
 from src.deck import build_pool  # noqa: E402
-from src.net.bc_data import load_engine_json  # noqa: E402
 from src.net.embedding import CardEmbeddingIndex  # noqa: E402
-from src.net.features import CardFeatures  # noqa: E402
+from src.net.features import CardFeatures, load_engine_json  # noqa: E402
 from src.net.lit_vtrace import LitVtracePPO  # noqa: E402
 from src.net.osfp import OpponentPool, PoolEntry  # noqa: E402
 from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402

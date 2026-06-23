@@ -151,8 +151,7 @@ def deck_sequence_factored(
 def from_numpy_recurrent(net: RecurrentPolicyValueNet) -> TorchRecurrentNet:
     """Build a torch recurrent net initialised from a numpy recurrent net.
 
-    The CB (deck-build) head is unchanged from Phase 5c, so the learner reuses
-    :func:`src.net.lit.cb_sequence_logits` directly on this net for the deck arm.
+    The learner runs the deck arm through :func:`deck_sequence_factored` on this net.
     """
     torch_net = TorchRecurrentNet(net.config)
     torch_net.load_numpy_params(net.params)
