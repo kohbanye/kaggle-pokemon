@@ -81,6 +81,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Collect recurrent self-play")
     parser.add_argument("--weights", type=Path, required=True, help="learner net")
     parser.add_argument("--opp-weights", type=Path, default=None)
+    parser.add_argument(
+        "--opp-deck", type=Path, default=None,
+        help="opponent plays this fixed meta deck piloted by the learner net "
+             "(the OSFP meta-deck baseline: external pressure on deck quality)",
+    )
     parser.add_argument("--self-play", action="store_true")
     parser.add_argument("--games", type=int, default=64)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -95,8 +100,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    if not args.self_play and args.opp_weights is None and args.gate_deck is None:
-        parser.error("need --self-play, --opp-weights, or --gate-deck")
+    if (
+        not args.self_play
+        and args.opp_weights is None
+        and args.opp_deck is None
+        and args.gate_deck is None
+    ):
+        parser.error("need --self-play, --opp-weights, --opp-deck, or --gate-deck")
     return args
 
 
@@ -149,6 +159,9 @@ def main() -> None:
         RecurrentPolicyValueNet.load(args.opp_weights)
         if args.opp_weights is not None else learner_net
     )
+    # --opp-deck: opponent plays a fixed meta deck piloted by the learner net (an
+    # external strong deck that punishes degenerate learner decks).
+    opp_deck = read_deck(args.opp_deck) if args.opp_deck is not None else None
 
     rec = _TrajectoryRecorder()
     wins = losses = draws = 0
@@ -159,10 +172,17 @@ def main() -> None:
                 fallback, engine, net=learner_net, cb_pool=pool, sample_deck=True,
                 temperature=args.temperature, seed=seed,
             )
-            opp = RecurrentNetAgent(
-                fallback, engine, net=opp_net, cb_pool=pool, sample_deck=True,
-                temperature=args.temperature, seed=seed + 7919,
-            )
+            if opp_deck is not None:  # fixed meta deck, piloted by the learner net
+                opp = RecurrentNetAgent(
+                    opp_deck, engine, net=learner_net, cb_pool=pool,
+                    build_deck_from_net=False, temperature=args.temperature,
+                    seed=seed + 7919,
+                )
+            else:  # opponent samples its own deck (self-play or a past checkpoint)
+                opp = RecurrentNetAgent(
+                    fallback, engine, net=opp_net, cb_pool=pool, sample_deck=True,
+                    temperature=args.temperature, seed=seed + 7919,
+                )
             learner_first = k % 2 == 0
             names = (
                 (LEARNER, LEARNER) if args.self_play

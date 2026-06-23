@@ -43,7 +43,7 @@ from src.net.bc_data import load_engine_json  # noqa: E402
 from src.net.embedding import CardEmbeddingIndex  # noqa: E402
 from src.net.features import CardFeatures  # noqa: E402
 from src.net.lit_vtrace import LitVtracePPO  # noqa: E402
-from src.net.osfp import OpponentPool  # noqa: E402
+from src.net.osfp import OpponentPool, PoolEntry  # noqa: E402
 from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402
 from src.net.recurrent_torch import TorchRecurrentNet  # noqa: E402
 from src.net.trajectory_data import (  # noqa: E402
@@ -140,10 +140,19 @@ def _split(total: int, parts: int) -> list[int]:
     return [base + (1 if i < rem else 0) for i in range(parts)]
 
 
+def _opp_args(cfg: Config, opp: PoolEntry | None) -> list[str]:
+    """Collector opponent flag: self-play / a meta-deck baseline / a past checkpoint."""
+    if opp is None:
+        return ["--self-play"]
+    if opp.kind == "baseline":  # a fixed meta deck (external deck-quality pressure)
+        return ["--opp-deck", _path(cfg, Path(opp.ref))]
+    return ["--opp-weights", _path(cfg, Path(opp.ref))]  # a past checkpoint net
+
+
 def _collect(  # noqa: PLR0913 - one collection request's parameters
     cfg: Config,
     weights: Path,
-    opp: Path | None,
+    opp: PoolEntry | None,
     games: int,
     seed: int,
     out: Path,
@@ -155,8 +164,8 @@ def _collect(  # noqa: PLR0913 - one collection request's parameters
             "--weights", _path(cfg, weights), "--games", str(n),
             "--temperature", str(cfg.temperature),
             "--seed", str(seed + k * 1_000_000), "--out", _path(cfg, sub),
+            *_opp_args(cfg, opp),
         ]
-        args += ["--self-play"] if opp is None else ["--opp-weights", _path(cfg, opp)]
         try:
             _run(_argv(cfg, args), _env(cfg))
             return _read_records(sub)
@@ -222,8 +231,14 @@ def run(cfg: Config) -> None:
     card_feats = CardEmbeddingIndex(pool).fixed_matrix(feats)
     index = CardEmbeddingIndex(pool)
 
+    # Seed the OSFP pool with the meta decklists as permanent baselines (paper
+    # Alg.1): the learner's sampled deck plays them piloted by its own play head, so
+    # a degenerate (e.g. zero-energy) deck is punished by a real deck -- the external
+    # pressure self-play alone can't provide. Recency-weighted checkpoints are added
+    # on top as the run proceeds.
+    baselines = [str(p) for p in sorted((ROOT / "decklists").glob("*.csv"))]
     history = OpponentPool(
-        [], decay=cfg.decay, self_play_prob=cfg.self_play_prob,
+        baselines, decay=cfg.decay, self_play_prob=cfg.self_play_prob,
         threshold=cfg.threshold, patience=cfg.patience,
     )
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
@@ -234,10 +249,9 @@ def run(cfg: Config) -> None:
         net_np.save(weights_path)  # the collector loads this
 
         opp_entry = history.sample(n, rng)
-        opp = Path(opp_entry.ref) if opp_entry is not None else None
         out = cfg.out_dir / f"games_{n}"
         records = _collect(
-            cfg, weights_path, opp, cfg.games_per_iter, cfg.seed + n * 1000, out,
+            cfg, weights_path, opp_entry, cfg.games_per_iter, cfg.seed + n * 1000, out,
         )
         episodes = build_episodes(records, feats, index, pool)
         queue.extend(episodes)
@@ -254,7 +268,7 @@ def run(cfg: Config) -> None:
         admitted = history.admit(
             str(weights_path), n, {"gate": gate} if gate is not None else {},
         )
-        label = "self" if opp is None else opp.name
+        label = "self" if opp_entry is None else Path(opp_entry.ref).name
         print(
             f"[paperiter {n}] opp={label} new_eps={len(episodes)} "
             f"queue={len(queue)} trained={len(sample)} gate={gate} "
