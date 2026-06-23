@@ -46,6 +46,7 @@ P5D = ROOT / "data/jointosfp/run2/jointiter_649.npz"
 METAL = ROOT / "decklists/metal_aggro.csv"
 ENGINE_JSON = ROOT / "data/bc/engine.json"
 CKPT_ITERS = [50, 250, 500, 1000, 2000, 3500, 5000]
+DECK_EVO_ITERS = [50, 100, 250, 500, 1000, 1500, 2000, 3000, 4000, 5000]
 
 _G: dict = {}
 
@@ -147,6 +148,30 @@ def _deck_report(net: RecurrentPolicyValueNet, pool: object, feats: object) -> d
     }
 
 
+def _deck_evolution(pool: object, feats: object) -> list[dict]:
+    """Greedy deck composition + sampled diversity at each checkpoint (no games)."""
+    rng = np.random.default_rng(0)
+    evo = []
+    for it in DECK_EVO_ITERS:
+        p = ROOT / f"data/paperosfp/main/paperiter_{it}.npz"
+        if not p.exists():
+            continue
+        net = RecurrentPolicyValueNet.load(p)
+        greedy = build_deck(net, pool, feats)
+        comp = Counter(card_kind(pool, c) for c in greedy)
+        smp = [sample_deck_with_logp(net, pool, feats, rng)[0] for _ in range(10)]
+        evo.append({
+            "iter": it, "energy": comp.get("energy", 0),
+            "pokemon": comp.get("pokemon", 0), "trainer": comp.get("trainer", 0),
+            "distinct": len(set(greedy)),
+            "sampled_energy": round(float(np.mean(
+                [sum(card_kind(pool, c) == "energy" for c in d) for d in smp])), 1),
+            "sampled_distinct": round(
+                float(np.mean([len(set(d)) for d in smp])), 1),
+        })
+    return evo
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Multi-faceted recurrent net eval")
     ap.add_argument("--final", type=Path, default=FINAL)
@@ -202,6 +227,7 @@ def main() -> None:
         "matches": _aggregate(rows),
         "checkpoint_iters": [it for it, _ in ckpts],
         "deck": _deck_report(final_net, pool, feats),
+        "deck_evolution": _deck_evolution(pool, feats),
         "engine": "native",
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

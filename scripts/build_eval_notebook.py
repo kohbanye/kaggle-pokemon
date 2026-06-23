@@ -160,7 +160,32 @@ pd.DataFrame(d["greedy_top"], columns=["card id", "copies"])
 """,
 )
 
-md("## Sampled-deck diversity (30 samples)")
+md("## Deck composition over training iterations")
+code(
+    """
+ev = E.get("deck_evolution", [])
+its = [r["iter"] for r in ev]
+fig, axs = plt.subplots(1, 2, figsize=(12, 4))
+axs[0].stackplot(
+    its, [r["energy"] for r in ev], [r["pokemon"] for r in ev],
+    [r["trainer"] for r in ev], labels=["energy", "pokemon", "trainer"], alpha=0.85,
+)
+axs[0].set_title("greedy deck composition")
+axs[0].set_xlabel("iteration")
+axs[0].set_ylabel("cards")
+axs[0].legend(loc="upper right")
+axs[1].plot(its, [r["sampled_distinct"] for r in ev], marker="o", label="distinct")
+axs[1].plot(its, [r["sampled_energy"] for r in ev], marker="s", label="energy")
+axs[1].set_title("sampled-deck diversity / energy")
+axs[1].set_xlabel("iteration")
+axs[1].legend()
+plt.tight_layout()
+plt.show()
+pd.DataFrame(ev)
+""",
+)
+
+md("## Sampled-deck diversity (final net, 30 samples)")
 code(
     """
 d = E["deck"]

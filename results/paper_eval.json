@@ -316,5 +316,97 @@
       24
     ]
   },
-  "engine": "native"
+  "engine": "native",
+  "deck_evolution": [
+    {
+      "iter": 50,
+      "energy": 18,
+      "pokemon": 23,
+      "trainer": 19,
+      "distinct": 17,
+      "sampled_energy": 18.7,
+      "sampled_distinct": 51.9
+    },
+    {
+      "iter": 100,
+      "energy": 18,
+      "pokemon": 23,
+      "trainer": 19,
+      "distinct": 16,
+      "sampled_energy": 20.1,
+      "sampled_distinct": 51.0
+    },
+    {
+      "iter": 250,
+      "energy": 19,
+      "pokemon": 25,
+      "trainer": 16,
+      "distinct": 16,
+      "sampled_energy": 22.7,
+      "sampled_distinct": 49.1
+    },
+    {
+      "iter": 500,
+      "energy": 19,
+      "pokemon": 25,
+      "trainer": 16,
+      "distinct": 16,
+      "sampled_energy": 24.1,
+      "sampled_distinct": 47.9
+    },
+    {
+      "iter": 1000,
+      "energy": 23,
+      "pokemon": 23,
+      "trainer": 14,
+      "distinct": 16,
+      "sampled_energy": 25.7,
+      "sampled_distinct": 43.4
+    },
+    {
+      "iter": 1500,
+      "energy": 26,
+      "pokemon": 21,
+      "trainer": 13,
+      "distinct": 18,
+      "sampled_energy": 26.9,
+      "sampled_distinct": 41.4
+    },
+    {
+      "iter": 2000,
+      "energy": 25,
+      "pokemon": 23,
+      "trainer": 12,
+      "distinct": 17,
+      "sampled_energy": 27.8,
+      "sampled_distinct": 38.2
+    },
+    {
+      "iter": 3000,
+      "energy": 25,
+      "pokemon": 18,
+      "trainer": 17,
+      "distinct": 18,
+      "sampled_energy": 24.7,
+      "sampled_distinct": 32.5
+    },
+    {
+      "iter": 4000,
+      "energy": 23,
+      "pokemon": 17,
+      "trainer": 20,
+      "distinct": 18,
+      "sampled_energy": 23.7,
+      "sampled_distinct": 27.9
+    },
+    {
+      "iter": 5000,
+      "energy": 22,
+      "pokemon": 16,
+      "trainer": 22,
+      "distinct": 21,
+      "sampled_energy": 24.4,
+      "sampled_distinct": 25.6
+    }
+  ]
 }
