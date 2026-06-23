@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from src.net.deck_factored import N_CATEGORIES
 from src.net.encode import STATE_EMBED_SLOTS
 from src.net.model import NetConfig, PolicyValueNet
 from src.net.nn import he_init, sigmoid
@@ -102,7 +103,15 @@ class RecurrentPolicyValueNet(PolicyValueNet):
         p["play_lstm_w_hh"] = rng.standard_normal((4 * ph, ph)) * scale
         p["play_lstm_b_ih"] = np.zeros(4 * ph)
         p["play_lstm_b_hh"] = np.zeros(4 * ph)
+        # Deck category head (factored CB: {pokemon, trainer, energy}); reads the
+        # deck-LSTM hidden. Near-zero init so picks start ~category-uniform.
+        p["cat_w"] = rng.standard_normal((cfg.lstm_hidden, N_CATEGORIES)) * _HEAD_SCALE
+        p["cat_b"] = np.zeros(N_CATEGORIES)
         return cls(cfg, p)
+
+    def cat_logits(self, h: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Deck category logits ``(N_CATEGORIES,)`` from the deck-LSTM hidden ``h``."""
+        return h @ self.params["cat_w"] + self.params["cat_b"]
 
     # --- recurrent state ----------------------------------------------------
 

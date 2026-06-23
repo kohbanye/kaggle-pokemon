@@ -67,6 +67,22 @@ def test_recurrent_play_parity() -> None:
         np.testing.assert_allclose(np_values[t], float(t_values[0, t]), atol=1e-9)
 
 
+def test_cat_head_parity() -> None:
+    """The factored deck category head bridges + forwards identically in numpy/torch."""
+    rng = np.random.default_rng(7)
+    net = RecurrentPolicyValueNet.random(rng, _CFG)
+    torch_net = TorchRecurrentNet(_CFG).double().eval()
+    torch_net.load_numpy_params(net.params)
+    h = rng.standard_normal(_CFG.lstm_hidden)
+    with torch.no_grad():
+        t_cat = torch_net.cat_head(torch.tensor(h)).numpy()
+    np.testing.assert_allclose(net.cat_logits(h), t_cat, atol=1e-9)
+    # Weight bridge round-trips the category head.
+    back = torch_net.to_numpy_net()
+    np.testing.assert_allclose(back.params["cat_w"], net.params["cat_w"], atol=1e-9)
+    np.testing.assert_allclose(back.params["cat_b"], net.params["cat_b"], atol=1e-9)
+
+
 def test_recurrent_save_load_roundtrip(tmp_path: object) -> None:
     """A saved recurrent net reloads to identical weights + config."""
     rng = np.random.default_rng(1)

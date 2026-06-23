@@ -27,6 +27,7 @@ import numpy as np
 import torch
 
 from src.deck import legal_next_ids
+from src.net.deck_factored import N_CATEGORIES, category_of_rows
 from src.net.encode import (
     OPTION_DIM,
     encode_options,
@@ -64,15 +65,18 @@ class BattleStep:
 class Episode:
     """One player's game: deck-build picks ⊕ battle steps, terminal return.
 
-    ``deck_rows`` is the deck in CB pick order (pool rows); ``deck_legal`` the
-    per-step legal mask; ``deck_logp`` the actor's per-pick log-prob. ``ret`` is the
-    terminal outcome in ``[-1, 1]`` from this player's view.
+    The deck arm is **factored** (category->card): per pick step we keep the picked
+    pool row, its category, the category-legality mask and the within-category card
+    mask, plus the actor's (factored) per-pick log-prob. ``ret`` is the terminal
+    outcome in ``[-1, 1]`` from this player's view.
     """
 
     battle: list[BattleStep]
-    deck_rows: NDArray[np.int64]  # (Td,)
-    deck_legal: NDArray[np.bool_]  # (Td, N_pool)
-    deck_logp: NDArray[np.float64]  # (Td,)
+    deck_rows: NDArray[np.int64]  # (Td,) picked pool rows
+    deck_cat: NDArray[np.int64]  # (Td,) picked categories
+    deck_cat_legal: NDArray[np.bool_]  # (Td, N_CATEGORIES) categories with a legal pick
+    deck_card_legal: NDArray[np.bool_]  # (Td, N_pool) legal rows in the picked category
+    deck_logp: NDArray[np.float64]  # (Td,) factored behaviour log-prob
     ret: float
 
 
@@ -123,15 +127,34 @@ def _battle_steps(
     return steps
 
 
+@dataclass
+class _DeckArrays:
+    """Factored per-step deck supervision recomputed from a pick order."""
+
+    rows: NDArray[np.int64]  # (Td,)
+    cats: NDArray[np.int64]  # (Td,)
+    cat_legal: NDArray[np.bool_]  # (Td, N_CATEGORIES)
+    card_legal: NDArray[np.bool_]  # (Td, N_pool)
+    logps: NDArray[np.float64]  # (Td,)
+
+
 def _deck_arrays(
     deck: list[int],
     deck_logp: list[float],
     pool: CardPool,
     index: CardEmbeddingIndex,
-) -> tuple[NDArray[np.int64], NDArray[np.bool_], NDArray[np.float64]] | None:
-    """Recompute (pool rows, per-step legal masks, log-probs) from a pick order."""
+    cat_of: NDArray[np.intp],
+) -> _DeckArrays | None:
+    """Recompute the factored (category->card) per-step masks from a pick order.
+
+    At step ``t`` the legal set is :func:`~src.deck.legal_next_ids` over the prefix;
+    ``cat_legal`` marks which categories have a legal pick and ``card_legal`` the
+    legal rows **of the picked card's category** (the within-category card mask).
+    """
     rows: list[int] = []
-    masks: list[NDArray[np.bool_]] = []
+    cats: list[int] = []
+    cat_legals: list[NDArray[np.bool_]] = []
+    card_legals: list[NDArray[np.bool_]] = []
     logps: list[float] = []
     for t, card in enumerate(deck):
         row = index.row(card)
@@ -140,19 +163,26 @@ def _deck_arrays(
         legal = legal_next_ids(deck[:t], pool)
         if card not in legal:
             continue
-        mask = np.zeros(index.n_pool, dtype=np.bool_)
-        for cid in legal:
-            r = index.row(cid)
-            if r < index.n_pool:
-                mask[r] = True
+        legal_rows = np.array(
+            [index.row(cid) for cid in legal if index.row(cid) < index.n_pool],
+        )
+        target_cat = int(cat_of[row])
+        cat_legal = np.zeros(N_CATEGORIES, dtype=np.bool_)
+        cat_legal[np.unique(cat_of[legal_rows])] = True
+        card_legal = np.zeros(index.n_pool, dtype=np.bool_)
+        card_legal[legal_rows[cat_of[legal_rows] == target_cat]] = True
         rows.append(row)
-        masks.append(mask)
+        cats.append(target_cat)
+        cat_legals.append(cat_legal)
+        card_legals.append(card_legal)
         logps.append(deck_logp[t] if t < len(deck_logp) else 0.0)
     if not rows:
         return None
-    return (
+    return _DeckArrays(
         np.array(rows, dtype=np.int64),
-        np.stack(masks),
+        np.array(cats, dtype=np.int64),
+        np.stack(cat_legals),
+        np.stack(card_legals),
         np.array(logps, dtype=np.float64),
     )
 
@@ -171,6 +201,7 @@ def build_episodes(
     slots in self-play, one vs an opponent). A game yields one episode per such slot,
     each with that slot's own deck and single-select battle decisions.
     """
+    cat_of = category_of_rows(pool)
     episodes: list[Episode] = []
     for game in games:
         winner = int(game.get("winner", -1))
@@ -180,14 +211,16 @@ def build_episodes(
             slot = int(slot_key)
             deck = [int(c) for c in (deck_info.get("deck") or [])]
             deck_logp = [float(x) for x in (deck_info.get("deck_logp") or [])]
-            deck_arrays = _deck_arrays(deck, deck_logp, pool, index)
-            if deck_arrays is None:
+            arr = _deck_arrays(deck, deck_logp, pool, index, cat_of)
+            if arr is None:
                 continue
             steps = _battle_steps(decisions, slot, feats, index)
             if not steps:
                 continue
-            rows, masks, logps = deck_arrays
-            episodes.append(Episode(steps, rows, masks, logps, _outcome(winner, slot)))
+            episodes.append(Episode(
+                steps, arr.rows, arr.cats, arr.cat_legal, arr.card_legal,
+                arr.logps, _outcome(winner, slot),
+            ))
     return episodes
 
 
@@ -244,26 +277,32 @@ def _collate_battle(episodes: list[Episode]) -> dict[str, torch.Tensor]:
 
 
 def _collate_deck(episodes: list[Episode]) -> dict[str, torch.Tensor]:
-    """Pad deck-build sequences to ``(B, Td, ...)`` with a ``valid`` mask."""
+    """Pad factored deck-build sequences to ``(B, Td, ...)`` with a ``valid`` mask."""
     bsz = len(episodes)
     max_t = max(ep.deck_rows.shape[0] for ep in episodes)
-    n_pool = episodes[0].deck_legal.shape[1]
+    n_pool = episodes[0].deck_card_legal.shape[1]
 
     targets = torch.zeros(bsz, max_t, dtype=torch.long)
-    legal = torch.zeros(bsz, max_t, n_pool, dtype=torch.bool)
+    target_cat = torch.zeros(bsz, max_t, dtype=torch.long)
+    cat_legal = torch.zeros(bsz, max_t, N_CATEGORIES, dtype=torch.bool)
+    card_legal = torch.zeros(bsz, max_t, n_pool, dtype=torch.bool)
     behaviour_logp = torch.zeros(bsz, max_t)
     valid = torch.zeros(bsz, max_t, dtype=torch.bool)
     returns = torch.zeros(bsz)
     for i, ep in enumerate(episodes):
         t = ep.deck_rows.shape[0]
         targets[i, :t] = torch.from_numpy(ep.deck_rows)
-        legal[i, :t] = torch.from_numpy(ep.deck_legal)
+        target_cat[i, :t] = torch.from_numpy(ep.deck_cat)
+        cat_legal[i, :t] = torch.from_numpy(ep.deck_cat_legal)
+        card_legal[i, :t] = torch.from_numpy(ep.deck_card_legal)
         behaviour_logp[i, :t] = torch.from_numpy(ep.deck_logp).float()
         valid[i, :t] = True
-        legal[i, t:, 0] = True  # dummy-legal for padded steps (avoid all-(-inf))
+        cat_legal[i, t:, 0] = True  # dummy-legal for padded steps (avoid all-(-inf))
+        card_legal[i, t:, 0] = True
         returns[i] = ep.ret
     return {
-        "targets": targets, "legal": legal, "behaviour_logp": behaviour_logp,
+        "targets": targets, "target_cat": target_cat, "cat_legal": cat_legal,
+        "card_legal": card_legal, "behaviour_logp": behaviour_logp,
         "valid": valid, "returns": returns,
     }
 

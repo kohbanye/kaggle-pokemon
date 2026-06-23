@@ -28,7 +28,7 @@ import lightning as L
 import torch
 from torch.nn import functional as F
 
-from src.net.lit import cb_sequence_logits
+from src.net.recurrent_torch import deck_sequence_factored
 from src.net.vtrace import vtrace
 
 if TYPE_CHECKING:
@@ -153,18 +153,30 @@ class LitVtracePPO(L.LightningModule):
         batch: dict[str, torch.Tensor],
         battle_start_value: torch.Tensor,
     ) -> torch.Tensor:
+        """Factored (category->card) deck PPO loss + targeted category entropy.
+
+        The pick log-prob is ``log P(category) + log P(card | category)``; the entropy
+        bonus is on the 3-way **category** distribution (where it actually keeps the
+        energy budget alive, unlike entropy over the whole pool).
+        """
         valid = batch["valid"]
         targets = batch["targets"]
-        logits = cb_sequence_logits(self.net, self.card_feats, targets)
-        logits = logits.masked_fill(~batch["legal"], _NEG_INF)
-        logp = F.log_softmax(logits, dim=-1)
-        logp_taken = logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        cat_logits, card_logits = deck_sequence_factored(
+            self.net, self.card_feats, targets,
+        )
+        cat_logits = cat_logits.masked_fill(~batch["cat_legal"], _NEG_INF)
+        card_logits = card_logits.masked_fill(~batch["card_legal"], _NEG_INF)
+        cat_logp = F.log_softmax(cat_logits, dim=-1)
+        card_logp = F.log_softmax(card_logits, dim=-1)
+        cat_taken = cat_logp.gather(-1, batch["target_cat"].unsqueeze(-1)).squeeze(-1)
+        card_taken = card_logp.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        logp_taken = cat_taken + card_taken
 
         advantage = (batch["returns"] - battle_start_value).unsqueeze(1)  # (B,1)
         policy_loss = _ppo_surrogate(
             logp_taken, batch["behaviour_logp"], advantage, valid, self.clip_eps,
         )
-        entropy = _entropy(logp, batch["legal"], valid)
+        entropy = _entropy(cat_logp, batch["cat_legal"], valid)  # category entropy
         loss = policy_loss - self.deck_entropy_coef * entropy
         self.log_dict(
             {"deck_policy": policy_loss, "deck_entropy": entropy}, prog_bar=False,

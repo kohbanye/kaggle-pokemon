@@ -14,6 +14,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from src.net.deck_factored import N_CATEGORIES
 from src.net.recurrent_model import RecurrentNetConfig, RecurrentPolicyValueNet
 from src.net.torch_model import TorchPolicyValueNet
 
@@ -32,6 +33,8 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         self.value_head = nn.Linear(ph, 1)
         self.policy1 = nn.Linear(ph + cfg.option_dim + cfg.embed_dim, cfg.policy_hidden)
         self.play_lstm = nn.LSTMCell(cfg.hidden, ph)
+        # Factored deck category head ({pokemon, trainer, energy}) off the deck LSTM.
+        self.cat_head = nn.Linear(cfg.lstm_hidden, N_CATEGORIES)
 
     # --- heads off the play-LSTM hidden -------------------------------------
 
@@ -87,6 +90,10 @@ class TorchRecurrentNet(TorchPolicyValueNet):
 
     # --- numpy bridge -------------------------------------------------------
 
+    def _layer_keys(self) -> list[tuple[nn.Linear, str, str]]:
+        """Base dense layers plus the factored deck category head."""
+        return [*super()._layer_keys(), (self.cat_head, "cat_w", "cat_b")]
+
     def _matrix_keys(self) -> list[tuple[nn.Parameter, str]]:
         """Base raw tensors plus the play-LSTM's four (torch-native layout)."""
         return [
@@ -100,6 +107,45 @@ class TorchRecurrentNet(TorchPolicyValueNet):
     def to_numpy_net(self) -> RecurrentPolicyValueNet:
         """A numpy :class:`RecurrentPolicyValueNet` with this net's weights."""
         return RecurrentPolicyValueNet(self.config, self.to_numpy_params())
+
+
+def deck_sequence_factored(
+    net: TorchRecurrentNet,
+    card_feats: torch.Tensor,
+    target_rows: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Factored deck-build logits over a batch of pick sequences.
+
+    Runs the deck LSTM over the pick order (teacher-forced on ``target_rows``) and,
+    at each step, emits the category logits ``(B, T, N_CATEGORIES)`` and the per-pool
+    card logits ``(B, T, N_pool)``. ``card_feats`` is ``(N_pool, card_dim)``. Mirrors
+    the serving forward; the learner masks + factors these into the pick log-prob.
+    """
+    bsz, t_len = target_rows.shape
+    n_pool = card_feats.shape[0]
+    card_matrix = torch.cat([card_feats, net.cb_embed[:n_pool]], dim=-1)
+    hid = net.cb_lstm.hidden_size
+    h = card_feats.new_zeros(bsz, hid)
+    c = card_feats.new_zeros(bsz, hid)
+    cat_out: list[torch.Tensor] = []
+    card_out: list[torch.Tensor] = []
+    for t in range(t_len):
+        x = (
+            net.cb_start.unsqueeze(0).expand(bsz, -1)
+            if t == 0
+            else net.cb_embed[target_rows[:, t - 1]]
+        )
+        h, c = net.cb_lstm(x, (h, c))
+        cat_out.append(net.cat_head(h))
+        joint = torch.cat(
+            [
+                h.unsqueeze(1).expand(-1, n_pool, -1),
+                card_matrix.unsqueeze(0).expand(bsz, -1, -1),
+            ],
+            dim=-1,
+        )
+        card_out.append(net.cb2(torch.relu(net.cb1(joint))).squeeze(-1))
+    return torch.stack(cat_out, dim=1), torch.stack(card_out, dim=1)
 
 
 def from_numpy_recurrent(net: RecurrentPolicyValueNet) -> TorchRecurrentNet:

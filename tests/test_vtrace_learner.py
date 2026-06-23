@@ -37,17 +37,29 @@ def _battle_step(rng: np.random.Generator, k: int) -> BattleStep:
     )
 
 
+# A fixed random category per pool row (the factored deck head's {pok,trainer,energy}).
+_CAT_OF = np.random.default_rng(99).integers(0, 3, _N_POOL)
+
+
 def _episode(rng: np.random.Generator) -> Episode:
     t_battle = int(rng.integers(2, 6))
     t_deck = int(rng.integers(2, 5))
     rows = rng.integers(0, _N_POOL, t_deck).astype(np.int64)
-    legal = rng.random((t_deck, _N_POOL)) < 0.7
+    cats = _CAT_OF[rows].astype(np.int64)
+    cat_legal = rng.random((t_deck, 3)) < 0.6
+    card_legal = np.zeros((t_deck, _N_POOL), dtype=bool)
     for t in range(t_deck):
-        legal[t, rows[t]] = True  # the picked card is always legal
+        cat_legal[t, cats[t]] = True  # picked category always legal
+        # within-category card mask: legal rows of the picked category, incl. target
+        same_cat = cats[t] == _CAT_OF
+        card_legal[t] = same_cat & (rng.random(_N_POOL) < 0.8)
+        card_legal[t, rows[t]] = True
     return Episode(
         battle=[_battle_step(rng, int(rng.integers(2, 5))) for _ in range(t_battle)],
         deck_rows=rows,
-        deck_legal=legal,
+        deck_cat=cats,
+        deck_cat_legal=cat_legal,
+        deck_card_legal=card_legal,
         deck_logp=np.log(rng.uniform(0.1, 0.9, t_deck)),
         ret=float(rng.choice([-1.0, 1.0])),
     )
@@ -69,7 +81,10 @@ def test_learner_step_finite_and_grads_flow() -> None:
     loss.backward()
     # Battle arm reaches the play LSTM + value head; deck arm reaches the deck LSTM;
     # both reach the shared card embedding.
-    for name in ("play_lstm.weight_ih", "value_head.weight", "cb_lstm.weight_ih"):
+    for name in (
+        "play_lstm.weight_ih", "value_head.weight", "cb_lstm.weight_ih",
+        "cat_head.weight",  # factored deck category head trains
+    ):
         grad = dict(net.named_parameters())[name].grad
         assert grad is not None
         assert torch.isfinite(grad).all()
