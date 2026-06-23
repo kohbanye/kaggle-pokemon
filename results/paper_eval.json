@@ -1,0 +1,320 @@
+{
+  "final": "/home/sakano/git/kaggle-pokemon/data/paperosfp/main/paper_final.npz",
+  "phase5d": "/home/sakano/git/kaggle-pokemon/data/jointosfp/run2/jointiter_649.npz",
+  "matches": {
+    "vs_phase5d": {
+      "winrate": 0.96,
+      "ci_lo": 0.9313957879613599,
+      "ci_hi": 0.9769726785120576,
+      "wins": 288,
+      "decisive": 300,
+      "games": 300,
+      "avg_turns": 30.813333333333333,
+      "avg_move_ms": 0.5422681964781998,
+      "max_move_ms": 68.49042233079672
+    },
+    "vs_greedy_samedeck": {
+      "winrate": 0.325,
+      "ci_lo": 0.2639157153923429,
+      "ci_hi": 0.3926801488397004,
+      "wins": 65,
+      "decisive": 200,
+      "games": 200,
+      "avg_turns": 13.805,
+      "avg_move_ms": 0.25561359146505885,
+      "max_move_ms": 16.622300259768963
+    },
+    "vs_random_samedeck": {
+      "winrate": 0.835,
+      "ci_lo": 0.7773421846094045,
+      "ci_hi": 0.8800314467178268,
+      "wins": 167,
+      "decisive": 200,
+      "games": 200,
+      "avg_turns": 23.435,
+      "avg_move_ms": 0.2507974920274429,
+      "max_move_ms": 23.891895078122616
+    },
+    "ckpt_50": {
+      "winrate": 0.1,
+      "ci_lo": 0.05154761556738083,
+      "ci_hi": 0.18510688806104086,
+      "wins": 8,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 54.0875,
+      "avg_move_ms": 0.5440659746538266,
+      "max_move_ms": 44.403218664228916
+    },
+    "ckpt_250": {
+      "winrate": 0.8875,
+      "ci_lo": 0.7998178190762713,
+      "ci_hi": 0.9396731305336952,
+      "wins": 71,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 85.25,
+      "avg_move_ms": 0.4877014706273717,
+      "max_move_ms": 52.39445623010397
+    },
+    "ckpt_500": {
+      "winrate": 0.9125,
+      "ci_lo": 0.8302320449152499,
+      "ci_hi": 0.9569679982179401,
+      "wins": 73,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 46.7125,
+      "avg_move_ms": 0.6026003681506479,
+      "max_move_ms": 50.4700830206275
+    },
+    "ckpt_1000": {
+      "winrate": 1.0,
+      "ci_lo": 0.9541818704644728,
+      "ci_hi": 0.9999999999999999,
+      "wins": 80,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 24.7125,
+      "avg_move_ms": 0.7364390633858753,
+      "max_move_ms": 68.33313778042793
+    },
+    "ckpt_2000": {
+      "winrate": 1.0,
+      "ci_lo": 0.9541818704644728,
+      "ci_hi": 0.9999999999999999,
+      "wins": 80,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 16.85,
+      "avg_move_ms": 0.608528093993049,
+      "max_move_ms": 52.44256928563118
+    },
+    "ckpt_3500": {
+      "winrate": 0.975,
+      "ci_lo": 0.9133556701442198,
+      "ci_hi": 0.9931171067970292,
+      "wins": 78,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 31.375,
+      "avg_move_ms": 0.6362605534976572,
+      "max_move_ms": 48.27053099870682
+    },
+    "ckpt_5000": {
+      "winrate": 0.925,
+      "ci_lo": 0.8458798391878072,
+      "ci_hi": 0.9651747507069949,
+      "wins": 74,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 37.3,
+      "avg_move_ms": 0.4854739026389008,
+      "max_move_ms": 56.40751589089632
+    },
+    "gauntlet_darkness_aggro": {
+      "winrate": 0.925,
+      "ci_lo": 0.8458798391878072,
+      "ci_hi": 0.9651747507069949,
+      "wins": 74,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 15.4125,
+      "avg_move_ms": 0.24194894103224246,
+      "max_move_ms": 28.36407069116831
+    },
+    "gauntlet_fighting_aggro": {
+      "winrate": 0.3924050632911392,
+      "ci_lo": 0.2921286505753673,
+      "ci_hi": 0.5026600911729452,
+      "wins": 31,
+      "decisive": 79,
+      "games": 80,
+      "avg_turns": 15.6,
+      "avg_move_ms": 0.22191079825726953,
+      "max_move_ms": 16.328437253832817
+    },
+    "gauntlet_fire_aggro": {
+      "winrate": 0.7692307692307693,
+      "ci_lo": 0.6644424217371642,
+      "ci_hi": 0.8487449114947313,
+      "wins": 60,
+      "decisive": 78,
+      "games": 80,
+      "avg_turns": 15.2,
+      "avg_move_ms": 0.20363152145095248,
+      "max_move_ms": 2.9380880296230316
+    },
+    "gauntlet_grass_aggro": {
+      "winrate": 0.8,
+      "ci_lo": 0.6995375627182917,
+      "ci_hi": 0.8729715595603921,
+      "wins": 64,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 16.4375,
+      "avg_move_ms": 0.20402187824027745,
+      "max_move_ms": 0.4883604124188423
+    },
+    "gauntlet_lightning_aggro": {
+      "winrate": 0.8227848101265823,
+      "ci_lo": 0.7242380412359362,
+      "ci_hi": 0.8913957335191265,
+      "wins": 65,
+      "decisive": 79,
+      "games": 80,
+      "avg_turns": 17.575,
+      "avg_move_ms": 0.20017233132300918,
+      "max_move_ms": 0.7020821794867516
+    },
+    "gauntlet_metal_aggro": {
+      "winrate": 0.7848101265822784,
+      "ci_lo": 0.682128319163289,
+      "ci_hi": 0.8610779526794132,
+      "wins": 62,
+      "decisive": 79,
+      "games": 80,
+      "avg_turns": 14.3375,
+      "avg_move_ms": 0.22610933508259343,
+      "max_move_ms": 19.56910640001297
+    },
+    "gauntlet_psychic_aggro": {
+      "winrate": 0.9875,
+      "ci_lo": 0.9325372992233133,
+      "ci_hi": 0.9977900244795476,
+      "wins": 79,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 16.025,
+      "avg_move_ms": 0.2025919456719758,
+      "max_move_ms": 0.5179820582270622
+    },
+    "gauntlet_water_aggro": {
+      "winrate": 0.8875,
+      "ci_lo": 0.7998178190762713,
+      "ci_hi": 0.9396731305336952,
+      "wins": 71,
+      "decisive": 80,
+      "games": 80,
+      "avg_turns": 16.9,
+      "avg_move_ms": 0.19934717286132325,
+      "max_move_ms": 0.5772504955530167
+    }
+  },
+  "checkpoint_iters": [
+    50,
+    250,
+    500,
+    1000,
+    2000,
+    3500,
+    5000
+  ],
+  "deck": {
+    "greedy_comp": {
+      "trainer": 22,
+      "pokemon": 16,
+      "energy": 22
+    },
+    "greedy_distinct": 18,
+    "greedy_top": [
+      [
+        6,
+        11
+      ],
+      [
+        24,
+        4
+      ],
+      [
+        1227,
+        4
+      ],
+      [
+        15,
+        4
+      ],
+      [
+        1204,
+        4
+      ],
+      [
+        1199,
+        4
+      ],
+      [
+        14,
+        4
+      ],
+      [
+        1006,
+        4
+      ]
+    ],
+    "sampled_distinct": [
+      26,
+      29,
+      26,
+      29,
+      32,
+      26,
+      30,
+      25,
+      27,
+      29,
+      28,
+      27,
+      33,
+      21,
+      33,
+      29,
+      32,
+      25,
+      27,
+      25,
+      24,
+      28,
+      25,
+      33,
+      25,
+      26,
+      32,
+      24,
+      26,
+      25
+    ],
+    "sampled_energy": [
+      22,
+      21,
+      21,
+      22,
+      14,
+      23,
+      23,
+      27,
+      21,
+      19,
+      27,
+      21,
+      22,
+      26,
+      19,
+      21,
+      25,
+      23,
+      25,
+      21,
+      28,
+      23,
+      28,
+      17,
+      28,
+      26,
+      19,
+      27,
+      24,
+      24
+    ]
+  },
+  "engine": "native"
+}
