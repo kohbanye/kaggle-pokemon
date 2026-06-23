@@ -213,6 +213,55 @@ pd.DataFrame(rows, columns=["match", "avg move ms", "max move ms"])
 )
 
 
+md("## Deck vs play decomposition (2x2) + mirror")
+code(
+    """
+A = json.loads((ROOT / "results" / "paper_analysis.json").read_text())
+mu = A["matchups"]
+labels = {
+    "play_net_vs_greedy_on_netdeck": "net play vs greedy  (on the NET's deck)",
+    "play_net_vs_greedy_on_metadeck": "net play vs greedy  (on a META deck)",
+    "deck_net_vs_meta_netplay": "net deck vs meta deck  (same net play)",
+    "mirror": "mirror  (net vs net)",
+}
+ks = list(labels)
+wr = [mu[k]["winrate"] for k in ks]
+fig, ax = plt.subplots(figsize=(10, 3.2))
+ax.barh([labels[k] for k in ks], wr,
+        color=["#4c72b0" if w >= 0.5 else "#c44e52" for w in wr])
+ax.axvline(0.5, color="gray", ls="--", lw=0.8)
+ax.set_xlim(0, 1)
+ax.set_xlabel("A win rate")
+plt.tight_layout()
+plt.show()
+pd.DataFrame(
+    [(labels[k], mu[k]["winrate"], f"[{mu[k]['ci'][0]}, {mu[k]['ci'][1]}]",
+      mu[k]["decisive"]) for k in ks],
+    columns=["matchup", "A winrate", "95% CI", "decisive"],
+)
+""",
+)
+
+md("## Diagnostics — value calibration, loss-cause, slot bias, policy entropy")
+code(
+    """
+A = json.loads((ROOT / "results" / "paper_analysis.json").read_text())
+vc, lc, sb, pe = (A["value_calibration"], A["loss_cause"], A["slot_bias"],
+                  A["policy_entropy"])
+pd.DataFrame([
+    ("value sign-acc (overall / early / late)",
+     f"{vc['sign_accuracy']} / {vc['early_game']} / {vc['late_game']}"),
+    ("value mean|v|", vc["mean_abs_value"]),
+    ("abort / draw rate", f"{lc['abort_rate']} / {lc['draw_rate']}"),
+    ("avg turns (win / loss)", f"{lc['avg_win_turns']} / {lc['avg_loss_turns']}"),
+    ("mirror winrate (first / second)",
+     f"{sb['mirror_first_winrate']} / {sb['mirror_second_winrate']}"),
+    ("policy entropy (mean / median)", f"{pe['mean']} / {pe['median']}"),
+], columns=["metric", "value"])
+""",
+)
+
+
 def main() -> None:
     nb = nbf.v4.new_notebook()
     nb["cells"] = cells

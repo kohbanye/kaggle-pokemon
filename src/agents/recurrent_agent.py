@@ -69,6 +69,10 @@ class RecurrentNetAgent(Agent):
         self._index = CardEmbeddingIndex(cb_pool) if cb_pool is not None else None
         self._h, self._c = net.initial_state()
         self.last_logp = 0.0
+        # Diagnostics for offline analysis (value head + policy entropy at each
+        # single-select decision); harmless to serving.
+        self.last_value = 0.0
+        self.last_entropy = 0.0
         # Per-pick deck log-probs (the deck arm's behaviour log-probs), set when the
         # deck is sampled from the CB head; empty for a fixed (passed-in) deck.
         self.deck_logp: list[float] = []
@@ -108,11 +112,12 @@ class RecurrentNetAgent(Agent):
 
         if max_count == SINGLE_SELECT:
             # Advance the play LSTM and score off the new hidden state.
-            logits, _value, self._h, self._c = self.net.step(
+            logits, value, self._h, self._c = self.net.step(
                 state_vec, rows, mask, option_feats, option_rows, self._h, self._c,
             )
             if logits.shape[0] != len(options):
                 return None
+            self.last_value = float(value)
             return self._single_select(logits)
 
         # Multi-select: reuse the current hidden state (no LSTM advance), take the
@@ -132,4 +137,5 @@ class RecurrentNetAgent(Agent):
             probs = softmax(logits)
             idx = int(np.argmax(logits))
         self.last_logp = float(np.log(probs[idx] + 1e-12))
+        self.last_entropy = float(-(probs * np.log(probs + 1e-12)).sum())
         return [idx]
