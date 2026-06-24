@@ -31,7 +31,7 @@ ignore = ["D", "N812"]
 # RL math: ρ/γ/− in the V-Trace notation are the standard symbols, not typos.
 "src/net/vtrace.py" = ["RUF002"]
 # Tests: asserts and inline literals are the point.
-"tests/*" = ["S101", "PLR2004", "INP001", "RUF001", "RUF002"]
+"tests/*" = ["S101", "PLR2004", "INP001", "RUF001", "RUF002", "FBT003"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

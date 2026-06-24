@@ -52,6 +52,10 @@ class CardInfo:
     is_basic_pokemon: bool
     is_basic_energy: bool
     is_ace_spec: bool
+    # Energy-type code (G/R/W/L/P/F/D/M/C/N/...) -- the card's colour, used as a
+    # deck-archetype descriptor (QD). Empty for typeless cards. Defaulted so existing
+    # positional CardInfo(...) constructions keep working.
+    card_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,7 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
         stage_val = row["stage_or_type"]
         stage = stage_val if isinstance(stage_val, str) else ""
         card_id = int(row["card_id"])
+        type_code = row.get("type_code")
         cards[card_id] = CardInfo(
             card_id=card_id,
             name=str(row["name"]),
@@ -99,6 +104,7 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
             is_basic_pokemon=stage == _BASIC_POKEMON_STAGE,
             is_basic_energy=stage == _BASIC_ENERGY_STAGE,
             is_ace_spec=bool(row["is_ace_spec"]),
+            card_type=type_code if isinstance(type_code, str) else "",
         )
     return CardPool(cards)
 
