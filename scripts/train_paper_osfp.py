@@ -86,6 +86,10 @@ class Config:
     decay: float = 0.5
     threshold: float = 0.55
     patience: int = 3
+    # QD mode: decks come from this archive (a JSON deck list) and the deck (CB) head
+    # is NOT trained -- only the play head learns to pilot the diverse archive decks.
+    deck_pool: Path | None = None
+    train_deck: bool = True
 
 
 def _trainer(epochs: int) -> L.Trainer:
@@ -141,6 +145,8 @@ def _split(total: int, parts: int) -> list[int]:
 
 def _opp_args(cfg: Config, opp: PoolEntry | None) -> list[str]:
     """Collector opponent flag: self-play / a meta-deck baseline / a past checkpoint."""
+    if cfg.deck_pool is not None:  # QD mode: both sides draw from the archive
+        return ["--deck-pool", _path(cfg, cfg.deck_pool)]
     if opp is None:
         return ["--self-play"]
     if opp.kind == "baseline":  # a fixed meta deck (external deck-quality pressure)
@@ -210,7 +216,7 @@ def _update(
         torch_net, card_feats, lr=cfg.lr, value_coef=cfg.value_coef,
         entropy_coef=cfg.entropy_coef, deck_entropy_coef=cfg.deck_entropy_coef,
         clip_eps=cfg.clip_eps, clip_rho=cfg.clip_rho, clip_c=cfg.clip_c,
-        rho_min=cfg.rho_min,
+        rho_min=cfg.rho_min, train_deck=cfg.train_deck,
     )
     loader = DataLoader(
         EpisodeDataset(episodes), batch_size=cfg.batch_size, shuffle=True,
@@ -301,6 +307,14 @@ def main() -> None:
     parser.add_argument("--eval-games", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--self-play-prob", type=float, default=0.5)
+    parser.add_argument(
+        "--deck-pool", type=Path, default=None,
+        help="QD archive (JSON deck list): decks come from it, only play is trained",
+    )
+    parser.add_argument(
+        "--no-deck-arm", action="store_true",
+        help="don't train the CB/deck head (set automatically with --deck-pool)",
+    )
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
     args = parser.parse_args()
 
@@ -310,6 +324,8 @@ def main() -> None:
         games_per_iter=args.games_per_iter, temperature=args.temperature, lr=args.lr,
         workers=args.workers, native=args.native, eval_every=args.eval_every,
         eval_games=args.eval_games, seed=args.seed, self_play_prob=args.self_play_prob,
+        deck_pool=args.deck_pool,
+        train_deck=not (args.no_deck_arm or args.deck_pool is not None),
     )
     if args.smoke:
         cfg.iterations, cfg.games_per_iter = 3, 4

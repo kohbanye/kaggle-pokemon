@@ -84,8 +84,13 @@ class LitVtracePPO(L.LightningModule):
         clip_rho: float = 1.0,
         clip_c: float = 1.0,
         rho_min: float = 0.0,
+        train_deck: bool = True,
     ) -> None:
         super().__init__()
+        # train_deck=False -> battle-only: the deck (CB) head is NOT trained, used
+        # when an external deck source (the QD MAP-Elites archive) owns the decks and
+        # we only learn to PLAY them (the "QD decks + RL play" split).
+        self.train_deck = train_deck
         self.net = net
         self.register_buffer(
             "card_feats", torch.as_tensor(card_feats, dtype=torch.float32),
@@ -189,8 +194,9 @@ class LitVtracePPO(L.LightningModule):
     ) -> torch.Tensor:
         battle, deck = batch
         battle_loss, battle_start_value = self._battle_loss(battle)
-        deck_loss = self._deck_loss(deck, battle_start_value)
-        loss = battle_loss + deck_loss
+        loss = battle_loss
+        if self.train_deck:
+            loss = loss + self._deck_loss(deck, battle_start_value)
         self.log("loss", loss, prog_bar=False)
         return loss
 
