@@ -262,6 +262,84 @@ pd.DataFrame([
 )
 
 
+md("## Strength over iterations — checkpoint round-robin (Bradley-Terry Elo)")
+code(
+    """
+S = json.loads((ROOT / "results" / "strength.json").read_text())
+its = S["iters"]
+elo = S["elo"]
+W = np.array([[np.nan if x is None else x for x in row] for row in S["win_matrix"]])
+fig, axs = plt.subplots(1, 2, figsize=(13, 4.5))
+axs[0].plot(its, elo, marker="o")
+axs[0].set_xlabel("iteration")
+axs[0].set_ylabel("Bradley-Terry Elo")
+axs[0].set_title("strength vs iteration (round-robin)")
+im = axs[1].imshow(W, cmap="RdBu_r", vmin=0, vmax=1)
+axs[1].set_xticks(range(len(its)))
+axs[1].set_xticklabels(its, rotation=45)
+axs[1].set_yticks(range(len(its)))
+axs[1].set_yticklabels(its)
+axs[1].set_title("row beats column (win rate)")
+axs[1].set_xlabel("opponent iteration")
+axs[1].set_ylabel("iteration")
+fig.colorbar(im, ax=axs[1], fraction=0.046)
+plt.tight_layout()
+plt.show()
+pd.DataFrame({"iter": its, "elo": elo})
+""",
+)
+
+md("## Explored deck space — t-SNE of sampled decks, coloured by iteration")
+code(
+    """
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
+S = json.loads((ROOT / "results" / "strength.json").read_text())
+sd = S["sampled_decks"]
+metas = {p.stem: [int(x) for x in p.read_text().split()]
+         for p in sorted((ROOT / "decklists").glob("*.csv"))}
+vocab = sorted(
+    {c for decks in sd.values() for d in decks for c in d}
+    | {c for d in metas.values() for c in d}
+)
+col = {c: i for i, c in enumerate(vocab)}
+
+
+def vec(deck):
+    v = np.zeros(len(vocab))
+    for c in deck:
+        v[col[c]] += 1
+    return v
+
+
+X, it_col = [], []
+for it in S["iters"]:
+    for d in sd[str(it)]:
+        X.append(vec(d))
+        it_col.append(it)
+meta_start = len(X)
+for d in metas.values():
+    X.append(vec(d))
+X = np.array(X)
+xp = PCA(n_components=min(30, X.shape[0] - 1)).fit_transform(X)
+z = TSNE(n_components=2, perplexity=20, init="pca", random_state=0).fit_transform(xp)
+fig, ax = plt.subplots(figsize=(9, 7))
+sc = ax.scatter(z[:meta_start, 0], z[:meta_start, 1], c=it_col, cmap="viridis",
+                s=18, alpha=0.8)
+ax.scatter(z[meta_start:, 0], z[meta_start:, 1], c="red", marker="*", s=220,
+           edgecolor="black", label="meta decks")
+for k, name in enumerate(metas):
+    ax.annotate(name, (z[meta_start + k, 0], z[meta_start + k, 1]), fontsize=8)
+fig.colorbar(sc, ax=ax, label="iteration")
+ax.legend()
+ax.set_title("explored deck space (t-SNE); colour = training iteration")
+plt.tight_layout()
+plt.show()
+""",
+)
+
+
 def main() -> None:
     nb = nbf.v4.new_notebook()
     nb["cells"] = cells

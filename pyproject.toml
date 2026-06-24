@@ -61,6 +61,8 @@ dev = [
     "nbformat>=5.10.4",
     "pytest>=9.0.1",
     "ruff>=0.14.6",
+    # t-SNE / PCA for the deck-space exploration plots (eval notebook only).
+    "scikit-learn>=1.5",
     # Pinned to a CUDA-12.4 build: this training box has an A100 on driver 550
     # (max CUDA 12.4), and torch's newer wheels need a newer driver. On Linux x86-64
     # torch comes from the cu124 index (GPU); elsewhere (e.g. the ARM dev Mac) it
