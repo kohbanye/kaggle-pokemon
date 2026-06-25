@@ -82,7 +82,7 @@ def test_learner_step_finite_and_grads_flow() -> None:
     # Battle arm reaches the play LSTM + value head; deck arm reaches the deck LSTM;
     # both reach the shared card embedding.
     for name in (
-        "play_lstm.weight_ih", "value_head.weight", "cb_lstm.weight_ih",
+        "play_lstm.weight_ih_l0", "value_head.weight", "cb_lstm.weight_ih",
         "cat_head.weight",  # factored deck category head trains
     ):
         grad = dict(net.named_parameters())[name].grad

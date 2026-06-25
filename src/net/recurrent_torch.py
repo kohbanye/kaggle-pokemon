@@ -32,7 +32,12 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         # so they overwrite the base (trunk-width) heads.
         self.value_head = nn.Linear(ph, 1)
         self.policy1 = nn.Linear(ph + cfg.option_dim + cfg.embed_dim, cfg.policy_hidden)
-        self.play_lstm = nn.LSTMCell(cfg.hidden, ph)
+        # Fused LSTM over the whole battle sequence (training): one cuDNN/native call
+        # instead of a Python per-step loop. nn.LSTM shares nn.LSTMCell's weight layout
+        # (w_ih (4ph,hidden), w_hh (4ph,ph), biases (4ph)) and gate order (i,f,g,o), so
+        # the numpy serving net -- which still steps one decision at a time -- stays
+        # bit-parity (see tests/test_recurrent_parity.py).
+        self.play_lstm = nn.LSTM(cfg.hidden, ph, batch_first=True)
         # Factored deck category head ({pokemon, trainer, energy}) off the deck LSTM.
         self.cat_head = nn.Linear(cfg.lstm_hidden, N_CATEGORIES)
 
@@ -57,6 +62,19 @@ class TorchRecurrentNet(TorchPolicyValueNet):
 
     # --- sequence forward (the learner's recurrent pass) --------------------
 
+    def policy_logits_seq(
+        self,
+        h: torch.Tensor,
+        options: torch.Tensor,
+        option_rows: torch.Tensor,
+    ) -> torch.Tensor:
+        """Option logits per step: ``(B,T,ph),(B,T,K,opt),(B,T,K) -> (B,T,K)``."""
+        k = options.shape[-2]
+        h_rep = h.unsqueeze(-2).expand(-1, -1, k, -1)
+        opt_emb = self.cb_embed[option_rows]
+        joint = torch.cat([h_rep, options, opt_emb], dim=-1)
+        return self.policy2(torch.relu(self.policy1(joint))).squeeze(-1)
+
     def play_sequence(
         self,
         states: torch.Tensor,
@@ -71,22 +89,26 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         ``options (B,T,K,option_dim)``, ``option_rows (B,T,K)``. Returns
         ``(logits (B,T,K), values (B,T))`` -- the per-step policy logits and value.
         Padded steps are computed too; the loss masks them out by ``valid``.
+
+        The per-step trunk and heads are **batched over (B,T) at once** (they are
+        feed-forward, not recurrent) and only the LSTM recurrence runs over time, as a
+        single fused :class:`nn.LSTM` call -- vs the old Python loop that re-entered the
+        trunk/heads T times. Same maths, far fewer kernel launches.
         """
         bsz, t_len = states.shape[0], states.shape[1]
-        ph = self.config.play_lstm_hidden
-        h = torch.zeros(bsz, ph, device=states.device, dtype=states.dtype)
-        c = torch.zeros(bsz, ph, device=states.device, dtype=states.dtype)
-        logits_t: list[torch.Tensor] = []
-        values_t: list[torch.Tensor] = []
-        for t in range(t_len):
-            aug = self.augment_state(states[:, t], state_rows[:, t], state_mask[:, t])
-            e = self.trunk(aug)
-            h, c = self.play_lstm(e, (h, c))
-            values_t.append(self.value_from_h(h))
-            logits_t.append(
-                self.policy_logits_from_h(h, options[:, t], option_rows[:, t]),
-            )
-        return torch.stack(logits_t, dim=1), torch.stack(values_t, dim=1)
+        flat = bsz * t_len
+        s_dim = states.shape[-1]
+        rest = state_rows.shape[2:]  # (S, SLOT_MAX)
+        aug = self.augment_state(
+            states.reshape(flat, s_dim),
+            state_rows.reshape(flat, *rest),
+            state_mask.reshape(flat, *rest),
+        )
+        e = self.trunk(aug).reshape(bsz, t_len, -1)  # (B, T, hidden)
+        out, _ = self.play_lstm(e)  # (B, T, ph); zero (h0, c0)
+        values = self.value_from_h(out)  # (B, T)
+        logits = self.policy_logits_seq(out, options, option_rows)  # (B, T, K)
+        return logits, values
 
     # --- numpy bridge -------------------------------------------------------
 
@@ -98,10 +120,10 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         """Base raw tensors plus the play-LSTM's four (torch-native layout)."""
         return [
             *super()._matrix_keys(),
-            (self.play_lstm.weight_ih, "play_lstm_w_ih"),
-            (self.play_lstm.weight_hh, "play_lstm_w_hh"),
-            (self.play_lstm.bias_ih, "play_lstm_b_ih"),
-            (self.play_lstm.bias_hh, "play_lstm_b_hh"),
+            (self.play_lstm.weight_ih_l0, "play_lstm_w_ih"),
+            (self.play_lstm.weight_hh_l0, "play_lstm_w_hh"),
+            (self.play_lstm.bias_ih_l0, "play_lstm_b_ih"),
+            (self.play_lstm.bias_hh_l0, "play_lstm_b_hh"),
         ]
 
     def to_numpy_net(self) -> RecurrentPolicyValueNet:
