@@ -29,6 +29,7 @@ import sys
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from multiprocessing import Pool
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -132,6 +133,45 @@ def _read_records(out: Path) -> list[dict]:
 def _split(total: int, parts: int) -> list[int]:
     base, rem = divmod(total, max(parts, 1))
     return [base + (1 if i < rem else 0) for i in range(parts)]
+
+
+# --- parallel episode encoding ----------------------------------------------
+# build_episodes (records -> encoded Episodes) was ~30% of an iteration and ran
+# single-threaded in the master. It is embarrassingly parallel over games, so a
+# persistent worker pool (each worker holds its own feats/index/pool) encodes
+# chunks of the records concurrently. The pool is forked BEFORE CUDA is touched
+# (see run()) so the workers never inherit a CUDA context.
+_BG: dict = {}
+
+
+def _build_init(engine_json: str) -> None:
+    pool = build_pool()
+    _BG["feats"] = CardFeatures(load_engine_json(Path(engine_json)))
+    _BG["index"] = CardEmbeddingIndex(pool)
+    _BG["pool"] = pool
+
+
+def _build_chunk(games: list[dict]) -> list:
+    return build_episodes(games, _BG["feats"], _BG["index"], _BG["pool"])
+
+
+def _build_episodes_par(  # noqa: PLR0913 - encode-request parameters
+    pp: Pool | None,
+    records: list[dict],
+    parts: int,
+    feats: CardFeatures,
+    index: CardEmbeddingIndex,
+    pool: object,
+) -> list:
+    """Encode ``records`` into Episodes, fanning chunks across ``pp`` (or inline)."""
+    if pp is None or len(records) < parts * 2:  # too few to bother parallelising
+        return build_episodes(records, feats, index, pool)
+    sizes = _split(len(records), parts)
+    chunks, i = [], 0
+    for n in sizes:
+        chunks.append(records[i:i + n])
+        i += n
+    return [ep for part in pp.map(_build_chunk, chunks) for ep in part]
 
 
 def _opp_args(cfg: Config, opp: PoolEntry | None) -> list[str]:
@@ -264,6 +304,12 @@ def run(cfg: Config) -> None:
         baselines, decay=cfg.decay, self_play_prob=cfg.self_play_prob,
         threshold=cfg.threshold, patience=cfg.patience,
     )
+    # Persistent episode-encoding pool, forked HERE -- before _Learner touches CUDA --
+    # so its workers never inherit a CUDA context (fork-after-CUDA would hang/crash).
+    build_pp = (
+        Pool(cfg.workers, initializer=_build_init, initargs=(str(cfg.engine_json),))
+        if cfg.workers > 1 else None
+    )
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
     learner = _Learner(cfg, net_np, card_feats)  # torch net + Adam, resident on GPU
     queue: deque = deque(maxlen=cfg.queue_episodes)
@@ -277,7 +323,9 @@ def run(cfg: Config) -> None:
         records = _collect(
             cfg, weights_path, opp_entry, cfg.games_per_iter, cfg.seed + n * 1000, out,
         )
-        episodes = build_episodes(records, feats, index, pool)
+        episodes = _build_episodes_par(
+            build_pp, records, cfg.workers, feats, index, pool,
+        )
         queue.extend(episodes)
 
         sample = list(queue)
@@ -303,6 +351,9 @@ def run(cfg: Config) -> None:
         shutil.rmtree(out, ignore_errors=True)
         shutil.rmtree(cfg.out_dir / f"gate_{n}", ignore_errors=True)
 
+    if build_pp is not None:
+        build_pp.close()
+        build_pp.join()
     final = cfg.out_dir / "paper_final.npz"
     net_np.save(final)
     print(f"== done: {final} checkpoints={history.num_checkpoints} ==")
