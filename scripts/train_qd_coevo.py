@@ -42,6 +42,8 @@ def main() -> None:
     # per-round sizes (forwarded to the two stage scripts)
     ap.add_argument("--qd-generations", type=int, default=20)
     ap.add_argument("--qd-init", type=int, default=48)
+    ap.add_argument("--colour-penalty", type=float, default=0.03,
+                    help="QD soft colour penalty (see qd_deck_search)")
     ap.add_argument("--rl-iterations", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -57,6 +59,7 @@ def main() -> None:
         _run([py, str(ROOT / "scripts/qd_deck_search.py"),
               "--pilot", str(net), "--workers", str(args.workers),
               "--generations", str(args.qd_generations), "--init", str(args.qd_init),
+              "--colour-penalty", str(args.colour_penalty),
               "--seed", str(args.seed + r), "--out", str(archive)])
         # 2) RL play training on the archive decks (battle-only).
         rl_out = rd / "rl"

@@ -74,6 +74,22 @@ def primary_colour(deck: list[int], pool: CardPool) -> str:
     return colours.most_common(1)[0][0] if colours else NO_COLOUR
 
 
+def colour_count(deck: list[int], pool: CardPool) -> int:
+    """Distinct *coloured* Pokemon types in the deck (its rainbow-ness).
+
+    Colourless (``NO_COLOUR``) is excluded: colourless attackers run on any energy,
+    so they do not demand an extra colour. Used by the QD soft colour penalty to bias
+    the archive toward fewer-colour (more consistent) decks without forbidding any.
+    """
+    colours: set[str] = set()
+    for cid in deck:
+        info = pool.cards.get(cid)
+        if info is not None and info.supertype == "Pokemon" and info.card_type:
+            colours.add(info.card_type)
+    colours.discard(NO_COLOUR)
+    return len(colours)
+
+
 def energy_count(deck: list[int], pool: CardPool) -> int:
     """Number of Energy cards in the deck (Basic + Special)."""
     return sum(card_kind(pool, cid) == "energy" for cid in deck)

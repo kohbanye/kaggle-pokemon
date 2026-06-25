@@ -12,7 +12,12 @@ from src.qd import (
     mutate,
     random_legal_deck,
 )
-from src.qd.deck_qd import energy_bin, energy_count, primary_colour
+from src.qd.deck_qd import (
+    colour_count,
+    energy_bin,
+    energy_count,
+    primary_colour,
+)
 
 
 def _pool() -> CardPool:
@@ -76,6 +81,23 @@ def test_behaviour_descriptor() -> None:
     assert ebin == 4  # 55 > all edges
     assert primary_colour(deck, pool) == "R"
     assert deck_stats(deck, pool)["energy"] == 55
+
+
+def test_colour_count_distinct_pokemon_colours() -> None:
+    pool = _pool()
+    assert colour_count([1, 4], pool) == 1  # both R
+    assert colour_count([1, 2, 3], pool) == 3  # R, W, G
+    assert colour_count([20, 21], pool) == 0  # energy is not a Pokemon colour
+
+
+def test_colour_count_excludes_colourless() -> None:
+    # A colourless ("C") Pokemon must not count toward the rainbow penalty.
+    infos = [
+        CardInfo(1, "PkR", "Pokemon", "Basic", True, False, False, "R"),
+        CardInfo(2, "PkC", "Pokemon", "Basic", True, False, False, "C"),
+    ]
+    pool = CardPool({info.card_id: info for info in infos})
+    assert colour_count([1, 2, 2], pool) == 1  # only R; C excluded
 
 
 def test_archive_keeps_best_per_niche() -> None:

@@ -11,6 +11,7 @@ RL net keeps learning to *play*. Only engine legality is enforced -- no hand-cod
 from src.qd.archive import Elite, MapElitesArchive
 from src.qd.deck_qd import (
     behaviour_descriptor,
+    colour_count,
     deck_stats,
     mutate,
     random_legal_deck,
@@ -20,6 +21,7 @@ __all__ = [
     "Elite",
     "MapElitesArchive",
     "behaviour_descriptor",
+    "colour_count",
     "deck_stats",
     "mutate",
     "random_legal_deck",

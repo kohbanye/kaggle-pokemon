@@ -34,6 +34,7 @@ from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402
 from src.qd import (  # noqa: E402
     MapElitesArchive,
     behaviour_descriptor,
+    colour_count,
     deck_stats,
     mutate,
     random_legal_deck,
@@ -97,6 +98,13 @@ def main() -> None:
         "--n-games", type=int, default=6, help="games vs each gauntlet deck",
     )
     ap.add_argument("--n-swaps", type=int, default=4)
+    ap.add_argument(
+        "--colour-penalty", "--color-penalty", type=float, default=0.03,
+        dest="colour_penalty",
+        help="soft penalty subtracted per distinct coloured Pokemon type: "
+             "fitness = winrate - penalty * n_colours (0 disables; biases the "
+             "archive toward fewer-colour decks without forbidding any)",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -124,8 +132,11 @@ def main() -> None:
     def admit(decks: list[list[int]], fits: list[float]) -> int:
         n = 0
         for d, f in zip(decks, fits, strict=True):
+            nc = colour_count(d, pool)
+            f_pen = f - args.colour_penalty * nc  # soft colour penalty
             bd = behaviour_descriptor(d, pool)
-            if arc.insert(d, f, bd, meta=deck_stats(d, pool)):
+            meta = {**deck_stats(d, pool), "winrate": round(f, 3), "colours": nc}
+            if arc.insert(d, f_pen, bd, meta=meta):
                 n += 1
         return n
 
