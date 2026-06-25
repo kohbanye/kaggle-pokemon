@@ -20,6 +20,7 @@ directly).
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import shutil
@@ -33,7 +34,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import lightning as L  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
@@ -90,15 +90,6 @@ class Config:
     # is NOT trained -- only the play head learns to pilot the diverse archive decks.
     deck_pool: Path | None = None
     train_deck: bool = True
-
-
-def _trainer(epochs: int) -> L.Trainer:
-    accelerator = "gpu" if torch.cuda.is_available() else "cpu"
-    return L.Trainer(
-        max_epochs=epochs, accelerator=accelerator, devices=1, logger=False,
-        enable_checkpointing=False, enable_progress_bar=False,
-        enable_model_summary=False,
-    )
 
 
 def _argv(cfg: Config, args: list[str]) -> list[str]:
@@ -201,29 +192,56 @@ def _gate(cfg: Config, weights: Path, out: Path) -> float | None:
     return gate["wins"] / dec if dec else 0.0
 
 
-def _update(
-    cfg: Config,
-    net_np: RecurrentPolicyValueNet,
-    episodes: list,
-    card_feats: object,
-) -> RecurrentPolicyValueNet:
-    """One V-Trace/PPO update over a sample of the FIFO queue; return the new net."""
-    if not episodes:
-        return net_np
-    torch_net = TorchRecurrentNet(net_np.config)
-    torch_net.load_numpy_params(net_np.params)
-    lit = LitVtracePPO(
-        torch_net, card_feats, lr=cfg.lr, value_coef=cfg.value_coef,
-        entropy_coef=cfg.entropy_coef, deck_entropy_coef=cfg.deck_entropy_coef,
-        clip_eps=cfg.clip_eps, clip_rho=cfg.clip_rho, clip_c=cfg.clip_c,
-        rho_min=cfg.rho_min, train_deck=cfg.train_deck,
-    )
-    loader = DataLoader(
-        EpisodeDataset(episodes), batch_size=cfg.batch_size, shuffle=True,
-        collate_fn=collate_episodes,
-    )
-    _trainer(cfg.epochs).fit(lit, loader)
-    return lit.net.double().to_numpy_net()
+class _Learner:
+    """Resident V-Trace/PPO learner: the torch net + Adam live on the GPU for the
+    whole run and are stepped in place each iteration.
+
+    The old per-iteration path rebuilt a Lightning ``Trainer`` (and re-loaded the net
+    numpy->torch) every update -- ~50% of the iteration's wall-time was that fixed
+    setup/teardown, not compute. Here the net is built once; each update is a plain
+    manual optimiser loop over the same :class:`LitVtracePPO` loss (identical maths,
+    no Trainer). ``self.log*`` is neutered because those need an attached Trainer.
+    """
+
+    def __init__(self, cfg: Config, net_np: RecurrentPolicyValueNet,
+                 card_feats: object) -> None:
+        self.cfg = cfg
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        torch_net = TorchRecurrentNet(net_np.config)
+        torch_net.load_numpy_params(net_np.params)
+        self.lit = LitVtracePPO(
+            torch_net, card_feats, lr=cfg.lr, value_coef=cfg.value_coef,
+            entropy_coef=cfg.entropy_coef, deck_entropy_coef=cfg.deck_entropy_coef,
+            clip_eps=cfg.clip_eps, clip_rho=cfg.clip_rho, clip_c=cfg.clip_c,
+            rho_min=cfg.rho_min, train_deck=cfg.train_deck,
+        ).to(self.device)
+        self.lit.log = lambda *_a, **_k: None  # type: ignore[method-assign]
+        self.lit.log_dict = lambda *_a, **_k: None  # type: ignore[method-assign]
+        self.opt = torch.optim.Adam(self.lit.net.parameters(), lr=cfg.lr)
+
+    def step(self, episodes: list) -> None:
+        """One V-Trace/PPO update over a sample of the FIFO queue (in place)."""
+        if not episodes:
+            return
+        self.lit.train()
+        loader = DataLoader(
+            EpisodeDataset(episodes), batch_size=self.cfg.batch_size, shuffle=True,
+            collate_fn=collate_episodes,
+        )
+        dev = self.device
+        for _ in range(self.cfg.epochs):
+            for battle, deck in loader:
+                b = {k: v.to(dev) for k, v in battle.items()}
+                d = {k: v.to(dev) for k, v in deck.items()}
+                self.opt.zero_grad()
+                loss = self.lit.training_step((b, d), 0)
+                loss.backward()
+                self.opt.step()
+
+    def to_numpy(self) -> RecurrentPolicyValueNet:
+        """Export the live weights as a numpy serving net (float64, on a copy so the
+        resident float32 net + its optimiser state are left untouched)."""
+        return copy.deepcopy(self.lit.net).double().to_numpy_net()
 
 
 def run(cfg: Config) -> None:
@@ -247,6 +265,7 @@ def run(cfg: Config) -> None:
         threshold=cfg.threshold, patience=cfg.patience,
     )
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
+    learner = _Learner(cfg, net_np, card_feats)  # torch net + Adam, resident on GPU
     queue: deque = deque(maxlen=cfg.queue_episodes)
 
     for n in range(1, cfg.iterations + 1):
@@ -265,7 +284,9 @@ def run(cfg: Config) -> None:
         if len(sample) > cfg.train_episodes:
             pick = rng.choice(len(sample), size=cfg.train_episodes, replace=False)
             sample = [sample[i] for i in pick]
-        net_np = _update(cfg, net_np, sample, card_feats)
+        if sample:
+            learner.step(sample)
+            net_np = learner.to_numpy()  # export for next iter's collector + gate
 
         gate = None
         if n % cfg.eval_every == 0:
