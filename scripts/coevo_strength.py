@@ -40,15 +40,15 @@ METAL = ROOT / "decklists/metal_aggro.csv"
 _G: dict = {}
 
 
-def _round_net(name: str) -> Path:
-    return INIT if name == "init" else RUN / f"round_{name[1:]}/rl/paper_final.npz"
+def _round_net(run: Path, name: str) -> Path:
+    return INIT if name == "init" else run / f"round_{name[1:]}/rl/paper_final.npz"
 
 
-def _init(deck: list[int], names: list[str]) -> None:
+def _init(deck: list[int], names: list[str], run: Path) -> None:
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["deck"] = deck
-    _G["nets"] = {n: RecurrentPolicyValueNet.load(_round_net(n)) for n in names}
+    _G["nets"] = {n: RecurrentPolicyValueNet.load(_round_net(run, n)) for n in names}
 
 
 def _agent(name: str) -> RecurrentNetAgent:
@@ -70,6 +70,8 @@ def _play(task: dict) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Co-evolution round-robin play strength")
     ap.add_argument("--rounds", type=int, default=6)
+    ap.add_argument("--run", type=Path, default=RUN,
+                    help="co-evolution run dir holding round_*/rl/paper_final.npz")
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--games", type=int, default=80, help="games per pair (swapped)")
     ap.add_argument("--quick", action="store_true")
@@ -85,7 +87,8 @@ def main() -> None:
         for idx, (i, j) in enumerate(combinations(names, 2))
         for k in range(n_games)
     ]
-    with Pool(args.workers, initializer=_init, initargs=(deck, names)) as pp:
+    with Pool(args.workers, initializer=_init,
+              initargs=(deck, names, args.run)) as pp:
         rows = pp.map(_play, tasks)
 
     n = len(names)

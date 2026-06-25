@@ -340,7 +340,7 @@ md(
     """
 ## Co-evolution — QD archive evolution across rounds
 
-Direct from `data/qdcoevo/run1/round_*/qd_archive.json`. Tracks whether the deck
+Direct from `data/qdcoevo/run2/round_*/qd_archive.json`. Tracks whether the deck
 **diversity** holds up (one of the two failure modes co-evo targets — the archive must
 not collapse) and how fitness (win rate vs the gauntlet, *under the current play net*)
 moves. Falling best-fitness while coverage holds = decks becoming less individually
@@ -353,7 +353,7 @@ code(
 rows = []
 grids = {}
 for r in range(1, 7):
-    p = ROOT / f"data/qdcoevo/run1/round_{r}/qd_archive.json"
+    p = ROOT / f"data/qdcoevo/run2/round_{r}/qd_archive.json"
     if not p.exists():
         continue
     cells = json.loads(p.read_text())["cells"]
