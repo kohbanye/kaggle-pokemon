@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from src.deck import DECK_SIZE, card_kind, legal_next_ids
+from src.net.deck_factored import category_of_rows, factored_pick
 from src.net.embedding import CardEmbeddingIndex
 from src.net.nn import softmax
 
@@ -82,6 +83,10 @@ def _decode_deck(  # noqa: PLR0913 - the decode threads net + pool + rng + caps
     # Candidate features (fixed ⊕ embedding), scored once per step against h_t.
     cand_matrix = index.matrix(feats, net.params["cb_embed"])
     cb_embed = net.params["cb_embed"]
+    # Factored (category->card) decode when the net carries a category head
+    # (the recurrent paper net); falls back to the flat per-card softmax otherwise.
+    factored = "cat_w" in net.params
+    cat_of = category_of_rows(pool) if factored else None
     n_hidden = net.config.lstm_hidden
     h = np.zeros(n_hidden, dtype=np.float64)
     c = np.zeros(n_hidden, dtype=np.float64)
@@ -100,9 +105,16 @@ def _decode_deck(  # noqa: PLR0913 - the decode threads net + pool + rng + caps
             if under:
                 legal = under
         candidates = sorted(legal)
-        rows = [index.row(cid) for cid in candidates]
+        rows = np.array([index.row(cid) for cid in candidates])
         logits = net.card_logits_with_state(h, cand_matrix[rows])
-        if greedy:
+        if factored and cat_of is not None:
+            cat_logits = h @ net.params["cat_w"] + net.params["cat_b"]
+            idx, _ = factored_pick(
+                cat_logits, logits, cat_of[rows],
+                None if greedy else rng, greedy=greedy,
+            )
+            pick = candidates[idx]
+        elif greedy:
             pick = candidates[int(np.argmax(logits))]
         else:
             pick = candidates[int(rng.choice(len(candidates), p=softmax(logits)))]

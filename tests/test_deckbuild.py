@@ -30,7 +30,7 @@ ENGINE_TOTAL = sum(ENGINE.values())
 
 
 def _ci(card_id: int) -> CardInfo:
-    return CardInfo(card_id, f"c{card_id}", "", "", False, False, False)  # noqa: FBT003
+    return CardInfo(card_id, f"c{card_id}", "", "", False, False, False)
 
 
 def test_build_mono_aggro_structure() -> None:

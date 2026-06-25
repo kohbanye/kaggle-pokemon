@@ -28,8 +28,10 @@ ignore = ["D", "N812"]
 "scripts/*" = ["T201", "INP001", "S101", "PLR2004", "TRY003", "EM101", "EM102"]
 # Card data legitimately contains the ×/● glyphs; flagging them as ambiguous is noise.
 "src/cards.py" = ["RUF002"]
+# RL math: ρ/γ/− in the V-Trace notation are the standard symbols, not typos.
+"src/net/vtrace.py" = ["RUF002"]
 # Tests: asserts and inline literals are the point.
-"tests/*" = ["S101", "PLR2004", "INP001", "RUF001", "RUF002"]
+"tests/*" = ["S101", "PLR2004", "INP001", "RUF001", "RUF002", "FBT003"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -43,11 +45,12 @@ include = ["src", "tests"]
 # The submission/inference path (src/net/model.py etc.) stays numpy and is checked.
 exclude = [
     "src/net/torch_model.py",
-    "src/net/lit.py",
-    "src/net/bc_data.py",
+    "src/net/lit_vtrace.py",
+    "src/net/recurrent_torch.py",
+    "src/net/trajectory_data.py",
     "tests/test_net_torch.py",
-    "tests/test_bc.py",
-    "tests/test_rl.py",
+    "tests/test_recurrent_parity.py",
+    "tests/test_vtrace_learner.py",
 ]
 
 [dependency-groups]
@@ -58,6 +61,8 @@ dev = [
     "nbformat>=5.10.4",
     "pytest>=9.0.1",
     "ruff>=0.14.6",
+    # t-SNE / PCA for the deck-space exploration plots (eval notebook only).
+    "scikit-learn>=1.5",
     # Pinned to a CUDA-12.4 build: this training box has an A100 on driver 550
     # (max CUDA 12.4), and torch's newer wheels need a newer driver. On Linux x86-64
     # torch comes from the cu124 index (GPU); elsewhere (e.g. the ARM dev Mac) it
