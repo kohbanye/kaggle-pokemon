@@ -49,10 +49,10 @@ SINGLE = 1
 _G: dict = {}
 
 
-def _init() -> None:
+def _init(net_path: str = str(FINAL)) -> None:
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
-    _G["net"] = RecurrentPolicyValueNet.load(str(FINAL))
+    _G["net"] = RecurrentPolicyValueNet.load(net_path)
 
 
 def _agent(play: str, deck: list[int]) -> object:
@@ -113,6 +113,7 @@ def _wr(rows: list[dict]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Deep analysis of the recurrent net")
+    ap.add_argument("--net", type=Path, default=FINAL, help="net to analyse")
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/paper_analysis.json")
@@ -121,7 +122,7 @@ def main() -> None:
 
     pool = build_pool()
     feats = CardFeatures(load_engine_json(ENGINE_JSON))
-    net = RecurrentPolicyValueNet.load(FINAL)
+    net = RecurrentPolicyValueNet.load(args.net)
     net_deck = build_deck(net, pool, feats)
     metal = read_deck(METAL)
 
@@ -139,7 +140,7 @@ def main() -> None:
         {**s, "a_first": k % 2 == 0, "seed": si * 100000 + k}
         for si, s in enumerate(specs) for k in range(n)
     ]
-    with Pool(args.workers, initializer=_init) as pp:
+    with Pool(args.workers, initializer=_init, initargs=(str(args.net),)) as pp:
         rows = pp.map(_play, tasks)
 
     by: dict[str, list[dict]] = {}

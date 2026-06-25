@@ -1,0 +1,61 @@
+{
+  "init": "/home/sakano/git/kaggle-pokemon/data/paperosfp/main/paper_final.npz",
+  "final": "/home/sakano/git/kaggle-pokemon/data/qdcoevo/run1/round_6/rl/paper_final.npz",
+  "games_per_cell": 160,
+  "matchups": {
+    "init_play_netdeck": {
+      "winrate": 0.669,
+      "ci": [
+        0.593,
+        0.737
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "final_play_netdeck": {
+      "winrate": 0.606,
+      "ci": [
+        0.529,
+        0.679
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "init_play_metadeck": {
+      "winrate": 0.312,
+      "ci": [
+        0.246,
+        0.388
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "final_play_metadeck": {
+      "winrate": 0.338,
+      "ci": [
+        0.269,
+        0.414
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "duel_netdeck": {
+      "winrate": 0.556,
+      "ci": [
+        0.479,
+        0.631
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "duel_metadeck": {
+      "winrate": 0.6,
+      "ci": [
+        0.523,
+        0.673
+      ],
+      "decisive": 160,
+      "games": 160
+    }
+  }
+}

@@ -242,6 +242,186 @@ pd.DataFrame(
 """,
 )
 
+md(
+    """
+## Co-evolution — deck x play 2x2 (round-6 vs init play)
+
+`results/coevo_2x2.json` (`scripts/coevo_2x2.py`). The 2x2 cells are **pilot vs greedy
+with both sides on the same deck**, so the deck is controlled *within* a cell and the
+win rate isolates play; compare **across a row** (same deck, swap the pilot) — `round6`
+> `init` means co-evolved play is stronger with the deck held fixed. The **meta-deck
+row** is the key test (net piloting a deck it did **not** design — the cure for
+deck-specialised play). The two **duels** below are `round6` play vs `init` play on the
+*same* deck (most sensitive play delta; `duel_metadeck` cross-checks `eval_paper_vs`).
+""",
+)
+code(
+    """
+P = ROOT / "results" / "coevo_2x2.json"
+if P.exists():
+    C = json.loads(P.read_text())
+    mu = C["matchups"]
+    grid = [["init_play_netdeck", "final_play_netdeck"],
+            ["init_play_metadeck", "final_play_metadeck"]]
+    wr = np.array([[mu[c]["winrate"] for c in row] for row in grid])
+    fig, ax = plt.subplots(figsize=(5.2, 3.4))
+    im = ax.imshow(wr, cmap="RdYlGn", vmin=0.2, vmax=0.8, aspect="auto")
+    ax.set_xticks([0, 1], ["play = init", "play = round6"])
+    ax.set_yticks([0, 1], ["deck = net", "deck = meta"])
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, f"{wr[i, j]:.3f}", ha="center", va="center", fontsize=12)
+    ax.set_title("win rate vs greedy (deck controlled within cell)")
+    fig.colorbar(im, ax=ax, fraction=0.046)
+    plt.tight_layout()
+    plt.show()
+    rows = [(k, v["winrate"], f"[{v['ci'][0]}, {v['ci'][1]}]", v["decisive"])
+            for k, v in mu.items()]
+    disp = pd.DataFrame(rows, columns=["matchup", "winrate", "95% CI", "decisive"])
+    d_net = (mu["final_play_netdeck"]["winrate"]
+             - mu["init_play_netdeck"]["winrate"])
+    d_meta = (mu["final_play_metadeck"]["winrate"]
+              - mu["init_play_metadeck"]["winrate"])
+    print(f"vs-greedy play delta  (net deck):  {d_net:+.3f}")
+    print(f"vs-greedy play delta  (meta deck): {d_meta:+.3f}")
+    for d in ("duel_netdeck", "duel_metadeck"):
+        if d in mu:
+            v = mu[d]
+            print(f"{d:14s} round6 vs init: {v['winrate']:.3f} "
+                  f"CI[{v['ci'][0]}, {v['ci'][1]}]  (>0.5 = round6 play better)")
+    disp
+else:
+    print("results/coevo_2x2.json not found -- run scripts/coevo_2x2.py")
+""",
+)
+
+md(
+    """
+## Co-evolution — play-strength trajectory (round-robin Elo, pure play)
+
+`results/coevo_strength.json` (`scripts/coevo_strength.py`). `init` + `r1..r6` play a
+round-robin **all piloting the same fixed meta deck**, so the Bradley-Terry Elo is
+*pure play* (deck held constant). The **slope** is the decision signal: still climbing
+→ more rounds help; flat → plateau, switch levers. The win matrix exposes intransitivity
+(rock-paper-scissors) that a single rating hides.
+""",
+)
+code(
+    """
+P = ROOT / "results" / "coevo_strength.json"
+if P.exists():
+    S = json.loads(P.read_text())
+    names, elo = S["names"], S["elo"]
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4))
+    axs[0].plot(range(len(names)), elo, marker="o")
+    axs[0].set_xticks(range(len(names)), names)
+    axs[0].set_xlabel("round")
+    axs[0].set_ylabel("Bradley-Terry Elo (pure play)")
+    axs[0].set_title("play strength vs round")
+    axs[0].grid(alpha=0.3)
+    wm = np.array([[np.nan if x is None else x for x in row]
+                   for row in S["win_matrix"]])
+    im = axs[1].imshow(wm, cmap="RdYlGn", vmin=0.2, vmax=0.8)
+    axs[1].set_xticks(range(len(names)), names)
+    axs[1].set_yticks(range(len(names)), names)
+    axs[1].set_title("row beats column (win rate)")
+    fig.colorbar(im, ax=axs[1], fraction=0.046)
+    plt.tight_layout()
+    plt.show()
+    disp = pd.DataFrame({"round": names, "elo": elo})
+    print("Elo spread:", round(max(elo) - min(elo), 1))
+    disp
+else:
+    print("results/coevo_strength.json not found -- run scripts/coevo_strength.py")
+""",
+)
+
+md(
+    """
+## Co-evolution — QD archive evolution across rounds
+
+Direct from `data/qdcoevo/run1/round_*/qd_archive.json`. Tracks whether the deck
+**diversity** holds up (one of the two failure modes co-evo targets — the archive must
+not collapse) and how fitness (win rate vs the gauntlet, *under the current play net*)
+moves. Falling best-fitness while coverage holds = decks becoming less individually
+dominant as play generalises, **not** collapse. The colour x energy grids show which
+niches are filled in the first vs last round.
+""",
+)
+code(
+    """
+rows = []
+grids = {}
+for r in range(1, 7):
+    p = ROOT / f"data/qdcoevo/run1/round_{r}/qd_archive.json"
+    if not p.exists():
+        continue
+    cells = json.loads(p.read_text())["cells"]
+    fits = [c["fitness"] for c in cells if c.get("fitness") is not None]
+    rows.append({"round": r, "niches": len(cells),
+                 "best": round(max(fits), 3),
+                 "mean": round(sum(fits) / len(fits), 3)})
+    grids[r] = {(c["descriptor"][0], c["descriptor"][1]): c["fitness"] for c in cells}
+if rows:
+    rdf = pd.DataFrame(rows)
+    colours = sorted({k[0] for g in grids.values() for k in g})
+    bins = list(range(5))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+    axs[0].plot(rdf["round"], rdf["best"], marker="o", label="best")
+    axs[0].plot(rdf["round"], rdf["mean"], marker="s", label="mean")
+    axs[0].set_xlabel("round")
+    axs[0].set_ylabel("fitness (wr vs gauntlet)")
+    axs[0].set_title("archive fitness vs round")
+    axs[0].legend()
+    axs[0].grid(alpha=0.3)
+    for ax, r in ((axs[1], min(grids)), (axs[2], max(grids))):
+        grid = np.full((len(colours), len(bins)), np.nan)
+        for (col, b), f in grids[r].items():
+            grid[colours.index(col), b] = f
+        im = ax.imshow(grid, cmap="RdYlGn", vmin=0.2, vmax=0.9, aspect="auto")
+        ax.set_xticks(bins, [f"e{b}" for b in bins])
+        ax.set_yticks(range(len(colours)), colours)
+        ax.set_title(f"round {r}: {len(grids[r])} niches (colour x energy)")
+        fig.colorbar(im, ax=ax, fraction=0.046)
+    plt.tight_layout()
+    plt.show()
+    rdf
+""",
+)
+
+md(
+    """
+## Co-evolution — round-6 vs init diagnostics (did the *evaluator* improve?)
+
+`results/paper_analysis.json` (init) vs `results/coevo_round6_analysis.json`
+(`analyze_paper_net.py --net <round6>`). The value head is the leaf evaluator a
+future inference-time search would lean on — if co-evo left it flat/worse, search (not
+more self-play) is the lever for play. Slot bias / entropy / game-length included.
+""",
+)
+code(
+    """
+I = json.loads((ROOT / "results" / "paper_analysis.json").read_text())
+R = json.loads((ROOT / "results" / "coevo_round6_analysis.json").read_text())
+vi, vr = I["value_calibration"], R["value_calibration"]
+ei, er = I["policy_entropy"], R["policy_entropy"]
+li, lr = I["loss_cause"], R["loss_cause"]
+rows = [
+    ("value sign-acc (overall)", vi["sign_accuracy"], vr["sign_accuracy"]),
+    ("value sign-acc (early)", vi["early_game"], vr["early_game"]),
+    ("value sign-acc (late)", vi["late_game"], vr["late_game"]),
+    ("value mean|v|", vi["mean_abs_value"], vr["mean_abs_value"]),
+    ("policy entropy (mean)", ei["mean"], er["mean"]),
+    ("draw rate", li["draw_rate"], lr["draw_rate"]),
+    ("avg win turns", li["avg_win_turns"], lr["avg_win_turns"]),
+    ("avg loss turns", li["avg_loss_turns"], lr["avg_loss_turns"]),
+]
+df = pd.DataFrame(rows, columns=["metric", "init", "round6"])
+df["delta"] = (df["round6"] - df["init"]).round(3)
+df
+""",
+)
+
 md("## Diagnostics — value calibration, loss-cause, slot bias, policy entropy")
 code(
     """
