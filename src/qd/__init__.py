@@ -14,7 +14,11 @@ from src.qd.deck_qd import (
     colour_count,
     deck_stats,
     mutate,
+    prize_bin,
+    prize_points,
     random_legal_deck,
+    setup_cost,
+    speed_bin,
 )
 
 __all__ = [
@@ -24,5 +28,9 @@ __all__ = [
     "colour_count",
     "deck_stats",
     "mutate",
+    "prize_bin",
+    "prize_points",
     "random_legal_deck",
+    "setup_cost",
+    "speed_bin",
 ]

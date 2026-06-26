@@ -172,7 +172,15 @@ def load_cards(lang: str = "EN", data_dir: Path | None = None) -> pd.DataFrame:
         max_cost=("cost_total", "max"),
     )
 
-    cards = first.merge(agg, on="card_id", how="left")
+    # Cheapest *attack* the card can field (energy cost) -- a deck's setup speed
+    # descriptor: aggro decks have a 1-energy attacker, ramp decks need 3-4. NaN for
+    # cards with no attack (ability-only / evolution fodder / energy / trainers).
+    attacks = moves[moves["is_attack"]]
+    atk_agg = attacks.groupby("card_id").agg(min_attack_cost=("cost_total", "min"))
+
+    cards = first.merge(agg, on="card_id", how="left").merge(
+        atk_agg, on="card_id", how="left",
+    )
 
     rule = cards["rule"].fillna("")
     cards["is_ex"] = rule.str.contains("ex", case=False)
