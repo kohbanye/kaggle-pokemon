@@ -37,7 +37,10 @@ from src.qd import (  # noqa: E402
     colour_count,
     deck_stats,
     mutate,
+    ramp_ids,
     random_legal_deck,
+    random_legal_deck_biased,
+    single_prize_ids,
 )
 
 PILOT = ROOT / "data/paperosfp/main/paper_final.npz"
@@ -84,6 +87,30 @@ def _evaluate(pp: Pool, decks: list[list[int]], n_games: int, seed: int) -> list
     return out
 
 
+def _build_seeds(  # noqa: PLR0913 - distinct seed inputs, not a bundle
+    pool: object, pilot_net: object, feats: object, gauntlet: list[list[int]],
+    n_init: int, rng: np.random.Generator,
+) -> list[list[int]]:
+    """Initial archive seeds: meta decks + CB-head samples + a 3-way random split.
+
+    The random half is uniform / single-prize-biased / ramp-biased, because uniform
+    random can't reach the descriptor's "exclusion" niches (a pure single-prize deck,
+    or a deck whose cheapest attacker is expensive) -- the empty cells the
+    (prize, speed) descriptor exposes. Re-seeded every co-evo round (fresh archive), so
+    RL keeps seeing the diverse archetypes. Fitness still decides what survives.
+    """
+    seeds = [*gauntlet]
+    seeds += [sample_deck_with_logp(pilot_net, pool, feats, rng)[0]
+              for _ in range(n_init // 2)]
+    n_rand = n_init - n_init // 2
+    n_bias = n_rand // 3  # each of single-prize / ramp gets a third of the random half
+    sp_ids, rmp_ids = single_prize_ids(pool), ramp_ids(pool)
+    seeds += [random_legal_deck(pool, rng) for _ in range(n_rand - 2 * n_bias)]
+    seeds += [random_legal_deck_biased(pool, rng, sp_ids) for _ in range(n_bias)]
+    seeds += [random_legal_deck_biased(pool, rng, rmp_ids) for _ in range(n_bias)]
+    return seeds
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="MAP-Elites deck search")
     ap.add_argument("--pilot", type=Path, default=PILOT)
@@ -119,15 +146,7 @@ def main() -> None:
     gauntlet = [read_deck(p) for p in sorted((ROOT / "decklists").glob("*.csv"))]
     arc = MapElitesArchive()
 
-    # Seed the archive with *functional* starting points -- the meta decks and the
-    # net's own CB-head samples (which carry energy) -- plus random decks. This is
-    # not a hard constraint: it just puts decks across the energy axis in the archive
-    # so mutation can explore energy-rich niches (random legal decks are energy-poor,
-    # so from-random alone never reaches them). Fitness still decides what survives.
-    seeds = [*gauntlet]
-    seeds += [sample_deck_with_logp(pilot_net, pool, feats, rng)[0]
-              for _ in range(args.init // 2)]
-    seeds += [random_legal_deck(pool, rng) for _ in range(args.init // 2)]
+    seeds = _build_seeds(pool, pilot_net, feats, gauntlet, args.init, rng)
 
     def admit(decks: list[list[int]], fits: list[float]) -> int:
         n = 0

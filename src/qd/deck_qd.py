@@ -62,6 +62,64 @@ def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
     return deck
 
 
+def single_prize_ids(pool: CardPool) -> list[int]:
+    """Pokemon that give up a single prize (not ex / not Mega) -- the attrition side.
+
+    Random init almost never produces a *pure* single-prize deck (the pool is dense
+    with ex/Mega, so a random draw includes some), leaving the ``prize_bin == 0`` niche
+    empty. Seeding from this subset reaches it.
+    """
+    return [
+        cid
+        for cid, info in pool.cards.items()
+        if info.supertype == "Pokemon" and not info.is_ex and not info.is_mega
+    ]
+
+
+def ramp_ids(pool: CardPool, min_cost: int = 3) -> list[int]:
+    """Pokemon whose cheapest attack costs ``>= min_cost`` (or that don't attack).
+
+    Restricting the deck's Pokemon to these makes its *cheapest* attacker expensive, so
+    it lands in a high ``speed_bin`` (ramp) -- the niche random init can't reach because
+    a random deck almost always includes a 1-energy attacker.
+    """
+    return [
+        cid
+        for cid, info in pool.cards.items()
+        if info.supertype == "Pokemon"
+        and (info.min_attack_cost is None or info.min_attack_cost >= min_cost)
+    ]
+
+
+def random_legal_deck_biased(
+    pool: CardPool,
+    rng: np.random.Generator,
+    allowed_pokemon: list[int],
+) -> list[int]:
+    """Random legal 60 whose *Pokemon* are drawn only from ``allowed_pokemon``.
+
+    Non-Pokemon (energy / trainers) stay unrestricted so a legal 60 is always
+    completable. Used to seed the descriptor's "exclusion" niches (single-prize / ramp)
+    that uniform random init can't reach. Falls back to an unbiased deck if the filter
+    leaves no Basic Pokemon to satisfy the >=1-Basic rule.
+    """
+    allowed = set(allowed_pokemon)
+    basics = [cid for cid in allowed if pool.cards[cid].is_basic_pokemon]
+    if not basics:
+        return random_legal_deck(pool, rng)
+    deck = [basics[int(rng.integers(len(basics)))]]  # seed a Basic so the corner binds
+    while len(deck) < DECK_SIZE:
+        legal = [
+            cid
+            for cid in legal_next_ids(deck, pool)
+            if pool.cards[cid].supertype != "Pokemon" or cid in allowed
+        ]
+        if not legal:
+            break
+        deck.append(sorted(legal)[int(rng.integers(len(legal)))])
+    return deck
+
+
 def mutate(
     deck: list[int],
     pool: CardPool,

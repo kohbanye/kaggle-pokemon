@@ -17,7 +17,10 @@ from src.qd.deck_qd import (
     energy_bin,
     prize_bin,
     prize_points,
+    ramp_ids,
+    random_legal_deck_biased,
     setup_cost,
+    single_prize_ids,
     speed_bin,
 )
 
@@ -101,6 +104,33 @@ def test_setup_cost_and_speed_bin() -> None:
     # No attacker at all (energy only) -> slowest niche.
     assert setup_cost([20, 21], pool) is None
     assert speed_bin(None) == len((1, 2, 3))
+
+
+def test_single_prize_seed_reaches_prize_bin_0() -> None:
+    pool = _pool()
+    # PkR / PkR2 are the only non-ex / non-Mega Pokemon.
+    assert set(single_prize_ids(pool)) == {1, 4}
+    rng = np.random.default_rng(0)
+    for _ in range(10):
+        deck = random_legal_deck_biased(pool, rng, single_prize_ids(pool))
+        assert legality_errors(deck, pool) == []
+        assert prize_points(deck, pool) == 0  # no ex/Mega -> empty single-prize niche
+        assert prize_bin(prize_points(deck, pool)) == 0
+
+
+def test_ramp_seed_reaches_high_speed_bin() -> None:
+    pool = _pool()
+    # Only PkG (Mega, cheapest attack 3) qualifies as a ramp Pokemon at min_cost=3.
+    assert set(ramp_ids(pool, min_cost=3)) == {3}
+    rng = np.random.default_rng(1)
+    for _ in range(10):
+        deck = random_legal_deck_biased(pool, rng, ramp_ids(pool, min_cost=3))
+        assert legality_errors(deck, pool) == []
+        # cheapest attacker costs >= 3 -> ramp side (speed bin >= 2), not aggro bin 0.
+        cost = setup_cost(deck, pool)
+        assert cost is not None
+        assert cost >= 3
+        assert speed_bin(cost) >= 2
 
 
 def test_behaviour_descriptor() -> None:

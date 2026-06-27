@@ -16,8 +16,11 @@ from src.qd.deck_qd import (
     mutate,
     prize_bin,
     prize_points,
+    ramp_ids,
     random_legal_deck,
+    random_legal_deck_biased,
     setup_cost,
+    single_prize_ids,
     speed_bin,
 )
 
@@ -30,7 +33,10 @@ __all__ = [
     "mutate",
     "prize_bin",
     "prize_points",
+    "ramp_ids",
     "random_legal_deck",
+    "random_legal_deck_biased",
     "setup_cost",
+    "single_prize_ids",
     "speed_bin",
 ]
