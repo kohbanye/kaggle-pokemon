@@ -26,6 +26,9 @@ ignore = ["D", "N812"]
 [tool.ruff.lint.per-file-ignores]
 # Utility/CLI scripts: prints, asserts, top-level constants are fine.
 "scripts/*" = ["T201", "INP001", "S101", "PLR2004", "TRY003", "EM101", "EM102"]
+# Notebook builders embed notebook prose/code as strings (en-dashes, long display
+# lines); the generated .ipynb is lint-excluded, so the builder gets the same leeway.
+"scripts/build_play_diag_notebook.py" = ["E501", "RUF001"]
 # Card data legitimately contains the ×/● glyphs; flagging them as ambiguous is noise.
 "src/cards.py" = ["RUF002"]
 # RL math: ρ/γ/− in the V-Trace notation are the standard symbols, not typos.

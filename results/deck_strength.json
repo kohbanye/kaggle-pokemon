@@ -1,0 +1,197 @@
+{
+  "panel": [
+    "metal_aggro",
+    "grass_aggro",
+    "fire_aggro",
+    "water_aggro",
+    "lightning_aggro",
+    "psychic_aggro",
+    "fighting_aggro",
+    "darkness_aggro"
+  ],
+  "games_per_pair": 30,
+  "overall": {
+    "greedy|metal_aggro": {
+      "winrate": 0.658,
+      "ci": [
+        0.596,
+        0.715
+      ],
+      "n": 240
+    },
+    "greedy|grass_aggro": {
+      "winrate": 0.458,
+      "ci": [
+        0.396,
+        0.522
+      ],
+      "n": 240
+    },
+    "greedy|run7_best": {
+      "winrate": 0.475,
+      "ci": [
+        0.413,
+        0.538
+      ],
+      "n": 240
+    },
+    "greedy|run4_best": {
+      "winrate": 0.629,
+      "ci": [
+        0.566,
+        0.688
+      ],
+      "n": 240
+    },
+    "greedy|single_prize_psychic": {
+      "winrate": 0.025,
+      "ci": [
+        0.012,
+        0.053
+      ],
+      "n": 240
+    },
+    "net|metal_aggro": {
+      "winrate": 0.746,
+      "ci": [
+        0.687,
+        0.797
+      ],
+      "n": 240
+    },
+    "net|grass_aggro": {
+      "winrate": 0.699,
+      "ci": [
+        0.638,
+        0.753
+      ],
+      "n": 239
+    },
+    "net|run7_best": {
+      "winrate": 0.757,
+      "ci": [
+        0.699,
+        0.807
+      ],
+      "n": 239
+    },
+    "net|run4_best": {
+      "winrate": 0.733,
+      "ci": [
+        0.674,
+        0.785
+      ],
+      "n": 240
+    },
+    "net|single_prize_psychic": {
+      "winrate": 0.054,
+      "ci": [
+        0.032,
+        0.09
+      ],
+      "n": 240
+    }
+  },
+  "per_opp": {
+    "greedy|metal_aggro": {
+      "metal_aggro": 0.433,
+      "grass_aggro": 0.767,
+      "fire_aggro": 0.3,
+      "water_aggro": 0.9,
+      "lightning_aggro": 0.633,
+      "psychic_aggro": 1.0,
+      "fighting_aggro": 0.467,
+      "darkness_aggro": 0.767
+    },
+    "greedy|grass_aggro": {
+      "metal_aggro": 0.167,
+      "grass_aggro": 0.433,
+      "fire_aggro": 0.067,
+      "water_aggro": 0.467,
+      "lightning_aggro": 0.333,
+      "psychic_aggro": 0.867,
+      "fighting_aggro": 0.567,
+      "darkness_aggro": 0.767
+    },
+    "greedy|run7_best": {
+      "metal_aggro": 0.133,
+      "grass_aggro": 0.533,
+      "fire_aggro": 0.167,
+      "water_aggro": 0.367,
+      "lightning_aggro": 0.333,
+      "psychic_aggro": 0.867,
+      "fighting_aggro": 0.633,
+      "darkness_aggro": 0.767
+    },
+    "greedy|run4_best": {
+      "metal_aggro": 0.433,
+      "grass_aggro": 0.933,
+      "fire_aggro": 0.333,
+      "water_aggro": 0.867,
+      "lightning_aggro": 0.5,
+      "psychic_aggro": 1.0,
+      "fighting_aggro": 0.3,
+      "darkness_aggro": 0.667
+    },
+    "greedy|single_prize_psychic": {
+      "metal_aggro": 0.0,
+      "grass_aggro": 0.0,
+      "fire_aggro": 0.0,
+      "water_aggro": 0.0,
+      "lightning_aggro": 0.0,
+      "psychic_aggro": 0.2,
+      "fighting_aggro": 0.0,
+      "darkness_aggro": 0.0
+    },
+    "net|metal_aggro": {
+      "metal_aggro": 0.733,
+      "grass_aggro": 0.833,
+      "fire_aggro": 0.467,
+      "water_aggro": 1.0,
+      "lightning_aggro": 0.567,
+      "psychic_aggro": 1.0,
+      "fighting_aggro": 0.6,
+      "darkness_aggro": 0.767
+    },
+    "net|grass_aggro": {
+      "metal_aggro": 0.333,
+      "grass_aggro": 0.7,
+      "fire_aggro": 0.3,
+      "water_aggro": 0.733,
+      "lightning_aggro": 0.655,
+      "psychic_aggro": 0.933,
+      "fighting_aggro": 0.967,
+      "darkness_aggro": 0.967
+    },
+    "net|run7_best": {
+      "metal_aggro": 0.5,
+      "grass_aggro": 0.8,
+      "fire_aggro": 0.267,
+      "water_aggro": 0.767,
+      "lightning_aggro": 0.862,
+      "psychic_aggro": 0.967,
+      "fighting_aggro": 0.9,
+      "darkness_aggro": 1.0
+    },
+    "net|run4_best": {
+      "metal_aggro": 0.6,
+      "grass_aggro": 0.867,
+      "fire_aggro": 0.533,
+      "water_aggro": 0.933,
+      "lightning_aggro": 0.733,
+      "psychic_aggro": 0.933,
+      "fighting_aggro": 0.4,
+      "darkness_aggro": 0.867
+    },
+    "net|single_prize_psychic": {
+      "metal_aggro": 0.0,
+      "grass_aggro": 0.0,
+      "fire_aggro": 0.0,
+      "water_aggro": 0.0,
+      "lightning_aggro": 0.0,
+      "psychic_aggro": 0.433,
+      "fighting_aggro": 0.0,
+      "darkness_aggro": 0.0
+    }
+  }
+}
