@@ -22,6 +22,7 @@ Rules encoded:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -56,6 +57,12 @@ class CardInfo:
     # deck-archetype descriptor (QD). Empty for typeless cards. Defaulted so existing
     # positional CardInfo(...) constructions keep working.
     card_type: str = ""
+    # Prize-liability + setup-speed facts for the QD behaviour descriptor (Mega ex
+    # give up 3 prizes, ex 2, others 1; ``min_attack_cost`` is the cheapest attack the
+    # card can field, ``None`` if none). Defaulted to preserve positional ctors.
+    is_ex: bool = False
+    is_mega: bool = False
+    min_attack_cost: int | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +76,15 @@ class CardPool:
 
     def ids(self) -> list[int]:
         return list(self.cards)
+
+
+def _opt_int(value: object) -> int | None:
+    """Coerce a possibly-NaN numeric cell (pandas left-merge miss) to int, or None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return int(value)
 
 
 def card_kind(pool: CardPool, card_id: int) -> str:
@@ -96,6 +112,7 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
         stage = stage_val if isinstance(stage_val, str) else ""
         card_id = int(row["card_id"])
         type_code = row.get("type_code")
+        mac = row.get("min_attack_cost")
         cards[card_id] = CardInfo(
             card_id=card_id,
             name=str(row["name"]),
@@ -105,6 +122,9 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
             is_basic_energy=stage == _BASIC_ENERGY_STAGE,
             is_ace_spec=bool(row["is_ace_spec"]),
             card_type=type_code if isinstance(type_code, str) else "",
+            is_ex=bool(row.get("is_ex", False)),
+            is_mega=bool(row.get("is_mega", False)),
+            min_attack_cost=_opt_int(mac),  # NaN (no attack) -> None
         )
     return CardPool(cards)
 

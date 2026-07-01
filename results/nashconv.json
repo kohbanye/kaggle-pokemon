@@ -1,0 +1,255 @@
+{
+  "labels": [
+    "greedy|metal",
+    "net_init|metal",
+    "net_run3|metal",
+    "net_run7|metal",
+    "random|metal",
+    "net_run7|run7_best",
+    "net_run3|grass",
+    "greedy|run7_best",
+    "greedy|fire",
+    "greedy|psychic",
+    "greedyFF|metal"
+  ],
+  "games_per_pair": 30,
+  "win_matrix": [
+    [
+      0.5,
+      0.5,
+      0.533,
+      0.467,
+      1.0,
+      0.5,
+      0.733,
+      0.867,
+      0.467,
+      0.967,
+      0.367
+    ],
+    [
+      0.5,
+      0.5,
+      0.133,
+      0.233,
+      0.733,
+      0.433,
+      0.467,
+      0.733,
+      0.467,
+      0.9,
+      0.2
+    ],
+    [
+      0.467,
+      0.867,
+      0.5,
+      0.4,
+      1.0,
+      0.433,
+      0.633,
+      0.767,
+      0.4,
+      0.933,
+      0.7
+    ],
+    [
+      0.533,
+      0.767,
+      0.6,
+      0.5,
+      0.967,
+      0.6,
+      0.633,
+      0.933,
+      0.433,
+      1.0,
+      0.633
+    ],
+    [
+      0.0,
+      0.267,
+      0.0,
+      0.033,
+      0.5,
+      0.0,
+      0.067,
+      0.033,
+      0.0,
+      0.367,
+      0.033
+    ],
+    [
+      0.5,
+      0.567,
+      0.567,
+      0.4,
+      1.0,
+      0.5,
+      0.467,
+      0.667,
+      0.1,
+      1.0,
+      0.3
+    ],
+    [
+      0.267,
+      0.533,
+      0.367,
+      0.367,
+      0.933,
+      0.533,
+      0.5,
+      0.667,
+      0.233,
+      1.0,
+      0.1
+    ],
+    [
+      0.133,
+      0.267,
+      0.233,
+      0.067,
+      0.967,
+      0.333,
+      0.333,
+      0.5,
+      0.0,
+      0.867,
+      0.067
+    ],
+    [
+      0.533,
+      0.533,
+      0.6,
+      0.567,
+      1.0,
+      0.9,
+      0.767,
+      1.0,
+      0.5,
+      0.9,
+      0.7
+    ],
+    [
+      0.033,
+      0.1,
+      0.067,
+      0.0,
+      0.633,
+      0.0,
+      0.0,
+      0.133,
+      0.1,
+      0.5,
+      0.0
+    ],
+    [
+      0.633,
+      0.8,
+      0.3,
+      0.367,
+      0.967,
+      0.7,
+      0.9,
+      0.933,
+      0.3,
+      1.0,
+      0.5
+    ]
+  ],
+  "per_strategy_nashconv": [
+    {
+      "strategy": "greedy|fire",
+      "nashconv": -0.067,
+      "exploitability": -0.033,
+      "worst_vs": "greedy|metal",
+      "worst_winrate": 0.533,
+      "mean_winrate": 0.75
+    },
+    {
+      "strategy": "net_run7|metal",
+      "nashconv": 0.133,
+      "exploitability": 0.067,
+      "worst_vs": "greedy|fire",
+      "worst_winrate": 0.433,
+      "mean_winrate": 0.71
+    },
+    {
+      "strategy": "net_run3|metal",
+      "nashconv": 0.2,
+      "exploitability": 0.1,
+      "worst_vs": "net_run7|metal",
+      "worst_winrate": 0.4,
+      "mean_winrate": 0.66
+    },
+    {
+      "strategy": "greedy|metal",
+      "nashconv": 0.267,
+      "exploitability": 0.133,
+      "worst_vs": "greedyFF|metal",
+      "worst_winrate": 0.367,
+      "mean_winrate": 0.64
+    },
+    {
+      "strategy": "greedyFF|metal",
+      "nashconv": 0.4,
+      "exploitability": 0.2,
+      "worst_vs": "net_run3|metal",
+      "worst_winrate": 0.3,
+      "mean_winrate": 0.69
+    },
+    {
+      "strategy": "net_init|metal",
+      "nashconv": 0.733,
+      "exploitability": 0.367,
+      "worst_vs": "net_run3|metal",
+      "worst_winrate": 0.133,
+      "mean_winrate": 0.48
+    },
+    {
+      "strategy": "net_run7|run7_best",
+      "nashconv": 0.8,
+      "exploitability": 0.4,
+      "worst_vs": "greedy|fire",
+      "worst_winrate": 0.1,
+      "mean_winrate": 0.557
+    },
+    {
+      "strategy": "net_run3|grass",
+      "nashconv": 0.8,
+      "exploitability": 0.4,
+      "worst_vs": "greedyFF|metal",
+      "worst_winrate": 0.1,
+      "mean_winrate": 0.5
+    },
+    {
+      "strategy": "random|metal",
+      "nashconv": 1.0,
+      "exploitability": 0.5,
+      "worst_vs": "greedy|metal",
+      "worst_winrate": 0.0,
+      "mean_winrate": 0.08
+    },
+    {
+      "strategy": "greedy|run7_best",
+      "nashconv": 1.0,
+      "exploitability": 0.5,
+      "worst_vs": "greedy|fire",
+      "worst_winrate": 0.0,
+      "mean_winrate": 0.327
+    },
+    {
+      "strategy": "greedy|psychic",
+      "nashconv": 1.0,
+      "exploitability": 0.5,
+      "worst_vs": "net_run7|metal",
+      "worst_winrate": 0.0,
+      "mean_winrate": 0.107
+    }
+  ],
+  "nash_mixture": {
+    "greedy|fire": 1.0
+  },
+  "nashconv_of_nash": 0.0
+}

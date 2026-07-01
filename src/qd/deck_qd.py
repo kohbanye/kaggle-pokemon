@@ -6,9 +6,23 @@ the mutator build/repair through :func:`~src.deck.legal_next_ids`, so the QD sea
 only ever proposes **legal** decks (the engine's only hard rule). Playability beyond
 legality is left to fitness, not hand-coded constraints.
 
-The **behaviour descriptor** is the deck's archetype niche -- ``(primary colour,
-energy-count bin)``: colour spreads coverage across the type wheel, the energy bin
-across aggro (few energy) ↔ setup (many). MAP-Elites keeps the best deck per niche.
+The **behaviour descriptor** is the deck's archetype niche -- ``(prize-liability bin,
+setup-speed bin)``, the two genuine *trade-offs* that define the modern Mega-era meta:
+
+- **prize liability** (attrition ↔ power): single-prize attackers give the opponent
+  fewer prizes per KO and win the prize race, but ex (2 prizes) / Mega ex (3 prizes)
+  hit harder and set up faster. Measured as "extra prize points" the deck can give up
+  (ex = +1, Mega = +2 per copy); bin 0 is a pure single-prize deck.
+- **setup speed** (aggro ↔ ramp): the cheapest attack the deck can field -- a
+  1-energy attacker spams from turn 1, a 3-4 energy attacker needs a setup turn.
+
+Both are derived from the *decklist alone* (no engine). The earlier ``(colour,
+energy-count)`` descriptor failed to illuminate the space -- colour duplicated the
+soft colour penalty (and pulled the archive toward the rainbow decks the penalty
+discourages) while every strong deck piled into the top energy bin -- so the archive
+degenerated to "best mono/duo deck per colour". Colour stays as the soft fitness
+*penalty* (see :func:`colour_count`), not a niche axis. MAP-Elites keeps the best deck
+per niche.
 """
 
 from __future__ import annotations
@@ -27,6 +41,15 @@ if TYPE_CHECKING:
 ENERGY_BIN_EDGES = (8, 12, 16, 20)
 NO_COLOUR = "C"  # colourless / typeless fallback descriptor
 
+# Prize-liability niche edges over "extra prize points" (ex=+1, Mega=+2 per copy):
+# bin 0 == pure single-prize deck, rising to all-Mega. 5 bins.
+PRIZE_BIN_EDGES = (0, 4, 8, 12)
+# Setup-speed niche edges over the deck's cheapest attack cost: <=1 (aggro) .. >=4
+# (ramp). 4 bins; a deck with no attacker at all falls into the slowest bin.
+SPEED_BIN_EDGES = (1, 2, 3)
+_EX_PRIZES = 2
+_MEGA_PRIZES = 3
+
 
 def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
     """Build a uniformly-random **legal** 60-card deck (random legal pick per slot)."""
@@ -36,6 +59,64 @@ def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
         if not legal:
             break
         deck.append(legal[int(rng.integers(len(legal)))])
+    return deck
+
+
+def single_prize_ids(pool: CardPool) -> list[int]:
+    """Pokemon that give up a single prize (not ex / not Mega) -- the attrition side.
+
+    Random init almost never produces a *pure* single-prize deck (the pool is dense
+    with ex/Mega, so a random draw includes some), leaving the ``prize_bin == 0`` niche
+    empty. Seeding from this subset reaches it.
+    """
+    return [
+        cid
+        for cid, info in pool.cards.items()
+        if info.supertype == "Pokemon" and not info.is_ex and not info.is_mega
+    ]
+
+
+def ramp_ids(pool: CardPool, min_cost: int = 3) -> list[int]:
+    """Pokemon whose cheapest attack costs ``>= min_cost`` (or that don't attack).
+
+    Restricting the deck's Pokemon to these makes its *cheapest* attacker expensive, so
+    it lands in a high ``speed_bin`` (ramp) -- the niche random init can't reach because
+    a random deck almost always includes a 1-energy attacker.
+    """
+    return [
+        cid
+        for cid, info in pool.cards.items()
+        if info.supertype == "Pokemon"
+        and (info.min_attack_cost is None or info.min_attack_cost >= min_cost)
+    ]
+
+
+def random_legal_deck_biased(
+    pool: CardPool,
+    rng: np.random.Generator,
+    allowed_pokemon: list[int],
+) -> list[int]:
+    """Random legal 60 whose *Pokemon* are drawn only from ``allowed_pokemon``.
+
+    Non-Pokemon (energy / trainers) stay unrestricted so a legal 60 is always
+    completable. Used to seed the descriptor's "exclusion" niches (single-prize / ramp)
+    that uniform random init can't reach. Falls back to an unbiased deck if the filter
+    leaves no Basic Pokemon to satisfy the >=1-Basic rule.
+    """
+    allowed = set(allowed_pokemon)
+    basics = [cid for cid in allowed if pool.cards[cid].is_basic_pokemon]
+    if not basics:
+        return random_legal_deck(pool, rng)
+    deck = [basics[int(rng.integers(len(basics)))]]  # seed a Basic so the corner binds
+    while len(deck) < DECK_SIZE:
+        legal = [
+            cid
+            for cid in legal_next_ids(deck, pool)
+            if pool.cards[cid].supertype != "Pokemon" or cid in allowed
+        ]
+        if not legal:
+            break
+        deck.append(sorted(legal)[int(rng.integers(len(legal)))])
     return deck
 
 
@@ -100,17 +181,68 @@ def energy_bin(n: int) -> int:
     return sum(n > edge for edge in ENERGY_BIN_EDGES)
 
 
-def behaviour_descriptor(deck: list[int], pool: CardPool) -> tuple[str, int]:
-    """Archetype niche of a deck: ``(primary colour, energy-count bin)``."""
-    return primary_colour(deck, pool), energy_bin(energy_count(deck, pool))
+def prize_value(info: object | None) -> int:
+    """Prizes a single Pokemon gives up when KO'd: Mega ex 3, ex 2, other Pokemon 1.
+
+    Non-Pokemon (energy / trainers) give up nothing toward the liability.
+    """
+    if info is None or getattr(info, "supertype", "") != "Pokemon":
+        return 0
+    if getattr(info, "is_mega", False):
+        return _MEGA_PRIZES
+    if getattr(info, "is_ex", False):
+        return _EX_PRIZES
+    return 1
 
 
-def deck_stats(deck: list[int], pool: CardPool) -> dict[str, int]:
-    """Coarse composition (for logging / inspection)."""
+def prize_points(deck: list[int], pool: CardPool) -> int:
+    """Total *extra* prizes the deck can give up (ex = +1, Mega = +2 per copy).
+
+    0 for a pure single-prize deck; grows with multi-prize density and severity --
+    the attrition ↔ power axis of the prize race.
+    """
+    return sum(max(prize_value(pool.cards.get(cid)) - 1, 0) for cid in deck)
+
+
+def prize_bin(points: int) -> int:
+    """Bin prize points into ``0..len(PRIZE_BIN_EDGES)`` (0 == pure single-prize)."""
+    return sum(points > edge for edge in PRIZE_BIN_EDGES)
+
+
+def setup_cost(deck: list[int], pool: CardPool) -> int | None:
+    """Cheapest attack the deck can field (min attack cost over its Pokemon).
+
+    ``None`` if no card in the deck has an attack (treated as the slowest niche).
+    """
+    costs = [
+        info.min_attack_cost
+        for cid in deck
+        if (info := pool.cards.get(cid)) is not None
+        and info.min_attack_cost is not None
+    ]
+    return min(costs) if costs else None
+
+
+def speed_bin(cost: int | None) -> int:
+    """Bin the cheapest attack cost into ``0..len(SPEED_BIN_EDGES)`` (0 = aggro)."""
+    if cost is None:
+        return len(SPEED_BIN_EDGES)  # no attacker -> slowest niche
+    return sum(cost > edge for edge in SPEED_BIN_EDGES)
+
+
+def behaviour_descriptor(deck: list[int], pool: CardPool) -> tuple[int, int]:
+    """Archetype niche of a deck: ``(prize-liability bin, setup-speed bin)``."""
+    return prize_bin(prize_points(deck, pool)), speed_bin(setup_cost(deck, pool))
+
+
+def deck_stats(deck: list[int], pool: CardPool) -> dict[str, int | None]:
+    """Coarse composition + niche features (for logging / inspection)."""
     kinds = Counter(card_kind(pool, cid) for cid in deck)
     return {
         "energy": kinds.get("energy", 0),
         "pokemon": kinds.get("pokemon", 0),
         "trainer": kinds.get("trainer", 0),
         "distinct": len(set(deck)),
+        "prize_points": prize_points(deck, pool),
+        "min_attack_cost": setup_cost(deck, pool),
     }
