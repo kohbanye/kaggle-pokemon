@@ -1,0 +1,8 @@
+submission,deck,pilot,ladder_elo,ladder_status,nashconv,deckstr_greedy,deckstr_net,heldout_greedy,heldout_net,notes
+net_run7+metal,metal_aggro,net_run7,445.8,COMPLETE-DRIFTING,0.133,0.658,0.746,0.684,0.717,"Step0 baseline; ladder drifted 360.3->445.8 (still moving). LADDER IS HIGH-VARIANCE (~+/-200 for same agent+deck per Koh) so a single read is a noisy sample, NOT truth -- earlier 'net pilot worst' claim was an over-read. 445.8 within noise of greedy+metal 532.8"
+greedy+metal,metal_aggro,greedy,532.8,COMPLETE,0.267,0.658,,0.684,,"ladder-best reference (north star); ~538.9 in a later A/B; held-out greedy 0.684"
+net_run7+run7_best,run7_best,net_run7,476.1,COMPLETE,0.800,0.475,0.757,0.418,0.693,"co-evo 7run deck; co-adapt: held-out greedy 0.418 vs net 0.693 (net rescues a weak deck)"
+net_run3+grass,grass_aggro,net_run3,451.2,COMPLETE,0.800,0.458,0.699,,0.691,"the 451 submission; co-evo 3run, 2-colour grass; held-out net (run7 pilot) 0.691"
+recurrent_net+greedy,greedy,net_init,494.1,COMPLETE,0.733,,,,,"BC/OSFP pre-coevo (net_init|metal NashConv 0.733 as proxy)"
+ismcts+grass,grass_aggro,ismcts,463.9,COMPLETE,,0.458,,,,"determinized search (shelved); ladder 463.9"
+qd_step1_best+greedy,qd_step1_best,greedy,,LOCAL-ONLY,,,,0.753,0.711,"Step1 lexicographic+multipilot QD (clean 40-gen run); held-out ALL 0.770 vs run7_best 0.573, edges metal 0.707 -- fixes co-adapt (greedy 0.753 vs run7_best 0.451); reproduced across 2 runs (g15,g40). NOTE: QD plateaus at gen1 (weak uniform-mutation) -> Step3 is the real lever. Submit GREEDY+this deck (net pilot is a ladder risk); LADDER A/B pending"
