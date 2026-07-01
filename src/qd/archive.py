@@ -20,12 +20,19 @@ if TYPE_CHECKING:
 
 @dataclass
 class Elite:
-    """One niche's incumbent: its deck, fitness, descriptor and free-form metadata."""
+    """One niche's incumbent: its deck, fitness, descriptor and free-form metadata.
+
+    ``fitness`` is the scalar primary (the colour-penalised mean winrate, used for the
+    QD-score and logging); ``key`` is the lexicographic comparison key the archive ranks
+    on -- ``(winrate-band, -variance)`` for a multi-pilot run, defaulting to
+    ``(fitness,)`` so a plain scalar insert ranks exactly as before.
+    """
 
     deck: list[int]
     fitness: float
     descriptor: Hashable
     meta: dict = field(default_factory=dict)
+    key: tuple = ()
 
 
 class MapElitesArchive:
@@ -40,15 +47,20 @@ class MapElitesArchive:
         fitness: float,
         descriptor: Hashable,
         meta: dict | None = None,
+        *,
+        key: tuple | None = None,
     ) -> bool:
         """Place ``deck`` in its niche if empty or fitter than the incumbent.
 
-        Returns whether it was admitted (a new niche filled or an improvement).
+        Ranks on ``key`` (lexicographic), which defaults to ``(fitness,)`` -- so a plain
+        scalar insert compares exactly as before. Returns whether it was admitted (a new
+        niche filled or an improvement).
         """
+        k = key if key is not None else (float(fitness),)
         cur = self.cells.get(descriptor)
-        if cur is None or fitness > cur.fitness:
+        if cur is None or k > cur.key:
             self.cells[descriptor] = Elite(list(deck), float(fitness), descriptor,
-                                           meta or {})
+                                           meta or {}, k)
             return True
         return False
 
@@ -58,12 +70,12 @@ class MapElitesArchive:
         return elites[int(rng.integers(len(elites)))]
 
     def elites(self) -> list[Elite]:
-        """All incumbents, fittest first."""
-        return sorted(self.cells.values(), key=lambda e: e.fitness, reverse=True)
+        """All incumbents, fittest first (lexicographic ``key`` order)."""
+        return sorted(self.cells.values(), key=lambda e: e.key, reverse=True)
 
     def best(self) -> Elite | None:
         """The single fittest incumbent (the submission/deck candidate), if any."""
-        return max(self.cells.values(), key=lambda e: e.fitness, default=None)
+        return max(self.cells.values(), key=lambda e: e.key, default=None)
 
     @property
     def coverage(self) -> int:
