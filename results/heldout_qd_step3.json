@@ -1,0 +1,58 @@
+{
+  "overall": {
+    "greedy|qd3_heur": {
+      "winrate": 0.698,
+      "ci": [
+        0.681,
+        0.716
+      ],
+      "n": 2683
+    },
+    "net_run7|qd3_heur": {
+      "winrate": 0.718,
+      "ci": [
+        0.7,
+        0.734
+      ],
+      "n": 2675
+    },
+    "greedy|qd3_rand": {
+      "winrate": 0.722,
+      "ci": [
+        0.705,
+        0.739
+      ],
+      "n": 2674
+    },
+    "net_run7|qd3_rand": {
+      "winrate": 0.713,
+      "ci": [
+        0.695,
+        0.73
+      ],
+      "n": 2678
+    }
+  },
+  "per_pilot": {
+    "greedy|qd3_heur": {
+      "greedy": 0.704,
+      "heuristic": 0.672,
+      "greedyFF": 0.719
+    },
+    "net_run7|qd3_heur": {
+      "greedy": 0.741,
+      "heuristic": 0.66,
+      "greedyFF": 0.752
+    },
+    "greedy|qd3_rand": {
+      "greedy": 0.751,
+      "heuristic": 0.679,
+      "greedyFF": 0.736
+    },
+    "net_run7|qd3_rand": {
+      "greedy": 0.75,
+      "heuristic": 0.633,
+      "greedyFF": 0.755
+    }
+  }
+}
