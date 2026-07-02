@@ -1,0 +1,338 @@
+{
+  "games_per_pair": 30,
+  "labels": [
+    "greedy|metal",
+    "net_init|metal",
+    "net_run3|metal",
+    "net_run7|metal",
+    "random|metal",
+    "net_run7|run7_best",
+    "net_run3|grass",
+    "greedy|run7_best",
+    "greedy|fire",
+    "greedy|psychic",
+    "greedyFF|metal",
+    "greedy|qd_step1_best",
+    "greedy|qd3_rand",
+    "greedy|qd2_sur"
+  ],
+  "w": [
+    [
+      0.5,
+      0.7,
+      0.467,
+      0.467,
+      1.0,
+      0.6,
+      0.8,
+      0.9,
+      0.567,
+      0.967,
+      0.533,
+      0.483,
+      0.241,
+      0.2
+    ],
+    [
+      0.3,
+      0.5,
+      0.2,
+      0.2,
+      0.833,
+      0.333,
+      0.633,
+      0.833,
+      0.4,
+      0.833,
+      0.2,
+      0.467,
+      0.233,
+      0.167
+    ],
+    [
+      0.533,
+      0.8,
+      0.5,
+      0.467,
+      0.967,
+      0.567,
+      0.567,
+      0.967,
+      0.467,
+      0.867,
+      0.667,
+      0.567,
+      0.267,
+      0.267
+    ],
+    [
+      0.533,
+      0.8,
+      0.533,
+      0.5,
+      0.9,
+      0.633,
+      0.767,
+      0.967,
+      0.5,
+      1.0,
+      0.667,
+      0.5,
+      0.367,
+      0.4
+    ],
+    [
+      0.0,
+      0.167,
+      0.033,
+      0.1,
+      0.5,
+      0.0,
+      0.1,
+      0.167,
+      0.0,
+      0.433,
+      0.033,
+      0.0,
+      0.033,
+      0.0
+    ],
+    [
+      0.4,
+      0.667,
+      0.433,
+      0.367,
+      1.0,
+      0.5,
+      0.633,
+      0.967,
+      0.167,
+      0.967,
+      0.4,
+      0.655,
+      0.367,
+      0.267
+    ],
+    [
+      0.2,
+      0.367,
+      0.433,
+      0.233,
+      0.9,
+      0.367,
+      0.5,
+      0.733,
+      0.133,
+      1.0,
+      0.3,
+      0.4,
+      0.414,
+      0.167
+    ],
+    [
+      0.1,
+      0.167,
+      0.033,
+      0.033,
+      0.833,
+      0.033,
+      0.267,
+      0.5,
+      0.0,
+      0.933,
+      0.133,
+      0.3,
+      0.267,
+      0.133
+    ],
+    [
+      0.433,
+      0.6,
+      0.533,
+      0.5,
+      1.0,
+      0.833,
+      0.867,
+      1.0,
+      0.5,
+      0.933,
+      0.6,
+      0.233,
+      0.133,
+      0.267
+    ],
+    [
+      0.033,
+      0.167,
+      0.133,
+      0.0,
+      0.567,
+      0.033,
+      0.0,
+      0.067,
+      0.067,
+      0.5,
+      0.0,
+      0.033,
+      0.067,
+      0.0
+    ],
+    [
+      0.467,
+      0.8,
+      0.333,
+      0.333,
+      0.967,
+      0.6,
+      0.7,
+      0.867,
+      0.4,
+      1.0,
+      0.5,
+      0.433,
+      0.5,
+      0.267
+    ],
+    [
+      0.517,
+      0.533,
+      0.433,
+      0.5,
+      1.0,
+      0.345,
+      0.6,
+      0.7,
+      0.767,
+      0.967,
+      0.567,
+      0.5,
+      0.333,
+      0.4
+    ],
+    [
+      0.759,
+      0.767,
+      0.733,
+      0.633,
+      0.967,
+      0.633,
+      0.586,
+      0.733,
+      0.867,
+      0.933,
+      0.5,
+      0.667,
+      0.5,
+      0.414
+    ],
+    [
+      0.8,
+      0.833,
+      0.733,
+      0.6,
+      1.0,
+      0.733,
+      0.833,
+      0.867,
+      0.733,
+      1.0,
+      0.733,
+      0.6,
+      0.586,
+      0.5
+    ]
+  ],
+  "summary": [
+    {
+      "strategy": "greedy|qd2_sur",
+      "nashconv": -0.172,
+      "worst_opp": "greedy|qd3_rand",
+      "worst_wr": 0.586
+    },
+    {
+      "strategy": "greedy|qd3_rand",
+      "nashconv": 0.172,
+      "worst_opp": "greedy|qd2_sur",
+      "worst_wr": 0.414
+    },
+    {
+      "strategy": "net_run7|metal",
+      "nashconv": 0.267,
+      "worst_opp": "greedy|qd3_rand",
+      "worst_wr": 0.367
+    },
+    {
+      "strategy": "greedy|qd_step1_best",
+      "nashconv": 0.333,
+      "worst_opp": "greedy|qd3_rand",
+      "worst_wr": 0.333
+    },
+    {
+      "strategy": "net_run3|metal",
+      "nashconv": 0.467,
+      "worst_opp": "greedy|qd3_rand",
+      "worst_wr": 0.267
+    },
+    {
+      "strategy": "greedyFF|metal",
+      "nashconv": 0.467,
+      "worst_opp": "greedy|qd2_sur",
+      "worst_wr": 0.267
+    },
+    {
+      "strategy": "greedy|metal",
+      "nashconv": 0.6,
+      "worst_opp": "greedy|qd2_sur",
+      "worst_wr": 0.2
+    },
+    {
+      "strategy": "net_init|metal",
+      "nashconv": 0.667,
+      "worst_opp": "greedy|qd2_sur",
+      "worst_wr": 0.167
+    },
+    {
+      "strategy": "net_run7|run7_best",
+      "nashconv": 0.667,
+      "worst_opp": "greedy|fire",
+      "worst_wr": 0.167
+    },
+    {
+      "strategy": "net_run3|grass",
+      "nashconv": 0.733,
+      "worst_opp": "greedy|fire",
+      "worst_wr": 0.133
+    },
+    {
+      "strategy": "greedy|fire",
+      "nashconv": 0.733,
+      "worst_opp": "greedy|qd3_rand",
+      "worst_wr": 0.133
+    },
+    {
+      "strategy": "random|metal",
+      "nashconv": 1.0,
+      "worst_opp": "greedy|metal",
+      "worst_wr": 0.0
+    },
+    {
+      "strategy": "greedy|run7_best",
+      "nashconv": 1.0,
+      "worst_opp": "greedy|fire",
+      "worst_wr": 0.0
+    },
+    {
+      "strategy": "greedy|psychic",
+      "nashconv": 1.0,
+      "worst_opp": "net_run7|metal",
+      "worst_wr": 0.0
+    }
+  ],
+  "nash_support": [
+    [
+      "greedy|qd2_sur",
+      1.0
+    ]
+  ],
+  "nash_best_response_wr": 0.5
+}
