@@ -109,11 +109,8 @@ def _fitness(task: dict) -> dict:
     return {"idx": task["idx"], "mean": mean, "var": var, "per_pilot": per_pilot}
 
 
-EVAL_TIMEOUT = 900  # s per candidate; a generation's task takes ~1 min
-
-
 def _evaluate(
-    pp: Pool, decks: list[list[int]], n_games: int, seed: int,
+    pp: Pool, decks: list[list[int]], n_games: int, seed: int, timeout: float,
 ) -> list[dict | None]:
     """Evaluate decks in parallel; a lost candidate comes back as ``None``.
 
@@ -121,8 +118,10 @@ def _evaluate(
     ``std::runtime_error`` ("invalid index 0 >= 0", seen once in ~150k games).
     ``Pool.map`` would then wait forever for the dead worker's result, hanging the
     run -- so submit per-candidate ``apply_async`` jobs and give each ``get`` a
-    generous timeout; a candidate whose worker died is skipped (never admitted)
+    ``timeout``; a candidate whose worker died is skipped (never admitted)
     instead of stalling everything. The pool respawns dead workers by itself.
+    Each abort stalls the run by up to ``timeout`` seconds, so keep it a small
+    multiple of the typical task (~5 s at the default sizes), not "generous".
     """
     tasks = [{"idx": i, "deck": d, "n_games": n_games, "seed": seed + i * 100}
              for i, d in enumerate(decks)]
@@ -130,7 +129,7 @@ def _evaluate(
     out: list[dict | None] = [None] * len(decks)
     for t, ar in zip(tasks, async_rs, strict=True):
         try:
-            r = ar.get(timeout=EVAL_TIMEOUT)
+            r = ar.get(timeout=timeout)
         except Exception as exc:  # noqa: BLE001 - worker death / timeout
             print(f"eval lost candidate idx={t['idx']} "
                   f"({type(exc).__name__}) -- skipped", flush=True)
@@ -260,6 +259,12 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         help="hall-of-fame capacity (seeded with the meta decks; each round's "
              "best deck is added, oldest evicted) -- the anti-cycling memory",
     )
+    ap.add_argument(
+        "--eval-timeout", type=float, default=120.0,
+        help="seconds to wait per candidate evaluation before skipping it; "
+             "bounds the stall when a cg engine abort kills a worker "
+             "(the run continues, the candidate is dropped)",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -358,7 +363,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         with Pool(args.workers, initializer=_init,
                   initargs=(str(args.pilot), opp, pilots)) as pp:
             if rnd == 1:
-                seed_fits = _evaluate(pp, seeds, args.n_games, next(seed_gen))
+                seed_fits = _evaluate(pp, seeds, args.n_games, next(seed_gen),
+                                      args.eval_timeout)
                 admit(seeds, seed_fits)
                 learn(seeds, seed_fits, None)  # seed evals warm the surrogate up
                 print(f"init: coverage={arc.coverage} best={arc.best().fitness:.3f}")
@@ -367,7 +373,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
                 # over and re-score them against the new opponents from scratch.
                 carried = [e.deck for e in arc.elites()]
                 arc = MapElitesArchive()
-                refits = _evaluate(pp, carried, args.n_games, next(seed_gen))
+                refits = _evaluate(pp, carried, args.n_games, next(seed_gen),
+                                   args.eval_timeout)
                 admit(carried, refits)
                 if sur is not None:  # surrogate labels are gauntlet-relative too
                     sur = RidgeSurrogate(featurizer)
@@ -381,7 +388,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
                                 strategy=args.mutation)
                          for _ in range(n_cand)]
                 children, preds = screen(cands)
-                fits = _evaluate(pp, children, args.n_games, next(seed_gen))
+                fits = _evaluate(pp, children, args.n_games, next(seed_gen),
+                                 args.eval_timeout)
                 n_adm, n_sensible = admit(children, fits)
                 cal = learn(children, fits, preds)
                 best = arc.best()
