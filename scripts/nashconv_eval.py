@@ -64,6 +64,7 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     "greedy|qd3_rand":    ("greedy", "qd3_rand", None, False),
     "greedy|qd2_sur":     ("greedy", "qd2_sur", None, False),
     "greedy|qd4_coevo":   ("greedy", "qd4_coevo", None, False),     # Step 4 candidate
+    "greedy|qd4_prod":    ("greedy", "qd4_prod", None, False),      # Step 4 production
 }
 
 _G: dict = {}
