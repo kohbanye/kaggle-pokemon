@@ -107,11 +107,20 @@ def _evaluate(pp: Pool, decks: list[list[int]], n_games: int, seed: int) -> list
     return out
 
 
-def _dump(out: Path, pilot: str, history: list[dict], arc: MapElitesArchive) -> None:
+def _dump(
+    out: Path, pilot: str, history: list[dict], arc: MapElitesArchive,
+    config: dict | None = None,
+) -> None:
     """Atomically write the archive JSON (temp file + rename) so a timeout-kill mid-run
-    still leaves the latest complete checkpoint -- this is called every generation."""
+    still leaves the latest complete checkpoint -- this is called every generation.
+
+    ``config`` records the run's invocation (stringified argv) so a checkpoint is
+    self-describing -- earlier runs (qd_step1*.json) didn't, and their flags are now
+    unrecoverable.
+    """
     results = {
         "pilot": pilot,
+        "config": config or {},
         "history": history,
         "cells": [{"descriptor": list(e.descriptor), "fitness": round(e.fitness, 3),
                    "deck": e.deck, "stats": e.meta} for e in arc.elites()],
@@ -146,7 +155,7 @@ def _build_seeds(  # noqa: PLR0913 - distinct seed inputs, not a bundle
     return seeds
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915
     ap = argparse.ArgumentParser(description="MAP-Elites deck search")
     ap.add_argument("--pilot", type=Path, default=PILOT)
     ap.add_argument("--workers", type=int, default=14)
@@ -177,6 +186,11 @@ def main() -> None:
         help="winrate band width for the lexicographic primary (round(winrate/eps)); "
              "ties within a band are broken by lower cross-pilot/opponent variance",
     )
+    ap.add_argument(
+        "--mutation", choices=("heuristic", "random"), default="heuristic",
+        help="mutation operator: 'heuristic' (Step 3 role/package/energy-aware) or "
+             "'random' (Step 1 uniform-swap baseline, for the A/B)",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -194,12 +208,16 @@ def main() -> None:
 
     seeds = _build_seeds(pool, pilot_net, feats, gauntlet, args.init, rng)
 
-    def admit(decks: list[list[int]], results: list[dict]) -> int:
-        n = 0
+    def admit(decks: list[list[int]], results: list[dict]) -> tuple[int, int]:
+        """Insert candidates; return (admitted, sensible). "sensible" = legal AND
+        non-negative colour-penalised fitness (the sensible-deck-rate numerator).
+        """
+        n = n_sensible = 0
         for d, r in zip(decks, results, strict=True):
             nc = colour_count(d, pool)
             mean, var = r["mean"], r["var"]
             f_pen = mean - args.colour_penalty * nc  # colour penalty on the primary
+            n_sensible += int(f_pen >= 0)
             key = (round(f_pen / args.eps), -var)  # lexicographic: band, then low var
             bd = behaviour_descriptor(d, pool)
             meta = {**deck_stats(d, pool), "winrate": round(mean, 3),
@@ -207,8 +225,9 @@ def main() -> None:
                     "colours": nc}
             if arc.insert(d, f_pen, bd, meta=meta, key=key):
                 n += 1
-        return n
+        return n, n_sensible
 
+    config = {k: str(v) for k, v in vars(args).items()}
     history = []
     with Pool(args.workers, initializer=_init,
               initargs=(str(args.pilot), gauntlet, pilots)) as pp:
@@ -216,19 +235,22 @@ def main() -> None:
         admit(seeds, _evaluate(pp, seeds, args.n_games, next(seed_gen)))
         print(f"init: coverage={arc.coverage} best={arc.best().fitness:.3f}")
         for gen in range(1, args.generations + 1):
-            children = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps)
+            children = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
+                               strategy=args.mutation)
                         for _ in range(args.batch)]
             fits = _evaluate(pp, children, args.n_games, next(seed_gen))
-            n_adm = admit(children, fits)
+            n_adm, n_sensible = admit(children, fits)
             best = arc.best()
             history.append({"gen": gen, "coverage": arc.coverage,
                             "best": round(best.fitness, 3),
-                            "mean": round(arc.mean_fitness(), 3), "admitted": n_adm})
+                            "mean": round(arc.mean_fitness(), 3), "admitted": n_adm,
+                            "sensible": n_sensible})
             print(f"gen {gen:>3}: coverage={arc.coverage:>2} admitted={n_adm:>2} "
-                  f"best={best.fitness:.3f} mean={arc.mean_fitness():.3f}", flush=True)
-            _dump(args.out, str(args.pilot), history, arc)  # checkpoint every gen
+                  f"sensible={n_sensible:>2}/{args.batch} best={best.fitness:.3f} "
+                  f"mean={arc.mean_fitness():.3f}", flush=True)
+            _dump(args.out, str(args.pilot), history, arc, config)  # checkpoint/gen
 
-    _dump(args.out, str(args.pilot), history, arc)
+    _dump(args.out, str(args.pilot), history, arc, config)
     best = arc.best()
     print(f"== done: coverage={arc.coverage} best={best.fitness:.3f} "
           f"deck={deck_stats(best.deck, pool)} -> {args.out} ==")
