@@ -7,7 +7,13 @@ both sides piloted by the same recurrent play net -- so fitness measures the *de
 hand-coded constraint. The archive keeps the best deck per ``(colour, energy-bin)``
 niche, so coverage is diverse by construction.
 
+With ``--rounds > 1`` (Step 4) the opponent gauntlet **co-evolves**: each round it is
+rebuilt from the archive's top elites plus a hall-of-fame sample (meta decks + past
+round bests, the anti-cycling memory), and the archive warm-starts across rounds
+(decks carry over, re-scored against the new gauntlet).
+
   uv run python scripts/qd_deck_search.py --generations 40    # full (parallel)
+  uv run python scripts/qd_deck_search.py --rounds 5 --generations 20   # Step 4 coevo
   uv run python scripts/qd_deck_search.py --quick
 """
 
@@ -34,9 +40,11 @@ from src.net.features import CardFeatures, load_engine_json  # noqa: E402
 from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402
 from src.qd import (  # noqa: E402
     DeckFeaturizer,
+    HallOfFame,
     MapElitesArchive,
     RidgeSurrogate,
     behaviour_descriptor,
+    build_gauntlet,
     colour_count,
     deck_stats,
     mutate,
@@ -110,9 +118,10 @@ def _evaluate(pp: Pool, decks: list[list[int]], n_games: int, seed: int) -> list
     return out
 
 
-def _dump(
+def _dump(  # noqa: PLR0913 - checkpoint writer bundling every run artefact
     out: Path, pilot: str, history: list[dict], arc: MapElitesArchive,
-    config: dict | None = None,
+    config: dict | None = None, hof: HallOfFame | None = None,
+    rounds: list[dict] | None = None,
 ) -> None:
     """Atomically write the archive JSON (temp file + rename) so a timeout-kill mid-run
     still leaves the latest complete checkpoint -- this is called every generation.
@@ -128,6 +137,10 @@ def _dump(
         "cells": [{"descriptor": list(e.descriptor), "fitness": round(e.fitness, 3),
                    "deck": e.deck, "stats": e.meta} for e in arc.elites()],
     }
+    if hof is not None:
+        results["hof"] = [{"tag": h.tag, "deck": h.deck} for h in hof.entries]
+    if rounds is not None:
+        results["rounds"] = rounds
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
     tmp.write_text(json.dumps(results))
@@ -209,6 +222,23 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         help="fraction of each real-eval batch reserved for surrogate-blind "
              "random children (calibration / anti-bias)",
     )
+    ap.add_argument(
+        "--rounds", type=int, default=1,
+        help="Step 4 co-evolution rounds: 1 = fixed meta gauntlet (Step 3 "
+             "behaviour); >1 rebuilds the opponent gauntlet each round from the "
+             "archive's top elites + a hall-of-fame sample, warm-starting the "
+             "archive (decks carry over, re-scored vs the new gauntlet)",
+    )
+    ap.add_argument(
+        "--coevo-top-k", type=int, default=4,
+        help="archive elites (one per niche, best first) promoted into each "
+             "co-evolution round's gauntlet",
+    )
+    ap.add_argument(
+        "--hof-size", type=int, default=16,
+        help="hall-of-fame capacity (seeded with the meta decks; each round's "
+             "best deck is added, oldest evicted) -- the anti-cycling memory",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -221,7 +251,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
     feats = CardFeatures(load_engine_json(ENGINE_JSON))
     pilot_net = RecurrentPolicyValueNet.load(args.pilot)
     rng = np.random.default_rng(args.seed)
-    gauntlet = [read_deck(p) for p in sorted((ROOT / "decklists").glob("*.csv"))]
+    meta_paths = sorted((ROOT / "decklists").glob("*.csv"))
+    gauntlet = [read_deck(p) for p in meta_paths]
     arc = MapElitesArchive()
 
     seeds = _build_seeds(pool, pilot_net, feats, gauntlet, args.init, rng)
@@ -245,7 +276,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
                 n += 1
         return n, n_sensible
 
-    sur = RidgeSurrogate(DeckFeaturizer(pool, feats.vector)) if args.surrogate else None
+    featurizer = DeckFeaturizer(pool, feats.vector)
+    sur = RidgeSurrogate(featurizer) if args.surrogate else None
 
     def screen(cands: list[list[int]]) -> tuple[list[list[int]], list[float] | None]:
         """Surrogate pre-screen: pick the real-eval batch from the oversampled pool.
@@ -279,35 +311,68 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         return cal
 
     config = {k: str(v) for k, v in vars(args).items()}
-    history = []
-    with Pool(args.workers, initializer=_init,
-              initargs=(str(args.pilot), gauntlet, pilots)) as pp:
-        seed_gen = iter(range(10_000, 10_000_000, 1000))
-        seed_fits = _evaluate(pp, seeds, args.n_games, next(seed_gen))
-        admit(seeds, seed_fits)
-        learn(seeds, seed_fits, None)  # seed evals warm the surrogate up
-        print(f"init: coverage={arc.coverage} best={arc.best().fitness:.3f}")
-        for gen in range(1, args.generations + 1):
-            n_cand = args.batch * (args.oversample if sur is not None else 1)
-            cands = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
-                            strategy=args.mutation)
-                     for _ in range(n_cand)]
-            children, preds = screen(cands)
-            fits = _evaluate(pp, children, args.n_games, next(seed_gen))
-            n_adm, n_sensible = admit(children, fits)
-            cal = learn(children, fits, preds)
-            best = arc.best()
-            history.append({"gen": gen, "coverage": arc.coverage,
-                            "best": round(best.fitness, 3),
-                            "mean": round(arc.mean_fitness(), 3), "admitted": n_adm,
-                            "sensible": n_sensible, **cal})
-            cal_s = f" cal_r={cal['cal_r']}" if "cal_r" in cal else ""
-            print(f"gen {gen:>3}: coverage={arc.coverage:>2} admitted={n_adm:>2} "
-                  f"sensible={n_sensible:>2}/{args.batch} best={best.fitness:.3f} "
-                  f"mean={arc.mean_fitness():.3f}{cal_s}", flush=True)
-            _dump(args.out, str(args.pilot), history, arc, config)  # checkpoint/gen
+    history: list[dict] = []
+    hof = HallOfFame(args.hof_size)
+    for p, d in zip(meta_paths, gauntlet, strict=True):
+        hof.add(d, p.stem)
+    seed_gen = iter(range(10_000, 10_000_000, 1000))
+    gen_no = 0
+    rounds_log: list[dict] = []
+    for rnd in range(1, args.rounds + 1):
+        if rnd == 1:
+            opp, opp_tags = gauntlet, [p.stem for p in meta_paths]
+        else:
+            opp, opp_tags = build_gauntlet(arc, hof, len(gauntlet),
+                                           args.coevo_top_k, rng)
+        rounds_log.append({"round": rnd, "gauntlet": opp_tags})
+        if args.rounds > 1:
+            print(f"round {rnd}: gauntlet = {', '.join(opp_tags)}", flush=True)
+        with Pool(args.workers, initializer=_init,
+                  initargs=(str(args.pilot), opp, pilots)) as pp:
+            if rnd == 1:
+                seed_fits = _evaluate(pp, seeds, args.n_games, next(seed_gen))
+                admit(seeds, seed_fits)
+                learn(seeds, seed_fits, None)  # seed evals warm the surrogate up
+                print(f"init: coverage={arc.coverage} best={arc.best().fitness:.3f}")
+            else:
+                # Warm-start: fitness is gauntlet-relative, so carry the DECKS
+                # over and re-score them against the new opponents from scratch.
+                carried = [e.deck for e in arc.elites()]
+                arc = MapElitesArchive()
+                refits = _evaluate(pp, carried, args.n_games, next(seed_gen))
+                admit(carried, refits)
+                if sur is not None:  # surrogate labels are gauntlet-relative too
+                    sur = RidgeSurrogate(featurizer)
+                learn(carried, refits, None)
+                print(f"round {rnd} re-score: coverage={arc.coverage} "
+                      f"best={arc.best().fitness:.3f}", flush=True)
+            for _ in range(args.generations):
+                gen_no += 1
+                n_cand = args.batch * (args.oversample if sur is not None else 1)
+                cands = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
+                                strategy=args.mutation)
+                         for _ in range(n_cand)]
+                children, preds = screen(cands)
+                fits = _evaluate(pp, children, args.n_games, next(seed_gen))
+                n_adm, n_sensible = admit(children, fits)
+                cal = learn(children, fits, preds)
+                best = arc.best()
+                history.append({"gen": gen_no, "round": rnd,
+                                "coverage": arc.coverage,
+                                "best": round(best.fitness, 3),
+                                "mean": round(arc.mean_fitness(), 3),
+                                "admitted": n_adm,
+                                "sensible": n_sensible, **cal})
+                cal_s = f" cal_r={cal['cal_r']}" if "cal_r" in cal else ""
+                print(f"gen {gen_no:>3}: coverage={arc.coverage:>2} "
+                      f"admitted={n_adm:>2} sensible={n_sensible:>2}/{args.batch} "
+                      f"best={best.fitness:.3f} mean={arc.mean_fitness():.3f}{cal_s}",
+                      flush=True)
+                _dump(args.out, str(args.pilot), history, arc, config, hof,
+                      rounds_log)
+        hof.add(arc.best().deck, f"r{rnd}_best")
 
-    _dump(args.out, str(args.pilot), history, arc, config)
+    _dump(args.out, str(args.pilot), history, arc, config, hof, rounds_log)
     best = arc.best()
     print(f"== done: coverage={arc.coverage} best={best.fitness:.3f} "
           f"deck={deck_stats(best.deck, pool)} -> {args.out} ==")

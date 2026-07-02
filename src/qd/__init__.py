@@ -9,6 +9,7 @@ RL net keeps learning to *play*. Only engine legality is enforced -- no hand-cod
 """
 
 from src.qd.archive import Elite, MapElitesArchive
+from src.qd.coevo import HallOfFame, HofEntry, build_gauntlet
 from src.qd.deck_qd import (
     behaviour_descriptor,
     card_role,
@@ -29,9 +30,12 @@ from src.qd.surrogate import DeckFeaturizer, RidgeSurrogate, select_children
 __all__ = [
     "DeckFeaturizer",
     "Elite",
+    "HallOfFame",
+    "HofEntry",
     "MapElitesArchive",
     "RidgeSurrogate",
     "behaviour_descriptor",
+    "build_gauntlet",
     "card_role",
     "colour_count",
     "deck_stats",
