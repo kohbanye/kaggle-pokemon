@@ -35,7 +35,7 @@ from src.deck import DECK_SIZE, card_kind, legal_next_ids
 if TYPE_CHECKING:
     import numpy as np
 
-    from src.deck import CardPool
+    from src.deck import CardInfo, CardPool
 
 # Energy-count niche edges (upper-inclusive): aggro/thin .. energy-heavy/setup.
 ENERGY_BIN_EDGES = (8, 12, 16, 20)
@@ -49,6 +49,13 @@ PRIZE_BIN_EDGES = (0, 4, 8, 12)
 SPEED_BIN_EDGES = (1, 2, 3)
 _EX_PRIZES = 2
 _MEGA_PRIZES = 3
+
+# Heuristic mutation (Step 3): role-aware operators + weights (see card_role / mutate).
+ENERGY_TARGET = (8, 15)  # normal-Standard energy count (docs/deck-search-redesign §0.4)
+_ENERGY_BLOCK = 2  # energy cards moved per energy-block adjustment
+_TRAINER_REFILL_BIAS = 0.7  # P(refill a freed energy slot with a Trainer)
+_OP_NAMES = ("same_role", "package", "energy_block", "random")
+_OP_WEIGHTS = (0.45, 0.25, 0.15, 0.15)  # tunable; free "random" is a low explore floor
 
 
 def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
@@ -120,23 +127,239 @@ def random_legal_deck_biased(
     return deck
 
 
-def mutate(
+def card_role(info: CardInfo) -> tuple[str, str, bool]:
+    """Deckbuilding role of a card: ``(supertype, printed stage/type, is-attacker)``.
+
+    Groups cards the way a deckbuilder treats them as interchangeable, from fields
+    already on :class:`~src.deck.CardInfo` (no effect-text parsing): ``supertype`` + the
+    printed ``stage_or_type`` (Basic/Stage 1/Stage 2 Pokemon; Item/Supporter/Pokemon
+    Tool/Stadium Trainer; Basic/Special Energy), split by whether a Pokemon can attack
+    (``min_attack_cost is not None`` -- the same "has an attack" fact :func:`setup_cost`
+    keys off), so an attacker and a pure support Pokemon of the same stage are *not*
+    interchangeable. Drives the heuristic mutation operator.
+    """
+    is_attacker = info.supertype == "Pokemon" and info.min_attack_cost is not None
+    return info.supertype, info.stage_or_type, is_attacker
+
+
+def _mutate_random_swap(
     deck: list[int],
     pool: CardPool,
     rng: np.random.Generator,
     n_swaps: int = 3,
 ) -> list[int]:
-    """Swap ~``n_swaps`` cards and repair to a legal 60: a local archive variation.
+    """Remove ``n_swaps`` random cards and refill uniformly -- the Step-1 operator.
 
-    Removes ``n_swaps`` random cards (the remaining ≤60 multiset is still a legal
-    prefix -- it extended to legal before) then re-fills to 60 through
-    :func:`~src.deck.legal_next_ids`, so the result is always legal and differs from
-    the parent by at most ~``n_swaps`` cards.
+    Kept verbatim as the ``strategy="random"`` A/B baseline and as the heuristic
+    operator's low-probability free-swap primitive. Removes ``n_swaps`` random cards
+    (the ≤60 remainder is still a legal prefix) then re-fills to 60 through
+    :func:`~src.deck.legal_next_ids`, so the result is always legal.
     """
     keep = list(deck)
     for _ in range(min(n_swaps, len(keep))):
         keep.pop(int(rng.integers(len(keep))))
     while len(keep) < DECK_SIZE:
+        legal = sorted(legal_next_ids(keep, pool))
+        if not legal:
+            break
+        keep.append(legal[int(rng.integers(len(legal)))])
+    return keep
+
+
+def _pick_removal_index(
+    keep: list[int],
+    pool: CardPool,
+    rng: np.random.Generator,
+    candidates: list[int] | None = None,
+) -> int:
+    """Index of a card to remove, weighted by how redundant its role is in the deck.
+
+    The "active-gene" proxy: a role held by many copies (bulk energy, spare Items) is
+    far likelier to be touched than the deck's sole attacker or a 1-of tech, so mutation
+    edits the flexible slots and rarely deletes a load-bearing one. Decklist-only (this
+    pure module has no board/engine telemetry). ``candidates`` restricts the choice to a
+    subset of positions (redundancy is still counted over the whole deck).
+    """
+    idxs = list(range(len(keep))) if candidates is None else candidates
+    counts = Counter(card_role(pool.cards[c]) for c in keep)
+    weights = [counts[card_role(pool.cards[keep[i]])] for i in idxs]
+    total = sum(weights)
+    probs = [w / total for w in weights]
+    return idxs[int(rng.choice(len(idxs), p=probs))]
+
+
+def _single_random_swap(
+    keep: list[int], pool: CardPool, rng: np.random.Generator,
+) -> list[int]:
+    """Free 1-card swap: the exploration floor kept inside the heuristic operator."""
+    keep = list(keep)
+    keep.pop(int(rng.integers(len(keep))))
+    legal = sorted(legal_next_ids(keep, pool))
+    if legal:
+        keep.append(legal[int(rng.integers(len(legal)))])
+    return keep
+
+
+def _same_role_swap(
+    keep: list[int], pool: CardPool, rng: np.random.Generator,
+) -> list[int]:
+    """Replace one card with a legal *same-role* card (falls back to any legal)."""
+    keep = list(keep)
+    removed = keep.pop(_pick_removal_index(keep, pool, rng))
+    role = card_role(pool.cards[removed])
+    legal = legal_next_ids(keep, pool)
+    same = sorted(c for c in legal if card_role(pool.cards[c]) == role)
+    cands = same or sorted(legal)
+    if cands:
+        keep.append(cands[int(rng.integers(len(cands)))])
+    return keep
+
+
+def _package_swap(
+    keep: list[int],
+    pool: CardPool,
+    rng: np.random.Generator,
+    swap_prob: float = 0.6,
+) -> list[int]:
+    """Remove a card's whole playset; with ``swap_prob`` refill it same-role.
+
+    The "package add/remove" edit -- humans cut/add a playset at a time, not one copy.
+    Targets a *named* card (a Pokemon / Trainer line, at most a 4-copy playset), never
+    the Basic-Energy stack -- energy composition is :func:`_energy_block_adjust`'s job,
+    and swapping a 14-card energy stack in one op is neither local nor useful. With
+    ``1 - swap_prob`` the freed slots are left for later ops / the final top-up (a
+    genuine package *removal*). Never zeroes the deck's attacker role: if this removes
+    the last attacker, the swap branch is forced.
+    """
+    keep = list(keep)
+    nbe = [i for i, c in enumerate(keep) if not pool.cards[c].is_basic_energy]
+    if not nbe:  # nothing but Basic Energy (can't happen: >=1 Basic Pokemon) -- no-op
+        return keep
+    cid = keep[_pick_removal_index(keep, pool, rng, nbe)]
+    role = card_role(pool.cards[cid])
+    remaining = [c for c in keep if c != cid]
+    n = len(keep) - len(remaining)
+    removed_last_attacker = role[2] and not any(
+        card_role(pool.cards[c])[2] for c in remaining
+    )
+    if not (removed_last_attacker or rng.random() < swap_prob):
+        return remaining
+    legal = legal_next_ids(remaining, pool)
+    same = [c for c in legal if c != cid and card_role(pool.cards[c]) == role]
+    if removed_last_attacker and not same:
+        same = [c for c in legal if card_role(pool.cards[c])[2]]  # any attacker
+    cands = sorted(same) if same else sorted(legal)
+    if not cands:
+        return remaining
+    new_id = cands[int(rng.integers(len(cands)))]
+    for _ in range(n):
+        if new_id not in legal_next_ids(remaining, pool):
+            break
+        remaining.append(new_id)
+    return remaining
+
+
+def _drop_random(
+    keep: list[int], cand_idx: list[int], k: int, rng: np.random.Generator,
+) -> list[int]:
+    """Drop ``k`` cards chosen uniformly at random from positions ``cand_idx``."""
+    remove: set[int] = set()
+    for _ in range(k):
+        choices = [i for i in cand_idx if i not in remove]
+        if not choices:
+            break
+        remove.add(choices[int(rng.integers(len(choices)))])
+    return [c for i, c in enumerate(keep) if i not in remove]
+
+
+def _energy_reduce(
+    keep: list[int], pool: CardPool, rng: np.random.Generator, excess: int,
+) -> list[int]:
+    """Cut up to ``_ENERGY_BLOCK`` energy cards, refilling toward Trainers."""
+    idxs = [i for i, c in enumerate(keep) if card_kind(pool, c) == "energy"]
+    out = _drop_random(keep, idxs, min(_ENERGY_BLOCK, excess), rng)
+    for _ in range(len(keep) - len(out)):
+        legal = legal_next_ids(out, pool)
+        if not legal:
+            break
+        trainers = sorted(c for c in legal if card_kind(pool, c) == "trainer")
+        use_tr = bool(trainers) and rng.random() < _TRAINER_REFILL_BIAS
+        cands = trainers if use_tr else sorted(legal)
+        out.append(cands[int(rng.integers(len(cands)))])
+    return out
+
+
+def _energy_increase(
+    keep: list[int], pool: CardPool, rng: np.random.Generator, deficit: int,
+) -> list[int]:
+    """Cut up to ``_ENERGY_BLOCK`` non-energy cards, refilling with Basic Energy."""
+    idxs = [i for i, c in enumerate(keep) if card_kind(pool, c) != "energy"]
+    out = _drop_random(keep, idxs, min(_ENERGY_BLOCK, deficit), rng)
+    for _ in range(len(keep) - len(out)):
+        legal = legal_next_ids(out, pool)
+        if not legal:
+            break
+        basics = sorted(c for c in legal if pool.cards[c].is_basic_energy)
+        cands = basics or sorted(legal)
+        out.append(cands[int(rng.integers(len(cands)))])
+    return out
+
+
+def _energy_block_adjust(
+    keep: list[int], pool: CardPool, rng: np.random.Generator,
+) -> list[int]:
+    """Nudge energy count toward the normal-Standard ``ENERGY_TARGET`` range.
+
+    Targets the diagnosed anomaly (evolved decks ran ~27-31 energy vs 8-15 normal); the
+    over-energy branch refills toward Trainers, easing the trainer-thin anomaly too.
+    """
+    n_energy = energy_count(keep, pool)
+    lo, hi = ENERGY_TARGET
+    if n_energy > hi:
+        return _energy_reduce(keep, pool, rng, n_energy - hi)
+    if n_energy < lo:
+        return _energy_increase(keep, pool, rng, lo - n_energy)
+    return list(keep)
+
+
+def mutate(
+    deck: list[int],
+    pool: CardPool,
+    rng: np.random.Generator,
+    n_swaps: int = 3,
+    *,
+    strategy: str = "random",
+) -> list[int]:
+    """Vary a deck into a legal neighbour. ``strategy`` selects the operator.
+
+    ``"random"`` (default, backward-compatible) removes ``n_swaps`` random cards and
+    refills uniformly -- the Step-1 operator. ``"heuristic"`` (Step 3) applies
+    ``n_swaps`` role-aware unit-ops (same-role substitution / package add-remove /
+    energy-block adjustment, plus a low-probability free swap as an exploration floor),
+    reaching coherent engine decks the uniform refill can't. Both stay legal and route
+    every card through :func:`~src.deck.legal_next_ids`; the space is unrestricted
+    (every deck stays reachable), only the operator is smarter.
+
+    Crossover (swapping role packages between two archive cells) is a deliberate
+    follow-on, deferred to Step 4's population-level work per the redesign doc.
+    """
+    if strategy == "random":
+        return _mutate_random_swap(deck, pool, rng, n_swaps)
+    if strategy != "heuristic":
+        msg = f"unknown mutation strategy: {strategy!r}"
+        raise ValueError(msg)
+    keep = list(deck)
+    for _ in range(n_swaps):
+        name = _OP_NAMES[int(rng.choice(len(_OP_NAMES), p=list(_OP_WEIGHTS)))]
+        if name == "same_role":
+            keep = _same_role_swap(keep, pool, rng)
+        elif name == "package":
+            keep = _package_swap(keep, pool, rng)
+        elif name == "energy_block":
+            keep = _energy_block_adjust(keep, pool, rng)
+        else:
+            keep = _single_random_swap(keep, pool, rng)
+    while len(keep) < DECK_SIZE:  # defensive top-up (ops may leave freed slots)
         legal = sorted(legal_next_ids(keep, pool))
         if not legal:
             break

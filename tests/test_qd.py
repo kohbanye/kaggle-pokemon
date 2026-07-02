@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import numpy as np
 
-from src.deck import CardInfo, CardPool, legality_errors
+from src.deck import MAX_COPIES_BY_NAME, CardInfo, CardPool, legality_errors
 from src.qd import (
     MapElitesArchive,
     behaviour_descriptor,
+    card_role,
     deck_stats,
     mutate,
     random_legal_deck,
 )
 from src.qd.deck_qd import (
+    _energy_block_adjust,
+    _package_swap,
     colour_count,
     energy_bin,
+    energy_count,
     prize_bin,
     prize_points,
     ramp_ids,
@@ -46,6 +52,35 @@ def _pool() -> CardPool:
         CardInfo(12, "AceX", "Trainer", "Item", False, False, True, ""),
         CardInfo(20, "Fire Energy", "Energy", "Basic Energy", False, True, False, "R"),
         CardInfo(21, "Water Energy", "Energy", "Basic Energy", False, True, False, "W"),
+    ]
+    return CardPool({info.card_id: info for info in infos})
+
+
+def _role_pool() -> CardPool:
+    """A role-diverse pool for the heuristic-mutation tests (Step 3).
+
+    Distinct from ``_pool()`` (whose ``single_prize_ids``/``ramp_ids`` set-equality
+    tests pin the exact Pokemon), so adding cards here can't perturb those. Covers every
+    ``card_role`` bucket: attacker vs support Basic, a Stage 1, all four Trainer
+    sub-types, and Basic vs Special Energy. Basic Energy (4-copy-cap exempt) keeps a
+    legal 60 always completable.
+    """
+    infos = [
+        CardInfo(1, "AtkR", "Pokemon", "Basic Pokémon", True, False, False, "R",
+                 min_attack_cost=1),
+        CardInfo(2, "AtkW", "Pokemon", "Basic Pokémon", True, False, False, "W",
+                 min_attack_cost=2),
+        CardInfo(3, "Support", "Pokemon", "Basic Pokémon", True, False, False, "P"),
+        CardInfo(4, "Evo1", "Pokemon", "Stage 1 Pokémon", False, False, False, "R",
+                 min_attack_cost=2),
+        CardInfo(10, "TrItem", "Trainer", "Item", False, False, False, ""),
+        CardInfo(11, "TrSup", "Trainer", "Supporter", False, False, False, ""),
+        CardInfo(12, "TrTool", "Trainer", "Pokémon Tool", False, False, False, ""),
+        CardInfo(13, "TrStad", "Trainer", "Stadium", False, False, False, ""),
+        CardInfo(20, "Fire Energy", "Energy", "Basic Energy", False, True, False, "R"),
+        CardInfo(21, "Water Energy", "Energy", "Basic Energy", False, True, False, "W"),
+        CardInfo(22, "Rainbow Energy", "Energy", "Special Energy", False, False, False,
+                 "C"),
     ]
     return CardPool({info.card_id: info for info in infos})
 
@@ -184,3 +219,99 @@ def test_archive_sample_is_seeded() -> None:
     rng = np.random.default_rng(3)
     picks = {tuple(arc.sample(rng).deck) for _ in range(20)}
     assert len(picks) > 1  # actually random over the archive
+
+
+def test_card_role_splits_by_stage_and_attack() -> None:
+    pool = _role_pool()
+    role = {cid: card_role(info) for cid, info in pool.cards.items()}
+    # attacker vs support Basic Pokemon of the same stage are distinct roles.
+    assert role[1] == ("Pokemon", "Basic Pokémon", True)
+    assert role[3] == ("Pokemon", "Basic Pokémon", False)
+    assert role[1] != role[3]
+    # stage matters: a Stage 1 attacker != a Basic attacker.
+    assert role[4] == ("Pokemon", "Stage 1 Pokémon", True)
+    assert role[4] != role[1]
+    # all four Trainer sub-types are distinct roles.
+    assert len({role[10], role[11], role[12], role[13]}) == 4
+    # Basic vs Special Energy are distinct roles.
+    assert role[20] != role[22]
+
+
+def test_mutate_heuristic_stays_legal() -> None:
+    pool = _role_pool()
+    rng = np.random.default_rng(2)
+    deck = random_legal_deck(pool, rng)
+    for _ in range(50):
+        child = mutate(deck, pool, rng, n_swaps=4, strategy="heuristic")
+        assert len(child) == 60
+        assert legality_errors(child, pool) == []
+
+
+def test_mutate_heuristic_locality_bounded() -> None:
+    """Heuristic edits stay local, but looser than the random swap: a package op can
+    move a whole 4-copy playset per unit, so the multiset diff is bounded by
+    ``n_swaps * 2 * MAX_COPIES_BY_NAME`` (removals + insertions), not ``2 * n_swaps``.
+    """
+    pool = _role_pool()
+    rng = np.random.default_rng(3)
+    deck = random_legal_deck(pool, rng)
+    n_swaps = 3
+    bound = n_swaps * 2 * MAX_COPIES_BY_NAME
+    for _ in range(30):
+        child = mutate(deck, pool, rng, n_swaps=n_swaps, strategy="heuristic")
+        before = np.bincount(deck, minlength=32)
+        after = np.bincount(child, minlength=32)
+        assert int(np.abs(before - after).sum()) <= bound
+
+
+def test_mutate_random_strategy_unchanged() -> None:
+    """``strategy="random"`` reproduces the Step-1 operator's tight locality bound."""
+    pool = _role_pool()
+    rng = np.random.default_rng(6)
+    deck = random_legal_deck(pool, rng)
+    for _ in range(20):
+        child = mutate(deck, pool, rng, n_swaps=3, strategy="random")
+        assert legality_errors(child, pool) == []
+        before = np.bincount(deck, minlength=32)
+        after = np.bincount(child, minlength=32)
+        assert int((np.abs(before - after) != 0).sum()) <= 8  # ~2 * n_swaps positions
+
+
+def test_package_swap_removes_whole_playset_and_keeps_attacker() -> None:
+    pool = _role_pool()
+    rng = np.random.default_rng(4)
+    # 4-copy playset of the ONLY attacker (id 1); the rest support / energy.
+    keep = [1, 1, 1, 1, 3, 3] + [20] * 54
+    for _ in range(50):
+        out = _package_swap(keep, pool, rng, swap_prob=0.5)
+        before, after = Counter(keep), Counter(out)
+        # A package op removes ALL copies of one id -- never a partial 1..3 left.
+        for cid, cnt in before.items():
+            if after.get(cid, 0) < cnt:
+                assert after.get(cid, 0) == 0
+        # No non-Basic-Energy id ever exceeds the 4-copy cap.
+        for cid, cnt in after.items():
+            if not pool.cards[cid].is_basic_energy:
+                assert cnt <= MAX_COPIES_BY_NAME
+        # Sole-attacker guard: an attacker-role card always remains.
+        assert any(card_role(pool.cards[c])[2] for c in out)
+
+
+def test_energy_block_adjust_trends_toward_range() -> None:
+    pool = _role_pool()
+    rng = np.random.default_rng(5)
+    # Far above the 8-15 range: each call cuts energy (never adds while above).
+    over = [20] * 44 + [1] * 4 + [10] * 4 + [11] * 4 + [12] * 4  # 60 cards, energy = 44
+    start = energy_count(over, pool)
+    prev = start
+    for _ in range(20):
+        over = _energy_block_adjust(over, pool, rng)
+        cur = energy_count(over, pool)
+        assert cur <= prev  # monotone non-increasing above the range
+        prev = cur
+    assert prev < start  # made downward progress
+    # Below the range: adds Basic Energy (exercised on a crafted short list).
+    under = [1, 2, 3, 4, 10, 11] + [20] * 2  # energy = 2, below lo = 8
+    assert energy_count(_energy_block_adjust(under, pool, rng), pool) >= energy_count(
+        under, pool,
+    )
