@@ -183,7 +183,7 @@ def main() -> None:
 
     args.out.write_text(json.dumps(out, indent=2))
     print(f"-> {args.out}")
-    for label, _, _ in SUBJECTS:
+    for label, _, _ in subjects:
         o = out["overall"][label]
         pp_ = out["per_pilot"][label]
         print(f"  {label:<22} held-out-winrate={o['winrate']} CI{o['ci']} "
