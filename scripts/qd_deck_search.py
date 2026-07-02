@@ -33,7 +33,9 @@ from src.net.deck_sample import sample_deck_with_logp  # noqa: E402
 from src.net.features import CardFeatures, load_engine_json  # noqa: E402
 from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402
 from src.qd import (  # noqa: E402
+    DeckFeaturizer,
     MapElitesArchive,
+    RidgeSurrogate,
     behaviour_descriptor,
     colour_count,
     deck_stats,
@@ -41,6 +43,7 @@ from src.qd import (  # noqa: E402
     ramp_ids,
     random_legal_deck,
     random_legal_deck_biased,
+    select_children,
     single_prize_ids,
 )
 
@@ -155,7 +158,7 @@ def _build_seeds(  # noqa: PLR0913 - distinct seed inputs, not a bundle
     return seeds
 
 
-def main() -> None:  # noqa: PLR0915
+def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation arms
     ap = argparse.ArgumentParser(description="MAP-Elites deck search")
     ap.add_argument("--pilot", type=Path, default=PILOT)
     ap.add_argument("--workers", type=int, default=14)
@@ -190,6 +193,21 @@ def main() -> None:  # noqa: PLR0915
         "--mutation", choices=("heuristic", "random"), default="heuristic",
         help="mutation operator: 'heuristic' (Step 3 role/package/energy-aware) or "
              "'random' (Step 1 uniform-swap baseline, for the A/B)",
+    )
+    ap.add_argument(
+        "--surrogate", action="store_true",
+        help="Step 2: pre-screen oversampled children with an online ridge "
+             "winrate surrogate; same real-battle budget, spent on the "
+             "most promising children (off = Step 3 baseline, for the A/B)",
+    )
+    ap.add_argument(
+        "--oversample", type=int, default=4,
+        help="children generated per real-eval slot when --surrogate is on",
+    )
+    ap.add_argument(
+        "--explore-frac", type=float, default=0.25,
+        help="fraction of each real-eval batch reserved for surrogate-blind "
+             "random children (calibration / anti-bias)",
     )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
@@ -227,27 +245,66 @@ def main() -> None:  # noqa: PLR0915
                 n += 1
         return n, n_sensible
 
+    sur = RidgeSurrogate(DeckFeaturizer(pool, feats.vector)) if args.surrogate else None
+
+    def screen(cands: list[list[int]]) -> tuple[list[list[int]], list[float] | None]:
+        """Surrogate pre-screen: pick the real-eval batch from the oversampled pool.
+
+        Selection score matches admit's primary (predicted winrate minus the exact,
+        deck-derived colour penalty). Returns the chosen children and their raw
+        winrate predictions (for calibration logging), or all/None pre-warm-up.
+        """
+        if sur is None or not sur.ready:
+            return cands[: args.batch], None
+        raw = sur.predict(cands)
+        adj = raw - args.colour_penalty * np.array(
+            [colour_count(d, pool) for d in cands])
+        idx = select_children(adj, args.batch, args.explore_frac, rng)
+        return [cands[i] for i in idx], [float(raw[i]) for i in idx]
+
+    def learn(decks: list[list[int]], results: list[dict],
+              preds: list[float] | None) -> dict:
+        """Feed real evals back into the surrogate; return calibration stats."""
+        if sur is None:
+            return {}
+        for d, r in zip(decks, results, strict=True):
+            sur.add(d, r["mean"])
+        sur.fit()
+        if preds is None:
+            return {}
+        p, m = np.array(preds), np.array([r["mean"] for r in results])
+        cal = {"cal_mae": round(float(np.abs(p - m).mean()), 3)}
+        if p.std() > 0 and m.std() > 0:
+            cal["cal_r"] = round(float(np.corrcoef(p, m)[0, 1]), 3)
+        return cal
+
     config = {k: str(v) for k, v in vars(args).items()}
     history = []
     with Pool(args.workers, initializer=_init,
               initargs=(str(args.pilot), gauntlet, pilots)) as pp:
         seed_gen = iter(range(10_000, 10_000_000, 1000))
-        admit(seeds, _evaluate(pp, seeds, args.n_games, next(seed_gen)))
+        seed_fits = _evaluate(pp, seeds, args.n_games, next(seed_gen))
+        admit(seeds, seed_fits)
+        learn(seeds, seed_fits, None)  # seed evals warm the surrogate up
         print(f"init: coverage={arc.coverage} best={arc.best().fitness:.3f}")
         for gen in range(1, args.generations + 1):
-            children = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
-                               strategy=args.mutation)
-                        for _ in range(args.batch)]
+            n_cand = args.batch * (args.oversample if sur is not None else 1)
+            cands = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
+                            strategy=args.mutation)
+                     for _ in range(n_cand)]
+            children, preds = screen(cands)
             fits = _evaluate(pp, children, args.n_games, next(seed_gen))
             n_adm, n_sensible = admit(children, fits)
+            cal = learn(children, fits, preds)
             best = arc.best()
             history.append({"gen": gen, "coverage": arc.coverage,
                             "best": round(best.fitness, 3),
                             "mean": round(arc.mean_fitness(), 3), "admitted": n_adm,
-                            "sensible": n_sensible})
+                            "sensible": n_sensible, **cal})
+            cal_s = f" cal_r={cal['cal_r']}" if "cal_r" in cal else ""
             print(f"gen {gen:>3}: coverage={arc.coverage:>2} admitted={n_adm:>2} "
                   f"sensible={n_sensible:>2}/{args.batch} best={best.fitness:.3f} "
-                  f"mean={arc.mean_fitness():.3f}", flush=True)
+                  f"mean={arc.mean_fitness():.3f}{cal_s}", flush=True)
             _dump(args.out, str(args.pilot), history, arc, config)  # checkpoint/gen
 
     _dump(args.out, str(args.pilot), history, arc, config)
