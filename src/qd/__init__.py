@@ -24,10 +24,13 @@ from src.qd.deck_qd import (
     single_prize_ids,
     speed_bin,
 )
+from src.qd.surrogate import DeckFeaturizer, RidgeSurrogate, select_children
 
 __all__ = [
+    "DeckFeaturizer",
     "Elite",
     "MapElitesArchive",
+    "RidgeSurrogate",
     "behaviour_descriptor",
     "card_role",
     "colour_count",
@@ -38,6 +41,7 @@ __all__ = [
     "ramp_ids",
     "random_legal_deck",
     "random_legal_deck_biased",
+    "select_children",
     "setup_cost",
     "single_prize_ids",
     "speed_bin",
