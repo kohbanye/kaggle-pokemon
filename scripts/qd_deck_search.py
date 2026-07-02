@@ -109,11 +109,32 @@ def _fitness(task: dict) -> dict:
     return {"idx": task["idx"], "mean": mean, "var": var, "per_pilot": per_pilot}
 
 
-def _evaluate(pp: Pool, decks: list[list[int]], n_games: int, seed: int) -> list[dict]:
+EVAL_TIMEOUT = 900  # s per candidate; a generation's task takes ~1 min
+
+
+def _evaluate(
+    pp: Pool, decks: list[list[int]], n_games: int, seed: int,
+) -> list[dict | None]:
+    """Evaluate decks in parallel; a lost candidate comes back as ``None``.
+
+    The cg engine occasionally aborts the whole worker with an uncatchable C++
+    ``std::runtime_error`` ("invalid index 0 >= 0", seen once in ~150k games).
+    ``Pool.map`` would then wait forever for the dead worker's result, hanging the
+    run -- so submit per-candidate ``apply_async`` jobs and give each ``get`` a
+    generous timeout; a candidate whose worker died is skipped (never admitted)
+    instead of stalling everything. The pool respawns dead workers by itself.
+    """
     tasks = [{"idx": i, "deck": d, "n_games": n_games, "seed": seed + i * 100}
              for i, d in enumerate(decks)]
-    out: list[dict] = [{} for _ in decks]
-    for r in pp.map(_fitness, tasks):
+    async_rs = [pp.apply_async(_fitness, (t,)) for t in tasks]
+    out: list[dict | None] = [None] * len(decks)
+    for t, ar in zip(tasks, async_rs, strict=True):
+        try:
+            r = ar.get(timeout=EVAL_TIMEOUT)
+        except Exception as exc:  # noqa: BLE001 - worker death / timeout
+            print(f"eval lost candidate idx={t['idx']} "
+                  f"({type(exc).__name__}) -- skipped", flush=True)
+            continue
         out[r["idx"]] = r
     return out
 
@@ -263,6 +284,8 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         """
         n = n_sensible = 0
         for d, r in zip(decks, results, strict=True):
+            if r is None:  # candidate lost to a worker death -- never admitted
+                continue
             nc = colour_count(d, pool)
             mean, var = r["mean"], r["var"]
             f_pen = mean - args.colour_penalty * nc  # colour penalty on the primary
@@ -300,11 +323,16 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
         if sur is None:
             return {}
         for d, r in zip(decks, results, strict=True):
-            sur.add(d, r["mean"])
+            if r is not None:
+                sur.add(d, r["mean"])
         sur.fit()
         if preds is None:
             return {}
-        p, m = np.array(preds), np.array([r["mean"] for r in results])
+        kept = [(pr, r["mean"]) for pr, r in zip(preds, results, strict=True)
+                if r is not None]
+        if not kept:
+            return {}
+        p, m = np.array([k[0] for k in kept]), np.array([k[1] for k in kept])
         cal = {"cal_mae": round(float(np.abs(p - m).mean()), 3)}
         if p.std() > 0 and m.std() > 0:
             cal["cal_r"] = round(float(np.corrcoef(p, m)[0, 1]), 3)
