@@ -43,6 +43,12 @@ SUBJECTS: list[tuple[str, str, str]] = [
     ("net_run7|run7_best", "run7_best", "net"),
     ("greedy|run7_best", "run7_best", "greedy"),
     ("net_run7|grass", "grass_aggro", "net"),
+    # QD-searched decks (Step 1/2/3/4 bests; see results/heldout_qd_step*.json for
+    # earlier runs). Use --subjects to score only the new candidate.
+    ("greedy|qd_step1_best", "qd_step1_best", "greedy"),
+    ("greedy|qd2_sur", "qd2_sur", "greedy"),
+    ("greedy|qd3_rand", "qd3_rand", "greedy"),
+    ("greedy|qd4_coevo", "qd4_coevo", "greedy"),
 ]
 # Opponent pilots (held-out configs: heuristic & go-first never appear in QD/NashConv).
 OPP_PILOTS = ("greedy", "heuristic", "greedyFF")
@@ -68,14 +74,21 @@ class _ForcedFirst:
         return self.inner(obs)
 
 
+def _deck_path(nm: str) -> Path:
+    """Resolve a deck name: ``decklists/`` first, then ``decklists/candidates/``
+    (QD-searched decks live there so the QD gauntlet's ``decklists/*.csv`` glob
+    doesn't pick them up)."""
+    p = ROOT / "decklists" / f"{nm}.csv"
+    return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
+
+
 def _init(heldout_names: list[str], subject_names: list[str]) -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["net"] = RecurrentPolicyValueNet.load(str(ROOT / NET))
-    _G["decks"] = {nm: read_deck(ROOT / "decklists" / f"{nm}.csv")
-                   for nm in subject_names}
+    _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in subject_names}
     _G["decks"].update({nm: read_deck(ROOT / "decklists" / "heldout" / f"{nm}.csv")
                         for nm in heldout_names})
 
@@ -112,21 +125,33 @@ def main() -> None:
     ap.add_argument("--games", type=int, default=30)
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--out", type=Path, default=ROOT / "results/heldout.json")
+    ap.add_argument(
+        "--subjects", type=str, default="",
+        help="comma list of SUBJECTS labels to run (default: all) -- results are "
+             "comparable across runs because the held-out pool is fixed",
+    )
     args = ap.parse_args()
+    subjects = SUBJECTS
+    if args.subjects:
+        want = {s.strip() for s in args.subjects.split(",") if s.strip()}
+        unknown = want - {label for label, _, _ in SUBJECTS}
+        if unknown:
+            raise SystemExit(f"unknown subject labels: {sorted(unknown)}")
+        subjects = [s for s in SUBJECTS if s[0] in want]
 
     heldout = sorted(p.stem for p in (ROOT / "decklists" / "heldout").glob("*.csv"))
-    subject_names = sorted({deck for _, deck, _ in SUBJECTS})
+    subject_names = sorted({deck for _, deck, _ in subjects})
 
     tasks = [
         {"label": label, "deck": deck, "pilot": pilot, "opp": opp,
          "opp_pilot": op, "subj_first": k % 2 == 0,
          "seed": (si * 911 + oi) * 1000 + pi * 137 + k}
-        for si, (label, deck, pilot) in enumerate(SUBJECTS)
+        for si, (label, deck, pilot) in enumerate(subjects)
         for pi, op in enumerate(OPP_PILOTS)
         for oi, opp in enumerate(heldout)
         for k in range(args.games)
     ]
-    print(f"subjects={len(SUBJECTS)} heldout={len(heldout)} "
+    print(f"subjects={len(subjects)} heldout={len(heldout)} "
           f"opp_pilots={len(OPP_PILOTS)} total={len(tasks)}")
 
     with Pool(args.workers, initializer=_init,

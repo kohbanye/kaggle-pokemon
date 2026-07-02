@@ -58,6 +58,12 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     "greedy|fire":        ("greedy", "fire_aggro", None, False),    # type variety
     "greedy|psychic":     ("greedy", "psychic_aggro", None, False),
     "greedyFF|metal":     ("greedy", "metal_aggro", None, True),    # go-2nd exploiter
+    # QD-searched decks (Step 1/2/3/4 bests; qd2_sur = the 574.8 ladder submission).
+    # These are the population's strongest exploiters -- keep them in.
+    "greedy|qd_step1_best": ("greedy", "qd_step1_best", None, False),
+    "greedy|qd3_rand":    ("greedy", "qd3_rand", None, False),
+    "greedy|qd2_sur":     ("greedy", "qd2_sur", None, False),
+    "greedy|qd4_coevo":   ("greedy", "qd4_coevo", None, False),     # Step 4 candidate
 }
 
 _G: dict = {}
@@ -81,13 +87,21 @@ class _ForcedFirst:
         return self.inner(obs)
 
 
+def _deck_path(nm: str) -> Path:
+    """Resolve a deck name: ``decklists/`` first, then ``decklists/candidates/``
+    (QD-searched decks live there so the QD gauntlet's ``decklists/*.csv`` glob
+    doesn't pick them up)."""
+    p = ROOT / "decklists" / f"{nm}.csv"
+    return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
+
+
 def _init(net_paths: dict[str, str], deck_names: list[str]) -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["nets"] = {p: RecurrentPolicyValueNet.load(p) for p in set(net_paths.values())}
-    _G["decks"] = {nm: read_deck(ROOT / "decklists" / f"{nm}.csv") for nm in deck_names}
+    _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in deck_names}
 
 
 def _agent(label: str) -> object:
