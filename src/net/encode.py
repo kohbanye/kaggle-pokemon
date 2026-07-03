@@ -350,3 +350,17 @@ def option_embed_rows(
         ],
         dtype=np.intp,
     )
+
+
+def deck_context(deck: list[int], feats: CardFeatures) -> NDArray[np.float64]:
+    """Fixed deck-context vector: the mean card-feature vector over the 60 cards.
+
+    The play net's observation only carries ``deckCount`` (a scalar), so without
+    this the net cannot know at turn 1 whether it is piloting an aggro pile or a
+    Stage-2 engine. Computed once per game (the deck is fully known to its owner)
+    and fed to the deck-conditioned play LSTM (``RecurrentNetConfig.deck_ctx_dim``).
+    Same encoder at training (trajectory_data) and serving (recurrent_agent).
+    """
+    if not deck:
+        return feats.vector(None)
+    return np.mean([feats.vector(cid) for cid in deck], axis=0)

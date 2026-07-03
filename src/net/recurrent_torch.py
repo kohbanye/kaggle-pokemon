@@ -37,9 +37,16 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         # (w_ih (4ph,hidden), w_hh (4ph,ph), biases (4ph)) and gate order (i,f,g,o), so
         # the numpy serving net -- which still steps one decision at a time -- stays
         # bit-parity (see tests/test_recurrent_parity.py).
-        self.play_lstm = nn.LSTM(cfg.hidden, ph, batch_first=True)
+        self.play_lstm = nn.LSTM(cfg.hidden + cfg.deck_ctx_dim, ph, batch_first=True)
         # Factored deck category head ({pokemon, trainer, energy}) off the deck LSTM.
         self.cat_head = nn.Linear(cfg.lstm_hidden, N_CATEGORIES)
+        # Deck-conditioning projection (numpy layout: (deck_feat_dim, deck_ctx_dim),
+        # used as ``vec @ w`` on both sides so the bridge is a straight copy).
+        if cfg.deck_ctx_dim > 0:
+            self.deck_ctx_w = nn.Parameter(
+                torch.randn(cfg.deck_feat_dim, cfg.deck_ctx_dim)
+                * (2.0 / cfg.deck_feat_dim) ** 0.5,
+            )
 
     # --- heads off the play-LSTM hidden -------------------------------------
 
@@ -75,20 +82,27 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         joint = torch.cat([h_rep, options, opt_emb], dim=-1)
         return self.policy2(torch.relu(self.policy1(joint))).squeeze(-1)
 
-    def play_sequence(
+    def deck_ctx(self, deck_vec: torch.Tensor) -> torch.Tensor:
+        """Project deck-context vectors: ``(B, deck_feat_dim) -> (B, deck_ctx_dim)``."""
+        return torch.tanh(deck_vec @ self.deck_ctx_w)
+
+    def play_sequence(  # noqa: PLR0913 - trajectory batch + optional conditioning
         self,
         states: torch.Tensor,
         state_rows: torch.Tensor,
         state_mask: torch.Tensor,
         options: torch.Tensor,
         option_rows: torch.Tensor,
+        deck_ctx: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run the play LSTM over a battle trajectory batch.
 
         Shapes: ``states (B,T,state_dim)``, ``state_rows/mask (B,T,S,SLOT_MAX)``,
-        ``options (B,T,K,option_dim)``, ``option_rows (B,T,K)``. Returns
-        ``(logits (B,T,K), values (B,T))`` -- the per-step policy logits and value.
-        Padded steps are computed too; the loss masks them out by ``valid``.
+        ``options (B,T,K,option_dim)``, ``option_rows (B,T,K)``, ``deck_ctx``
+        (optional, ``(B, deck_ctx_dim)`` from :meth:`deck_ctx` -- constant over T,
+        concatenated to every LSTM input). Returns ``(logits (B,T,K), values
+        (B,T))`` -- the per-step policy logits and value. Padded steps are
+        computed too; the loss masks them out by ``valid``.
 
         The per-step trunk and heads are **batched over (B,T) at once** (they are
         feed-forward, not recurrent) and only the LSTM recurrence runs over time, as a
@@ -105,6 +119,10 @@ class TorchRecurrentNet(TorchPolicyValueNet):
             state_mask.reshape(flat, *rest),
         )
         e = self.trunk(aug).reshape(bsz, t_len, -1)  # (B, T, hidden)
+        if deck_ctx is not None:
+            e = torch.cat(
+                [e, deck_ctx.unsqueeze(1).expand(-1, t_len, -1)], dim=-1,
+            )
         out, _ = self.play_lstm(e)  # (B, T, ph); zero (h0, c0)
         values = self.value_from_h(out)  # (B, T)
         logits = self.policy_logits_seq(out, options, option_rows)  # (B, T, K)
@@ -118,13 +136,16 @@ class TorchRecurrentNet(TorchPolicyValueNet):
 
     def _matrix_keys(self) -> list[tuple[nn.Parameter, str]]:
         """Base raw tensors plus the play-LSTM's four (torch-native layout)."""
-        return [
+        keys = [
             *super()._matrix_keys(),
             (self.play_lstm.weight_ih_l0, "play_lstm_w_ih"),
             (self.play_lstm.weight_hh_l0, "play_lstm_w_hh"),
             (self.play_lstm.bias_ih_l0, "play_lstm_b_ih"),
             (self.play_lstm.bias_hh_l0, "play_lstm_b_hh"),
         ]
+        if self.config.deck_ctx_dim > 0:
+            keys.append((self.deck_ctx_w, "deck_ctx_w"))
+        return keys
 
     def to_numpy_net(self) -> RecurrentPolicyValueNet:
         """A numpy :class:`RecurrentPolicyValueNet` with this net's weights."""

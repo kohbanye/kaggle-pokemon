@@ -90,6 +90,9 @@ class Config:
     # QD mode: decks come from this archive (a JSON deck list) and the deck (CB) head
     # is NOT trained -- only the play head learns to pilot the diverse archive decks.
     deck_pool: Path | None = None
+    # >0 enables deck-conditioned play (migrating a pre-conditioning checkpoint
+    # zero-padded = behaviour-preserving; see RecurrentPolicyValueNet.enable_deck_ctx)
+    deck_ctx_dim: int = 0
     train_deck: bool = True
     # Async actor-learner: collect+encode iteration n+1 on a background thread while
     # the learner updates on iteration n. The actor's weights then lag the learner by
@@ -332,6 +335,8 @@ def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/cons
         if cfg.workers > 1 else None
     )
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
+    if cfg.deck_ctx_dim > 0:
+        net_np = net_np.enable_deck_ctx(rng, cfg.deck_ctx_dim)
     learner = _Learner(cfg, net_np, card_feats)  # torch net + Adam, resident on GPU
     queue: deque = deque(maxlen=cfg.queue_episodes)
     actor = ThreadPoolExecutor(max_workers=1) if cfg.pipeline else None
@@ -431,6 +436,11 @@ def main() -> None:
              "(actor lags one step; V-Trace corrects). Faster; opt-in until validated",
     )
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
+    parser.add_argument(
+        "--deck-ctx-dim", type=int, default=0,
+        help="enable deck-conditioned play with this context width (0 = off); "
+             "a checkpoint without conditioning is migrated behaviour-preserving",
+    )
     args = parser.parse_args()
 
     cfg = Config(
@@ -440,6 +450,7 @@ def main() -> None:
         workers=args.workers, native=args.native, eval_every=args.eval_every,
         eval_games=args.eval_games, seed=args.seed, self_play_prob=args.self_play_prob,
         deck_pool=args.deck_pool, pipeline=args.pipeline,
+        deck_ctx_dim=args.deck_ctx_dim,
         train_deck=not (args.no_deck_arm or args.deck_pool is not None),
     )
     if args.smoke:

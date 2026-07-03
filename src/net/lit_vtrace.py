@@ -113,9 +113,12 @@ class LitVtracePPO(L.LightningModule):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Return ``(loss, battle_start_value)``; the value feeds the deck baseline."""
         valid = batch["valid"]
+        ctx = None
+        if self.net.config.deck_ctx_dim > 0 and "deck_vec" in batch:
+            ctx = self.net.deck_ctx(batch["deck_vec"])
         logits, values = self.net.play_sequence(
             batch["states"], batch["state_rows"], batch["state_mask"],
-            batch["options"], batch["option_rows"],
+            batch["options"], batch["option_rows"], deck_ctx=ctx,
         )
         logits = logits.masked_fill(~batch["option_mask"], _NEG_INF)
         logp = F.log_softmax(logits, dim=-1)

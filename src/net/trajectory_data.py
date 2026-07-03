@@ -30,6 +30,7 @@ from src.deck import legal_next_ids
 from src.net.deck_factored import N_CATEGORIES, category_of_rows
 from src.net.encode import (
     OPTION_DIM,
+    deck_context,
     encode_options,
     encode_state,
     option_embed_rows,
@@ -78,6 +79,7 @@ class Episode:
     deck_card_legal: NDArray[np.bool_]  # (Td, N_pool) legal rows in the picked category
     deck_logp: NDArray[np.float64]  # (Td,) factored behaviour log-prob
     ret: float
+    deck_vec: NDArray[np.float64] | None = None  # deck-context (conditioning input)
 
 
 # --- building episodes from the raw collector logs --------------------------
@@ -220,6 +222,7 @@ def build_episodes(
             episodes.append(Episode(
                 steps, arr.rows, arr.cats, arr.cat_legal, arr.card_legal,
                 arr.logps, _outcome(winner, slot),
+                deck_vec=deck_context(deck, feats),
             ))
     return episodes
 
@@ -268,12 +271,17 @@ def _collate_battle(episodes: list[Episode]) -> dict[str, torch.Tensor]:
         # ``valid`` already excludes them from every loss term.
         option_mask[i, len(ep.battle) :, 0] = True
         rewards[i, len(ep.battle) - 1] = ep.ret  # terminal reward on the last step
-    return {
+    out = {
         "states": states, "state_rows": state_rows, "state_mask": state_mask,
         "options": options, "option_mask": option_mask, "option_rows": option_rows,
         "actions": actions, "behaviour_logp": behaviour_logp, "rewards": rewards,
         "valid": valid, "bootstrap": torch.zeros(bsz),
     }
+    if all(ep.deck_vec is not None for ep in episodes):
+        out["deck_vec"] = torch.stack(
+            [torch.from_numpy(ep.deck_vec).float() for ep in episodes],
+        )
+    return out
 
 
 def _collate_deck(episodes: list[Episode]) -> dict[str, torch.Tensor]:
