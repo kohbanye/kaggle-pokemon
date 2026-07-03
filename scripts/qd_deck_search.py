@@ -191,7 +191,7 @@ def _build_seeds(  # noqa: PLR0913 - distinct seed inputs, not a bundle
     return seeds
 
 
-def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation arms
+def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
     ap = argparse.ArgumentParser(description="MAP-Elites deck search")
     ap.add_argument("--pilot", type=Path, default=PILOT)
     ap.add_argument("--workers", type=int, default=14)
@@ -265,6 +265,13 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
              "bounds the stall when a cg engine abort kills a worker "
              "(the run continues, the candidate is dropped)",
     )
+    ap.add_argument(
+        "--seed-archive", type=Path, default=None,
+        help="warm-start from a previous run's checkpoint JSON: its cell decks "
+             "join the seeds (re-scored vs this run's gauntlet) and its "
+             "hall-of-fame replaces the meta-deck HoF seeding -- the QD<->RL "
+             "outer loop uses this so improvement compounds across RL updates",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -282,6 +289,10 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
     arc = MapElitesArchive()
 
     seeds = _build_seeds(pool, pilot_net, feats, gauntlet, args.init, rng)
+    prev = (json.loads(args.seed_archive.read_text())
+            if args.seed_archive else None)
+    if prev is not None:
+        seeds = [c["deck"] for c in prev.get("cells", [])] + seeds
 
     def admit(decks: list[list[int]], results: list[dict]) -> tuple[int, int]:
         """Insert candidates; return (admitted, sensible). "sensible" = legal AND
@@ -346,8 +357,12 @@ def main() -> None:  # noqa: PLR0915, C901 - CLI driver accumulating ablation ar
     config = {k: str(v) for k, v in vars(args).items()}
     history: list[dict] = []
     hof = HallOfFame(args.hof_size)
-    for p, d in zip(meta_paths, gauntlet, strict=True):
-        hof.add(d, p.stem)
+    if prev is not None and prev.get("hof"):
+        for h in prev["hof"][-args.hof_size:]:  # carry the anti-cycling memory
+            hof.add(h["deck"], h["tag"])
+    else:
+        for p, d in zip(meta_paths, gauntlet, strict=True):
+            hof.add(d, p.stem)
     seed_gen = iter(range(10_000, 10_000_000, 1000))
     gen_no = 0
     rounds_log: list[dict] = []
