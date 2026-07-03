@@ -43,6 +43,7 @@ CTX_IS_FIRST = 41  # SelectContext.IS_FIRST
 INIT = "data/paperosfp/main/paper_final.npz"
 RUN3 = "data/qdcoevo/run3/round_6/rl/paper_final.npz"
 RUN7 = "data/qdcoevo/run7/round_6/rl/paper_final.npz"
+QD5 = "data/qdrl_run1/round_5/rl/paper_final.npz"
 
 # label -> (kind, deck, ckpt|None, force_first).  Covers play-on-metal robustness,
 # real submission units, and exploiter probes (forced-go-first, type variety).
@@ -65,6 +66,9 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     "greedy|qd2_sur":     ("greedy", "qd2_sur", None, False),
     "greedy|qd4_coevo":   ("greedy", "qd4_coevo", None, False),     # Step 4 candidate
     "greedy|qd4_prod":    ("greedy", "qd4_prod", None, False),      # Step 4 production
+    # Step 5 QD<->RL: the co-trained (net, deck) unit and the deck under greedy.
+    "greedy|qd5_rl":      ("greedy", "qd5_rl", None, False),
+    "qd5net|qd5_rl":      ("net", "qd5_rl", QD5, False),
 }
 
 _G: dict = {}

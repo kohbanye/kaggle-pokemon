@@ -50,6 +50,8 @@ SUBJECTS: list[tuple[str, str, str]] = [
     ("greedy|qd3_rand", "qd3_rand", "greedy"),
     ("greedy|qd4_coevo", "qd4_coevo", "greedy"),
     ("greedy|qd4_prod", "qd4_prod", "greedy"),
+    ("greedy|qd5_rl", "qd5_rl", "greedy"),
+    ("net|qd5_rl", "qd5_rl", "net"),  # "net" resolves to --net (default: run7)
 ]
 # Opponent pilots (held-out configs: heuristic & go-first never appear in QD/NashConv).
 OPP_PILOTS = ("greedy", "heuristic", "greedyFF")
@@ -83,12 +85,13 @@ def _deck_path(nm: str) -> Path:
     return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
 
 
-def _init(heldout_names: list[str], subject_names: list[str]) -> None:
+def _init(heldout_names: list[str], subject_names: list[str],
+          net_path: str | None = None) -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
-    _G["net"] = RecurrentPolicyValueNet.load(str(ROOT / NET))
+    _G["net"] = RecurrentPolicyValueNet.load(net_path or str(ROOT / NET))
     _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in subject_names}
     _G["decks"].update({nm: read_deck(ROOT / "decklists" / "heldout" / f"{nm}.csv")
                         for nm in heldout_names})
@@ -127,6 +130,10 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--out", type=Path, default=ROOT / "results/heldout.json")
     ap.add_argument(
+        "--net", type=Path, default=ROOT / NET,
+        help="checkpoint used by 'net'-piloted SUBJECTS (default: the run7 net)",
+    )
+    ap.add_argument(
         "--subjects", type=str, default="",
         help="comma list of SUBJECTS labels to run (default: all) -- results are "
              "comparable across runs because the held-out pool is fixed",
@@ -156,7 +163,7 @@ def main() -> None:
           f"opp_pilots={len(OPP_PILOTS)} total={len(tasks)}")
 
     with Pool(args.workers, initializer=_init,
-              initargs=(heldout, subject_names)) as pp:
+              initargs=(heldout, subject_names, str(args.net))) as pp:
         rows = pp.map(_play, tasks)
 
     by: dict[str, list[dict]] = {}                  # subject -> rows
