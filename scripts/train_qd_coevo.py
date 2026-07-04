@@ -64,6 +64,10 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
                     help="deck-conditioned play width for the RL half (0 = off); "
                          "the first round migrates the checkpoint zero-padded")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed-archive", type=Path, default=None,
+                    help="warm-start outer round 1's QD from this archive JSON "
+                         "(e.g. a previous run's final round) -- improvement "
+                         "compounds across runs, not just across rounds")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny sizes end-to-end (wiring check, ~minutes)")
     args = ap.parse_args()
@@ -74,7 +78,7 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
     py = sys.executable
 
     net = args.init_weights
-    prev_archive: Path | None = None
+    prev_archive: Path | None = args.seed_archive
     for r in range(1, args.outer_rounds + 1):
         rd = args.out / f"round_{r}"
         rd.mkdir(parents=True, exist_ok=True)
