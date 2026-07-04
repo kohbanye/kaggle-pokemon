@@ -59,20 +59,28 @@ class HallOfFame:
         return [self.entries[int(i)] for i in idx]
 
 
-def build_gauntlet(
+def build_gauntlet(  # noqa: PLR0913 - distinct opponent sources, not a bundle
     arc: MapElitesArchive,
     hof: HallOfFame,
     size: int,
     top_k: int,
     rng: np.random.Generator,
+    anchors: list[HofEntry] | None = None,
 ) -> tuple[list[list[int]], list[str]]:
-    """Next round's opponents: top-k archive elites + a hall-of-fame sample.
+    """Next round's opponents: permanent anchors + top-k elites + a HoF sample.
 
-    Elites come first (one per niche, best ``key`` first) so the freshest, most
+    ``anchors`` are **permanent external opponents** (real-meta / externally
+    validated decks) that occupy their slots every round and can never be
+    evicted. Without them the meta-game unmoors: the HoF fills with the
+    coevolution's own round-bests (FIFO evicts the meta seeding), the gauntlet
+    turns fully self-referential, and the archive optimises into a mutual-
+    exploitation bubble that loses to ordinary external decks (qdrl_run2
+    post-mortem: held-out 0.147 after 8 grounding-free outer rounds).
+
+    Elites follow (one per niche, best ``key`` first) so the freshest, most
     diverse exploiters always face the candidates; the remaining slots are drawn
-    from the hall of fame. Duplicate decklists are skipped (a round's best elite is
-    usually also the newest HoF entry) so the gauntlet never wastes evaluation
-    games on the same opponent twice.
+    from the hall of fame. Duplicate decklists are skipped so the gauntlet never
+    wastes evaluation games on the same opponent twice.
     """
     decks: list[list[int]] = []
     tags: list[str] = []
@@ -85,6 +93,8 @@ def build_gauntlet(
             decks.append(list(deck))
             tags.append(tag)
 
+    for entry in anchors or []:
+        push(entry.deck, f"anchor:{entry.tag}")
     for e in arc.elites()[:top_k]:
         push(e.deck, f"elite:{e.descriptor}")
     # oversample the HoF request: duplicates of the elites (or of each other) are

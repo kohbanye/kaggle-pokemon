@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.qd import HallOfFame, MapElitesArchive, build_gauntlet
+from src.qd import HallOfFame, HofEntry, MapElitesArchive, build_gauntlet
 
 RNG = np.random.default_rng(0)
 
@@ -77,3 +77,17 @@ def test_build_gauntlet_respects_size_cap() -> None:
         hof.add(_deck(i), f"m{i}")
     decks, _tags = build_gauntlet(arc, hof, size=6, top_k=3, rng=RNG)
     assert len(decks) == 6
+
+
+def test_build_gauntlet_anchors_always_first_and_kept() -> None:
+    arc = _archive({i: i / 10 for i in range(1, 6)})
+    hof = HallOfFame(16)
+    for i in range(20, 30):
+        hof.add(_deck(i), f"m{i}")
+    anchors = [HofEntry(_deck(90), "metal"), HofEntry(_deck(91), "qd4_prod")]
+    for _ in range(10):  # anchors survive every rebuild, always up front
+        decks, tags = build_gauntlet(arc, hof, size=6, top_k=2, rng=RNG,
+                                     anchors=anchors)
+        assert tags[0] == "anchor:metal"
+        assert tags[1] == "anchor:qd4_prod"
+        assert len(decks) == 6

@@ -41,6 +41,7 @@ from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: E402
 from src.qd import (  # noqa: E402
     DeckFeaturizer,
     HallOfFame,
+    HofEntry,
     MapElitesArchive,
     RidgeSurrogate,
     behaviour_descriptor,
@@ -274,6 +275,13 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
              "outer loop uses this so improvement compounds across RL updates",
     )
     ap.add_argument(
+        "--anchors", type=str, default="",
+        help="comma list of deck CSVs kept as PERMANENT gauntlet opponents in "
+             "every coevolution round (external grounding; without them the "
+             "meta-game drifts into a self-referential bubble -- see "
+             "src/qd/coevo.build_gauntlet)",
+    )
+    ap.add_argument(
         "--crossover-prob", type=float, default=0.0,
         help="probability a child is a package CROSSOVER of two archive parents "
              "(evolution lines / role buckets recombined whole, then a light "
@@ -307,6 +315,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
     gauntlet = [read_deck(p) for p in meta_paths]
     arc = MapElitesArchive()
 
+    anchors = [HofEntry(read_deck(Path(a.strip())), Path(a.strip()).stem)
+               for a in args.anchors.split(",") if a.strip()]
     seeds = _build_seeds(pool, pilot_net, feats, gauntlet, args.init, rng)
     prev = (json.loads(args.seed_archive.read_text())
             if args.seed_archive else None)
@@ -390,7 +400,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
             opp, opp_tags = gauntlet, [p.stem for p in meta_paths]
         else:
             opp, opp_tags = build_gauntlet(arc, hof, len(gauntlet),
-                                           args.coevo_top_k, rng)
+                                           args.coevo_top_k, rng, anchors=anchors)
         rounds_log.append({"round": rnd, "gauntlet": opp_tags})
         if args.rounds > 1:
             print(f"round {rnd}: gauntlet = {', '.join(opp_tags)}", flush=True)
