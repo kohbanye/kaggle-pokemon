@@ -46,6 +46,7 @@ from src.qd import (  # noqa: E402
     behaviour_descriptor,
     build_gauntlet,
     colour_count,
+    crossover,
     deck_stats,
     mutate,
     ramp_ids,
@@ -272,6 +273,24 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
              "hall-of-fame replaces the meta-deck HoF seeding -- the QD<->RL "
              "outer loop uses this so improvement compounds across RL updates",
     )
+    ap.add_argument(
+        "--crossover-prob", type=float, default=0.0,
+        help="probability a child is a package CROSSOVER of two archive parents "
+             "(evolution lines / role buckets recombined whole, then a light "
+             "mutation polish) instead of a mutation of one parent (0 = off)",
+    )
+    ap.add_argument(
+        "--race-top", type=int, default=0,
+        help="racing / adaptive sampling: evaluate the whole batch at --n-games "
+             "(cheap pass), then re-evaluate only the top K candidates at "
+             "n-games * --race-factor and admit on that high-precision estimate "
+             "(0 = off; late-stage true improvements of 1-2pp are invisible at "
+             "the base sample size)",
+    )
+    ap.add_argument(
+        "--race-factor", type=int, default=4,
+        help="fine-pass sample multiplier for --race-top finalists",
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
@@ -396,16 +415,47 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
                 learn(carried, refits, None)
                 print(f"round {rnd} re-score: coverage={arc.coverage} "
                       f"best={arc.best().fitness:.3f}", flush=True)
+            def make_candidate() -> list[int]:
+                """One child: package crossover of two parents, or a mutation."""
+                if (args.crossover_prob > 0 and arc.coverage >= 2  # noqa: B023
+                        and rng.random() < args.crossover_prob):
+                    child = crossover(arc.sample(rng).deck,  # noqa: B023
+                                      arc.sample(rng).deck, pool, rng)  # noqa: B023
+                    return mutate(child, pool, rng, 1, strategy=args.mutation)
+                return mutate(arc.sample(rng).deck, pool, rng,  # noqa: B023
+                              args.n_swaps, strategy=args.mutation)
+
             for _ in range(args.generations):
                 gen_no += 1
                 n_cand = args.batch * (args.oversample if sur is not None else 1)
-                cands = [mutate(arc.sample(rng).deck, pool, rng, args.n_swaps,
-                                strategy=args.mutation)
-                         for _ in range(n_cand)]
+                cands = [make_candidate() for _ in range(n_cand)]
                 children, preds = screen(cands)
                 fits = _evaluate(pp, children, args.n_games, next(seed_gen),
                                  args.eval_timeout)
-                n_adm, n_sensible = admit(children, fits)
+                if args.race_top > 0:
+                    # Racing: admission runs on a high-precision re-evaluation of
+                    # the cheap pass's finalists only (noise floor drops 2x at
+                    # factor 4 exactly where admit decisions happen).
+                    scored = sorted(
+                        ((i, r) for i, r in enumerate(fits) if r is not None),
+                        key=lambda ir: ir[1]["mean"] - args.colour_penalty
+                        * colour_count(children[ir[0]], pool),
+                        reverse=True,
+                    )
+                    finalists = [i for i, _ in scored[: args.race_top]]
+                    fine = _evaluate(
+                        pp, [children[i] for i in finalists],
+                        args.n_games * args.race_factor, next(seed_gen),
+                        args.eval_timeout * args.race_factor,
+                    )
+                    n_adm, _ = admit([children[i] for i in finalists], fine)
+                    learn([children[i] for i in finalists], fine, None)
+                    n_sensible = sum(  # sensible rate stays batch-wide
+                        1 for d, r in zip(children, fits, strict=True)
+                        if r is not None and r["mean"]
+                        - args.colour_penalty * colour_count(d, pool) >= 0)
+                else:
+                    n_adm, n_sensible = admit(children, fits)
                 cal = learn(children, fits, preds)
                 best = arc.best()
                 history.append({"gen": gen_no, "round": rnd,

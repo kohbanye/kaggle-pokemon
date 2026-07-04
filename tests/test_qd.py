@@ -20,6 +20,7 @@ from src.qd.deck_qd import (
     _evo_line_edit,
     _package_swap,
     colour_count,
+    crossover,
     energy_bin,
     energy_count,
     evo_bin,
@@ -426,3 +427,34 @@ def test_energy_block_adjust_trends_toward_range() -> None:
     assert energy_count(_energy_block_adjust(under, pool, rng), pool) >= energy_count(
         under, pool,
     )
+
+
+def test_crossover_legal_and_line_atomic() -> None:
+    pool = _evo_pool()
+    rng = np.random.default_rng(8)
+    # Parent A: the evolution line + energy; parent B: Solo aggro + items.
+    a = [1, 1, 2, 2, 3, 3] + [20] * 54
+    b = [4, 4, 4, 4] + [10, 10, 10, 10] + [20] * 52
+    for _ in range(40):
+        child = crossover(a, b, pool, rng)
+        assert len(child) == 60
+        assert legality_errors(child, pool) == []
+        c = Counter(child)
+        # Line atomicity: a Stage 2 never arrives without its whole chain.
+        if c[3]:
+            assert c[2]
+            assert c[1]
+
+
+def test_crossover_mixes_parent_packages() -> None:
+    pool = _evo_pool()
+    rng = np.random.default_rng(9)
+    a = [1, 1, 2, 2, 3, 3] + [20] * 54  # line, no items
+    b = [4, 4, 4, 4] + [10, 10, 10, 10] + [20] * 52  # items, no line
+    mixed = False
+    for _ in range(60):
+        c = Counter(crossover(a, b, pool, rng))
+        if c[3] and c[10]:  # A's Stage-2 line AND B's item package together
+            mixed = True
+            break
+    assert mixed, "crossover never combined packages from both parents"

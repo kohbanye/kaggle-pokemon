@@ -34,7 +34,7 @@ def _run(argv: list[str]) -> None:
     subprocess.run(argv, check=True)  # noqa: S603
 
 
-def main() -> None:
+def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
     ap = argparse.ArgumentParser(description="QD<->RL co-evolution (outer loop)")
     ap.add_argument("--init-weights", type=Path,
                     default=ROOT / "data/paperosfp/main/paper_final.npz")
@@ -53,8 +53,16 @@ def main() -> None:
     ap.add_argument("--hof-size", type=int, default=32)
     ap.add_argument("--eval-timeout", type=float, default=45.0)
     ap.add_argument("--colour-penalty", type=float, default=0.03)
+    ap.add_argument("--crossover-prob", type=float, default=0.0,
+                    help="QD package-crossover child probability (see qd_deck_search)")
+    ap.add_argument("--race-top", type=int, default=0,
+                    help="QD racing finalists per generation (0 = off)")
+    ap.add_argument("--race-factor", type=int, default=4)
     # RL half (forwarded to train_paper_osfp)
     ap.add_argument("--rl-iterations", type=int, default=300)
+    ap.add_argument("--deck-ctx-dim", type=int, default=0,
+                    help="deck-conditioned play width for the RL half (0 = off); "
+                         "the first round migrates the checkpoint zero-padded")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--smoke", action="store_true",
                     help="tiny sizes end-to-end (wiring check, ~minutes)")
@@ -83,6 +91,11 @@ def main() -> None:
               "--seed", str(args.seed + r), "--out", str(archive)]
         if args.surrogate:
             qd.append("--surrogate")
+        if args.crossover_prob > 0:
+            qd += ["--crossover-prob", str(args.crossover_prob)]
+        if args.race_top > 0:
+            qd += ["--race-top", str(args.race_top),
+                   "--race-factor", str(args.race_factor)]
         if args.smoke:
             qd += ["--batch", "8", "--n-games", "2"]
         if prev_archive is not None:
@@ -100,6 +113,8 @@ def main() -> None:
             rl.append("--native")
         if args.smoke:
             rl.append("--smoke")
+        if args.deck_ctx_dim > 0:
+            rl += ["--deck-ctx-dim", str(args.deck_ctx_dim)]
         _run(rl)
         net = rl_out / "paper_final.npz"
         print(f"== outer round {r} done: net={net} archive={archive} ==", flush=True)

@@ -76,6 +76,7 @@ _OP_NAMES = ("same_role", "package", "energy_block", "evo_line", "random")
 _OP_WEIGHTS = (0.35, 0.20, 0.15, 0.20, 0.10)  # free "random" = low explore floor
 _EVO_LINE_ADD_PROB = 0.6  # evo_line op: P(add a line) vs remove an existing one
 _EVO_LINE_COPIES = (2, 3)  # copies per line member when adding (2-2[-2] or 3-3[-3])
+_DONOR_A_PROB = 0.5  # crossover: unbiased per-gene parent choice
 
 
 def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
@@ -475,6 +476,90 @@ def mutate(
             break
         keep.append(legal[int(rng.integers(len(legal)))])
     return keep
+
+
+def _gene_key(info: CardInfo, root_of: dict[str, str]) -> tuple:
+    """Crossover gene of a card: its evolution-line root (Pokemon) or its role.
+
+    Pokemon belonging to the same evolution line share one gene, so recombination
+    moves LINES atomically (an orphan Stage 2 is dead weight); trainers/energy
+    recombine by deckbuilding role.
+    """
+    if info.supertype == "Pokemon":
+        return ("line", root_of.get(info.name, info.name))
+    return ("role", *card_role(info))
+
+
+def _line_roots(pool: CardPool) -> dict[str, str]:
+    """Map every Pokemon name to its evolution-line root (Basic) name."""
+    prev = {i.name: i.evolves_from for i in pool.cards.values()
+            if i.supertype == "Pokemon"}
+    roots: dict[str, str] = {}
+    for name in prev:
+        cur = name
+        seen = {cur}
+        while prev.get(cur) and prev[cur] in prev and prev[cur] not in seen:
+            cur = prev[cur]
+            seen.add(cur)
+        roots[name] = cur
+    return roots
+
+
+def crossover(
+    deck_a: list[int],
+    deck_b: list[int],
+    pool: CardPool,
+    rng: np.random.Generator,
+) -> list[int]:
+    """Uniform package crossover: child inherits whole genes from either parent.
+
+    A gene = one evolution line (all its stages together) or one trainer/energy
+    role bucket. Genes are shuffled and each is taken whole from a random parent
+    if it still fits (legality-checked per card; a gene that no longer fits is
+    skipped, never split). The child is topped up to 60 through
+    :func:`~src.deck.legal_next_ids` -- always legal, like every operator here.
+    This is the coordinated cross-archetype edit mutation cannot make: e.g. take
+    parent A's attacker line with parent B's trainer engine.
+    """
+    roots = _line_roots(pool)
+    buckets: dict[tuple, dict[str, list[int]]] = {}
+    for tag, deck in (("a", deck_a), ("b", deck_b)):
+        for cid in deck:
+            info = pool.cards.get(cid)
+            if info is None:
+                continue
+            buckets.setdefault(_gene_key(info, roots), {"a": [], "b": []})[
+                tag].append(cid)
+    child: list[int] = []
+    keys = list(buckets)
+    rng.shuffle(keys)  # type: ignore[arg-type]
+    for key in keys:
+        donor = buckets[key]["a" if rng.random() < _DONOR_A_PROB else "b"]
+        if donor and len(child) + len(donor) <= DECK_SIZE:
+            _graft_gene(child, donor, pool)
+    while len(child) < DECK_SIZE:  # coherent top-up: no orphan evolutions
+        legal = sorted(legal_next_ids(child, pool))
+        if not legal:
+            break
+        names = {pool.cards[c].name for c in child}
+        coherent = [c for c in legal
+                    if card_stage(pool.cards[c]) == 0
+                    or pool.cards[c].evolves_from in names]
+        cands = coherent or legal
+        child.append(cands[int(rng.integers(len(cands)))])
+    return child
+
+
+def _graft_gene(child: list[int], donor: list[int], pool: CardPool) -> None:
+    """Append a whole gene if every card fits; back it out whole on a cap clash."""
+    added: list[int] = []
+    for cid in donor:
+        if cid in legal_next_ids(child, pool):
+            child.append(cid)
+            added.append(cid)
+    if len(added) != len(donor):  # take genes whole or not at all (atomic lines)
+        for cid in added:
+            child.remove(cid)
 
 
 def primary_colour(deck: list[int], pool: CardPool) -> str:
