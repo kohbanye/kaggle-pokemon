@@ -60,6 +60,8 @@ SUBJECTS: list[tuple[str, str, str]] = [
     ("net|qd7_rl", "qd7_rl", "net"),
     ("greedy|qd7_r5", "qd7_r5", "greedy"),
     ("net|qd7_r5", "qd7_r5", "net"),
+    ("greedy|qd7_r3a", "qd7_r3a", "greedy"),
+    ("greedy|qd7_r4a", "qd7_r4a", "greedy"),
 ]
 # Opponent pilots (held-out configs: heuristic & go-first never appear in QD/NashConv).
 OPP_PILOTS = ("greedy", "heuristic", "greedyFF")
@@ -94,14 +96,14 @@ def _deck_path(nm: str) -> Path:
 
 
 def _init(heldout_names: list[str], subject_names: list[str],
-          net_path: str | None = None) -> None:
+          net_path: str | None = None, pool_dir: str = "heldout") -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["net"] = RecurrentPolicyValueNet.load(net_path or str(ROOT / NET))
     _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in subject_names}
-    _G["decks"].update({nm: read_deck(ROOT / "decklists" / "heldout" / f"{nm}.csv")
+    _G["decks"].update({nm: read_deck(ROOT / "decklists" / pool_dir / f"{nm}.csv")
                         for nm in heldout_names})
 
 
@@ -138,6 +140,11 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--out", type=Path, default=ROOT / "results/heldout.json")
     ap.add_argument(
+        "--pool", type=str, default="heldout",
+        help="held-out deck directory under decklists/ (heldout = synthetic v1; "
+             "heldout2 = real-ladder v2 from build_heldout_v2.py)",
+    )
+    ap.add_argument(
         "--net", type=Path, default=ROOT / NET,
         help="checkpoint used by 'net'-piloted SUBJECTS (default: the run7 net)",
     )
@@ -155,7 +162,8 @@ def main() -> None:
             raise SystemExit(f"unknown subject labels: {sorted(unknown)}")
         subjects = [s for s in SUBJECTS if s[0] in want]
 
-    heldout = sorted(p.stem for p in (ROOT / "decklists" / "heldout").glob("*.csv"))
+    heldout = sorted(p.stem
+                     for p in (ROOT / "decklists" / args.pool).glob("*.csv"))
     subject_names = sorted({deck for _, deck, _ in subjects})
 
     tasks = [
@@ -171,7 +179,8 @@ def main() -> None:
           f"opp_pilots={len(OPP_PILOTS)} total={len(tasks)}")
 
     with Pool(args.workers, initializer=_init,
-              initargs=(heldout, subject_names, str(args.net))) as pp:
+              initargs=(heldout, subject_names, str(args.net),
+                        args.pool)) as pp:
         rows = pp.map(_play, tasks)
 
     by: dict[str, list[dict]] = {}                  # subject -> rows

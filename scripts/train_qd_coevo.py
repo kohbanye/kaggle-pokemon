@@ -53,11 +53,11 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
     ap.add_argument("--hof-size", type=int, default=32)
     ap.add_argument("--eval-timeout", type=float, default=45.0)
     ap.add_argument("--colour-penalty", type=float, default=0.03)
-    ap.add_argument("--anchors", type=str,
-                    default="decklists/metal_aggro.csv,"
-                            "decklists/qd_step1_best.csv,"
-                            "decklists/candidates/qd4_prod.csv",
-                    help="permanent gauntlet anchors (external grounding)")
+    ap.add_argument("--anchors", type=str, default="auto",
+                    help="permanent gauntlet anchors (external grounding); "
+                         "'auto' = every decklists/anchors/*.csv (the real "
+                         "top-Elo ladder decks from build_heldout_v2) plus "
+                         "our own ladder champion qd7_r5")
     ap.add_argument("--crossover-prob", type=float, default=0.0,
                     help="QD package-crossover child probability (see qd_deck_search)")
     ap.add_argument("--race-top", type=int, default=0,
@@ -76,6 +76,10 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
     ap.add_argument("--smoke", action="store_true",
                     help="tiny sizes end-to-end (wiring check, ~minutes)")
     args = ap.parse_args()
+    if args.anchors == "auto":
+        ladder = sorted((ROOT / "decklists" / "anchors").glob("*.csv"))
+        args.anchors = ",".join([str(p) for p in ladder]
+                                + [str(ROOT / "decklists/candidates/qd7_r5.csv")])
     if args.smoke:
         args.outer_rounds, args.qd_rounds, args.qd_generations = 1, 2, 2
         args.qd_init, args.rl_iterations = 12, 0  # rl --smoke drives its own sizes

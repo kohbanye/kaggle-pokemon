@@ -396,8 +396,10 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
     gen_no = 0
     rounds_log: list[dict] = []
     for rnd in range(1, args.rounds + 1):
-        if rnd == 1:
-            opp, opp_tags = gauntlet, [p.stem for p in meta_paths]
+        if rnd == 1:  # anchors ground round 1 too, not just the rebuilt rounds
+            opp = gauntlet + [a.deck for a in anchors]
+            opp_tags = ([p.stem for p in meta_paths]
+                        + [f"anchor:{a.tag}" for a in anchors])
         else:
             opp, opp_tags = build_gauntlet(arc, hof, len(gauntlet),
                                            args.coevo_top_k, rng, anchors=anchors)
