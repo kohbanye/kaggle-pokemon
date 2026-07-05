@@ -29,10 +29,14 @@ competition (Simulation Track). Host: Kaggle × The Pokémon Company × Matsuo L
 ├── notebooks/
 │   └── 01_card_data_eda.ipynb  # card-pool EDA (built from the script below)
 ├── src/
-│   └── cards.py                # card CSV loader + energy/cost/damage parsing
+│   ├── cards.py                # card CSV loader + energy/cost/damage parsing
+│   └── eval/                   # evaluation harness (stats, schedule, deck, runner)
+├── agents/                     # swappable policies (random baseline)
+├── decks/                      # candidate 60-card decks for the Phase 1 round-robin
 ├── scripts/
 │   ├── download_data.sh        # fetch competition data (after accepting rules)
 │   ├── build_eda_notebook.py   # regenerate the EDA notebook
+│   ├── run_tournament.py       # Phase 1 deck round-robin (needs the data download)
 │   └── sim_smoke.py            # verify the simulator runs (Linux only)
 └── Dockerfile                  # linux/amd64 box to run the simulator
 ```
@@ -76,6 +80,8 @@ The engine exposes battle play (`cg.game`), full card/attack data
 
 - **[PLAN.md](PLAN.md)** — phased, ablation-driven attack plan (eval harness → deck →
   heuristic → search → ISMCTS → learned value → distill), with keep/drop criteria.
+- **[docs/phase1-deck-selection.md](docs/phase1-deck-selection.md)** — Phase 1 status:
+  what the eval harness does now, what's blocked on the data download, and how to run it.
 - **[docs/rules/pokemon-tcg-rules.md](docs/rules/pokemon-tcg-rules.md)** — Pokémon TCG rules
   reference (win conditions, turn flow, energy/cost notation, ex/Mega/ACE SPEC) mapped to
   this repo's data (`src/cards.py`) and the agent contract.
@@ -87,6 +93,10 @@ The engine exposes battle play (`cg.game`), full card/attack data
 - [x] Data downloaded, card-pool EDA notebook.
 - [x] Simulator verified under Docker (`scripts/sim_smoke.py` plays a full game).
 - [x] Methods survey + phased plan written.
-- [ ] Phase 0 — eval harness + baselines (random / greedy).
-- [ ] Phase 1 — choose deck archetype (biggest lever on Elo).
+- [~] Phase 0 — eval harness (`src/eval/`: Wilson-CI stats, paired round-robin,
+  deck legality, engine-agnostic match runner) + `random` baseline, unit-tested.
+  Remaining: `greedy` baseline (needs the obs schema) and a live run under Docker.
+- [~] Phase 1 — deck round-robin tooling ready (`scripts/run_tournament.py`); the
+  actual deck selection is blocked on the data download (see
+  [docs/phase1-deck-selection.md](docs/phase1-deck-selection.md)).
 - [ ] Phases 2+ — heuristic → search → ablations against the live ladder (5 subs/day).

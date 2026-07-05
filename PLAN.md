@@ -179,7 +179,8 @@
 
 | 日付 | Phase | 実験(変えた1要素) | 比較対象 | 試合数 | 勝率±CI | ラダー | 判定 | メモ |
 |---|---|---|---|---|---|---|---|---|
-| | P0 | greedy vs random | — | 500 | | — | | ハーネス較正 |
+| 2026-07-05 | P0/P1 | 評価基盤+randomベースライン実装 | — | — | — | — | 基盤 | `src/eval/`＋`agents/`＋`scripts/run_tournament.py`。純ロジックはunit test済(31 tests)。実測はデータ取得待ち。詳細: `docs/phase1-deck-selection.md` |
+| | P0 | greedy vs random | — | 500 | | — | | ハーネス較正（greedyはobsスキーマ確認後） |
 | | | | | | | | | |
 
 ---
