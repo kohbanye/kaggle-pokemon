@@ -210,6 +210,39 @@ opp_best[["opp_team", "opp_elo", "opp_archetype"]].head(20)
 )
 
 
+md(
+    """
+## 6. Tactics — how the games were actually played
+
+State-based per-turn features from the replays (`scripts/ladder_tactics.py`):
+prize-race pace, evolution progress, bench width, and the terminal reason.
+Run `uv run python scripts/ladder_tactics.py` first to (re)build
+`results/episodes/ladder_tactics.json`.
+""",
+)
+
+code(
+    """
+tac = pd.DataFrame(json.loads(
+    (ROOT / "results/episodes/ladder_tactics.json").read_text()))
+tac["result"] = tac["reward"].map({1: "W", -1: "L"})
+me = pd.json_normalize(tac["me"]).add_prefix("me_")
+op = pd.json_normalize(tac["opp"]).add_prefix("opp_")
+tac = pd.concat([tac.drop(columns=["me", "opp"]), me, op], axis=1)
+tac.groupby(["sub", "result"])[
+    ["turns", "opp_prizes_by_t10", "me_prizes_by_t10",
+     "opp_stage_by_t6", "me_stage_by_t6", "opp_bench_t3", "me_bench_t3"]
+].mean().round(2)
+""",
+)
+
+code(
+    """
+# how do games END? (the engine meta in one table)
+tac.groupby(["result", "reason"]).size().unstack(fill_value=0)
+""",
+)
+
 nb = nbf.v4.new_notebook(cells=cells)
 OUT.parent.mkdir(parents=True, exist_ok=True)
 nbf.write(nb, OUT)
