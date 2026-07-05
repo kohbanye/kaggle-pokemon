@@ -78,6 +78,7 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     # Step 5c (anchored coevo run): best cell under both pilots.
     "greedy|qd7_rl":      ("greedy", "qd7_rl", None, False),
     "qd7net|qd7_rl":      ("net", "qd7_rl", QD7, False),
+    "greedy|qd7_r5":      ("greedy", "qd7_r5", None, False),  # run3 r5 sleeper best
 }
 
 _G: dict = {}
