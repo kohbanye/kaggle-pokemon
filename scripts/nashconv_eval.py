@@ -45,6 +45,7 @@ RUN3 = "data/qdcoevo/run3/round_6/rl/paper_final.npz"
 RUN7 = "data/qdcoevo/run7/round_6/rl/paper_final.npz"
 QD5 = "data/qdrl_run1/round_5/rl/paper_final.npz"
 QD6 = "data/qdrl_run2/round_8/rl/paper_final.npz"
+QD7 = "data/qdrl_run3/round_7/rl/paper_final.npz"
 
 # label -> (kind, deck, ckpt|None, force_first).  Covers play-on-metal robustness,
 # real submission units, and exploiter probes (forced-go-first, type variety).
@@ -74,6 +75,9 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     "greedy|qd6_rl":      ("greedy", "qd6_rl", None, False),
     "qd6net|qd6_rl":      ("net", "qd6_rl", QD6, False),
     "greedy|qd6_alt":     ("greedy", "qd6_alt", None, False),
+    # Step 5c (anchored coevo run): best cell under both pilots.
+    "greedy|qd7_rl":      ("greedy", "qd7_rl", None, False),
+    "qd7net|qd7_rl":      ("net", "qd7_rl", QD7, False),
 }
 
 _G: dict = {}
