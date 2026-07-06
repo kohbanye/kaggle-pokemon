@@ -17,7 +17,13 @@ from src.net.features import CARD_FEAT_DIM
 from src.net.lit_vtrace import LitVtracePPO
 from src.net.recurrent_model import RecurrentNetConfig
 from src.net.recurrent_torch import TorchRecurrentNet
-from src.net.trajectory_data import BattleStep, Episode, collate_episodes
+from src.net.trajectory_data import (
+    BattleStep,
+    Episode,
+    _collate_battle,
+    board_potential,
+    collate_episodes,
+)
 
 _N_POOL = 10
 _CFG = RecurrentNetConfig(n_cards=_N_POOL - 1, play_lstm_hidden=16, hidden=12)
@@ -114,3 +120,41 @@ def test_learner_optimises_on_fixed_batch() -> None:
         losses.append(float(loss))
     assert all(np.isfinite(losses))
     assert not torch.allclose(before, net.cb_embed)  # the embedding actually trained
+
+
+def test_reward_shaping_telescopes_and_default_off() -> None:
+    """Shaped rewards sum to ret - phi(start); zero phis reproduce terminal-only."""
+    def step(phi: float) -> BattleStep:
+        z = np.zeros
+        return BattleStep(z(4), z((2, 3), dtype=np.intp),
+                          z((2, 3), dtype=bool), z((2, OPTION_DIM)),
+                          z(2, dtype=np.intp), 0, 0.0, phi=phi)
+
+    deck = {"deck_rows": np.zeros(2, dtype=np.int64),
+            "deck_cat": np.zeros(2, dtype=np.int64),
+            "deck_cat_legal": np.ones((2, 3), dtype=bool),
+            "deck_card_legal": np.ones((2, 4), dtype=bool),
+            "deck_logp": np.zeros(2)}
+    phis = [0.1, 0.3, -0.2]
+    ep = Episode([step(p) for p in phis], ret=1.0, **deck)
+    batch = _collate_battle([ep])
+    r = batch["rewards"][0, :3]
+    assert torch.allclose(r, torch.tensor([0.2, -0.5, 1.2]))
+    assert abs(float(r.sum()) - (1.0 - phis[0])) < 1e-6  # telescoping
+
+    ep0 = Episode([step(0.0) for _ in range(3)], ret=-1.0, **deck)
+    r0 = _collate_battle([ep0])["rewards"][0, :3]
+    assert torch.allclose(r0, torch.tensor([0.0, 0.0, -1.0]))  # old behaviour
+
+
+def test_board_potential_differentials() -> None:
+    mon = {"id": 1}
+    cur = {"players": [
+        {"prize": [None] * 4, "active": [mon], "bench": [mon, mon, None]},
+        {"prize": [None] * 6, "active": [mon], "bench": [None] * 3},
+    ]}
+    # you=0: opp took 0 prizes, we took 2 -> opp prize-loss diff = +2;
+    # board 3 vs 1 -> +2
+    phi = board_potential(cur, 0, prize_coef=0.05, board_coef=0.03)
+    assert abs(phi - (0.05 * 2 + 0.03 * 2)) < 1e-9
+    assert abs(board_potential(cur, 1, 0.05, 0.03) + phi) < 1e-9  # antisymmetric

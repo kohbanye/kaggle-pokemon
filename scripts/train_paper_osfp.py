@@ -93,6 +93,9 @@ class Config:
     # >0 enables deck-conditioned play (migrating a pre-conditioning checkpoint
     # zero-padded = behaviour-preserving; see RecurrentPolicyValueNet.enable_deck_ctx)
     deck_ctx_dim: int = 0
+    # potential-based reward shaping coefficients (0/0 = terminal-only reward)
+    shaping_prize: float = 0.0
+    shaping_board: float = 0.0
     train_deck: bool = True
     # Async actor-learner: collect+encode iteration n+1 on a background thread while
     # the learner updates on iteration n. The actor's weights then lag the learner by
@@ -152,15 +155,18 @@ def _split(total: int, parts: int) -> list[int]:
 _BG: dict = {}
 
 
-def _build_init(engine_json: str) -> None:
+def _build_init(engine_json: str,
+                shaping: tuple[float, float] | None = None) -> None:
     pool = build_pool()
     _BG["feats"] = CardFeatures(load_engine_json(Path(engine_json)))
     _BG["index"] = CardEmbeddingIndex(pool)
     _BG["pool"] = pool
+    _BG["shaping"] = shaping
 
 
 def _build_chunk(games: list[dict]) -> list:
-    return build_episodes(games, _BG["feats"], _BG["index"], _BG["pool"])
+    return build_episodes(games, _BG["feats"], _BG["index"], _BG["pool"],
+                          shaping=_BG.get("shaping"))
 
 
 def _build_episodes_par(  # noqa: PLR0913 - encode-request parameters
@@ -170,10 +176,11 @@ def _build_episodes_par(  # noqa: PLR0913 - encode-request parameters
     feats: CardFeatures,
     index: CardEmbeddingIndex,
     pool: object,
+    shaping: tuple[float, float] | None = None,
 ) -> list:
     """Encode ``records`` into Episodes, fanning chunks across ``pp`` (or inline)."""
     if pp is None or len(records) < parts * 2:  # too few to bother parallelising
-        return build_episodes(records, feats, index, pool)
+        return build_episodes(records, feats, index, pool, shaping=shaping)
     sizes = _split(len(records), parts)
     chunks, i = [], 0
     for n in sizes:
@@ -305,7 +312,10 @@ def _collect_build(  # noqa: PLR0913 - one collect+encode request's parameters
 ) -> list:
     """Collect self-play games with ``weights_path`` and encode them to Episodes."""
     records = _collect(cfg, weights_path, opp_entry, cfg.games_per_iter, seed, out)
-    return _build_episodes_par(build_pp, records, cfg.workers, feats, index, pool)
+    shaping = ((cfg.shaping_prize, cfg.shaping_board)
+               if (cfg.shaping_prize or cfg.shaping_board) else None)
+    return _build_episodes_par(build_pp, records, cfg.workers, feats, index, pool,
+                               shaping=shaping)
 
 
 def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/consume loop
@@ -331,7 +341,10 @@ def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/cons
     # Persistent episode-encoding pool, forked HERE -- before _Learner touches CUDA --
     # so its workers never inherit a CUDA context (fork-after-CUDA would hang/crash).
     build_pp = (
-        Pool(cfg.workers, initializer=_build_init, initargs=(str(cfg.engine_json),))
+        Pool(cfg.workers, initializer=_build_init,
+             initargs=(str(cfg.engine_json),
+                       (cfg.shaping_prize, cfg.shaping_board)
+                       if (cfg.shaping_prize or cfg.shaping_board) else None))
         if cfg.workers > 1 else None
     )
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
@@ -437,6 +450,14 @@ def main() -> None:
     )
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
     parser.add_argument(
+        "--shaping-prize", type=float, default=0.0,
+        help="potential-based reward shaping: coefficient per prize-differential "
+             "(0 = off; shaping preserves the optimal policy)")
+    parser.add_argument(
+        "--shaping-board", type=float, default=0.0,
+        help="potential-based shaping: coefficient per board-supply differential "
+             "(the attrition meta's real win condition)")
+    parser.add_argument(
         "--deck-ctx-dim", type=int, default=0,
         help="enable deck-conditioned play with this context width (0 = off); "
              "a checkpoint without conditioning is migrated behaviour-preserving",
@@ -451,6 +472,7 @@ def main() -> None:
         eval_games=args.eval_games, seed=args.seed, self_play_prob=args.self_play_prob,
         deck_pool=args.deck_pool, pipeline=args.pipeline,
         deck_ctx_dim=args.deck_ctx_dim,
+        shaping_prize=args.shaping_prize, shaping_board=args.shaping_board,
         train_deck=not (args.no_deck_arm or args.deck_pool is not None),
     )
     if args.smoke:

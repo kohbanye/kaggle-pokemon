@@ -34,7 +34,7 @@ def _run(argv: list[str]) -> None:
     subprocess.run(argv, check=True)  # noqa: S603
 
 
-def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
+def main() -> None:  # noqa: C901, PLR0912, PLR0915 - CLI orchestrator
     ap = argparse.ArgumentParser(description="QD<->RL co-evolution (outer loop)")
     ap.add_argument("--init-weights", type=Path,
                     default=ROOT / "data/paperosfp/main/paper_final.npz")
@@ -65,6 +65,8 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
     ap.add_argument("--race-factor", type=int, default=4)
     # RL half (forwarded to train_paper_osfp)
     ap.add_argument("--rl-iterations", type=int, default=300)
+    ap.add_argument("--shaping-prize", type=float, default=0.0)
+    ap.add_argument("--shaping-board", type=float, default=0.0)
     ap.add_argument("--deck-ctx-dim", type=int, default=0,
                     help="deck-conditioned play width for the RL half (0 = off); "
                          "the first round migrates the checkpoint zero-padded")
@@ -130,6 +132,9 @@ def main() -> None:  # noqa: C901, PLR0915 - CLI orchestrator, ablation arms
             rl.append("--smoke")
         if args.deck_ctx_dim > 0:
             rl += ["--deck-ctx-dim", str(args.deck_ctx_dim)]
+        if args.shaping_prize or args.shaping_board:
+            rl += ["--shaping-prize", str(args.shaping_prize),
+                   "--shaping-board", str(args.shaping_board)]
         _run(rl)
         net = rl_out / "paper_final.npz"
         print(f"== outer round {r} done: net={net} archive={archive} ==", flush=True)
