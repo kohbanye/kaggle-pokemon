@@ -1,0 +1,136 @@
+{
+  "heldout": [
+    "lad00_P_evo_1pz_e790",
+    "lad01_W_evo_mid_e776",
+    "lad02_G_evo_mid_e792",
+    "lad03_G_evo_1pz_e741",
+    "lad04_F_evo_mid_e839",
+    "lad05_P_evo_mid_e583",
+    "lad06_D_evo_1pz_e770",
+    "lad07_M_evo_mid_e711",
+    "lad08_F_evo_1pz_e782",
+    "lad09_P_basic_big_e589",
+    "lad10_R_evo_1pz_e576",
+    "lad11_L_evo_1pz_e745",
+    "lad12_P_basic_mid_e633",
+    "lad13_G_basic_mid_e595",
+    "lad14_P_evo_big_e587",
+    "lad15_G_basic_big_e538",
+    "lad16_C_evo_mid_e519",
+    "lad17_W_basic_mid_e485",
+    "lad18_M_evo_1pz_e485",
+    "lad19_W_evo_1pz_e476",
+    "lad20_P_evo_1pz_e782",
+    "lad21_W_evo_mid_e722",
+    "lad22_G_evo_mid_e738",
+    "lad23_G_evo_1pz_e696",
+    "lad24_F_evo_mid_e766",
+    "lad25_P_evo_mid_e546",
+    "lad26_D_evo_1pz_e623",
+    "lad27_M_evo_mid_e688",
+    "lad28_F_evo_1pz_e707",
+    "lad29_P_basic_big_e556"
+  ],
+  "opp_pilots": [
+    "greedy",
+    "heuristic",
+    "greedyFF"
+  ],
+  "games_per_pair": 30,
+  "overall": {
+    "net|qd5_rl": {
+      "winrate": 0.668,
+      "ci": [
+        0.65,
+        0.686
+      ],
+      "n": 2699
+    },
+    "net|qd7_r5": {
+      "winrate": 0.735,
+      "ci": [
+        0.718,
+        0.751
+      ],
+      "n": 2697
+    }
+  },
+  "per_pilot": {
+    "net|qd5_rl": {
+      "greedy": 0.7,
+      "heuristic": 0.594,
+      "greedyFF": 0.71
+    },
+    "net|qd7_r5": {
+      "greedy": 0.735,
+      "heuristic": 0.734,
+      "greedyFF": 0.736
+    }
+  },
+  "per_opp": {
+    "net|qd5_rl": {
+      "lad00_P_evo_1pz_e790": 0.556,
+      "lad01_W_evo_mid_e776": 0.567,
+      "lad02_G_evo_mid_e792": 0.722,
+      "lad03_G_evo_1pz_e741": 0.6,
+      "lad04_F_evo_mid_e839": 0.667,
+      "lad05_P_evo_mid_e583": 0.689,
+      "lad06_D_evo_1pz_e770": 0.744,
+      "lad07_M_evo_mid_e711": 0.633,
+      "lad08_F_evo_1pz_e782": 0.522,
+      "lad09_P_basic_big_e589": 0.778,
+      "lad10_R_evo_1pz_e576": 0.644,
+      "lad11_L_evo_1pz_e745": 0.9,
+      "lad12_P_basic_mid_e633": 0.467,
+      "lad13_G_basic_mid_e595": 0.933,
+      "lad14_P_evo_big_e587": 0.633,
+      "lad15_G_basic_big_e538": 0.878,
+      "lad16_C_evo_mid_e519": 0.556,
+      "lad17_W_basic_mid_e485": 0.622,
+      "lad18_M_evo_1pz_e485": 0.778,
+      "lad19_W_evo_1pz_e476": 0.955,
+      "lad20_P_evo_1pz_e782": 0.333,
+      "lad21_W_evo_mid_e722": 0.478,
+      "lad22_G_evo_mid_e738": 0.822,
+      "lad23_G_evo_1pz_e696": 0.067,
+      "lad24_F_evo_mid_e766": 0.622,
+      "lad25_P_evo_mid_e546": 0.778,
+      "lad26_D_evo_1pz_e623": 0.833,
+      "lad27_M_evo_mid_e688": 0.778,
+      "lad28_F_evo_1pz_e707": 0.667,
+      "lad29_P_basic_big_e556": 0.822
+    },
+    "net|qd7_r5": {
+      "lad00_P_evo_1pz_e790": 0.267,
+      "lad01_W_evo_mid_e776": 0.756,
+      "lad02_G_evo_mid_e792": 0.989,
+      "lad03_G_evo_1pz_e741": 0.833,
+      "lad04_F_evo_mid_e839": 0.733,
+      "lad05_P_evo_mid_e583": 0.909,
+      "lad06_D_evo_1pz_e770": 0.989,
+      "lad07_M_evo_mid_e711": 0.811,
+      "lad08_F_evo_1pz_e782": 0.978,
+      "lad09_P_basic_big_e589": 0.989,
+      "lad10_R_evo_1pz_e576": 0.1,
+      "lad11_L_evo_1pz_e745": 0.744,
+      "lad12_P_basic_mid_e633": 0.433,
+      "lad13_G_basic_mid_e595": 0.956,
+      "lad14_P_evo_big_e587": 1.0,
+      "lad15_G_basic_big_e538": 0.967,
+      "lad16_C_evo_mid_e519": 1.0,
+      "lad17_W_basic_mid_e485": 0.622,
+      "lad18_M_evo_1pz_e485": 0.911,
+      "lad19_W_evo_1pz_e476": 0.337,
+      "lad20_P_evo_1pz_e782": 0.1,
+      "lad21_W_evo_mid_e722": 0.178,
+      "lad22_G_evo_mid_e738": 0.967,
+      "lad23_G_evo_1pz_e696": 0.556,
+      "lad24_F_evo_mid_e766": 0.722,
+      "lad25_P_evo_mid_e546": 0.356,
+      "lad26_D_evo_1pz_e623": 0.978,
+      "lad27_M_evo_mid_e688": 0.989,
+      "lad28_F_evo_1pz_e707": 0.889,
+      "lad29_P_basic_big_e556": 0.989
+    }
+  }
+}
