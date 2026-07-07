@@ -173,6 +173,50 @@ class RecurrentPolicyValueNet(PolicyValueNet):
         )
         return type(self)(cfg, p)
 
+    def widen_play_lstm(
+        self, rng: np.random.Generator, new_hidden: int,
+    ) -> RecurrentPolicyValueNet:
+        """A copy with a WIDER play LSTM, **behaviour-preserving** (net2net).
+
+        Old units keep their input rows and read the new units through ZERO
+        recurrent weights (their dynamics are untouched); new units start with
+        small random weights but the value/policy heads read them through ZERO
+        rows -- so the widened net's outputs are identical until training moves
+        the zeros. Lets a saturated 256-wide checkpoint grow without losing
+        anything. (No-op copy if ``new_hidden <= current``.)
+        """
+        ph, h2 = self.config.play_lstm_hidden, new_hidden
+        if h2 <= ph:
+            return self
+        p = dict(self.params)
+        add = h2 - ph
+        scale = 1.0 / np.sqrt(h2)
+        in_dim = p["play_lstm_w_ih"].shape[1]
+        p["play_lstm_w_ih"] = np.concatenate(
+            [np.concatenate(
+                [p["play_lstm_w_ih"][g * ph:(g + 1) * ph],
+                 rng.standard_normal((add, in_dim)) * scale], axis=0)
+             for g in range(4)], axis=0)
+        whh = p["play_lstm_w_hh"]
+        p["play_lstm_w_hh"] = np.concatenate(
+            [np.concatenate(
+                [np.concatenate([whh[g * ph:(g + 1) * ph],
+                                 np.zeros((ph, add))], axis=1),
+                 rng.standard_normal((add, h2)) * scale], axis=0)
+             for g in range(4)], axis=0)
+        for k in ("play_lstm_b_ih", "play_lstm_b_hh"):
+            b = p[k]
+            p[k] = np.concatenate(
+                [np.concatenate([b[g * ph:(g + 1) * ph], np.zeros(add)])
+                 for g in range(4)])
+        p["value_w"] = np.concatenate([p["value_w"], np.zeros((add, 1))], axis=0)
+        pw = p["policy_w1"]  # input rows are [play-hidden | option | embed]
+        p["policy_w1"] = np.concatenate(
+            [pw[:ph], np.zeros((add, pw.shape[1])), pw[ph:]], axis=0)
+        cfg = RecurrentNetConfig(
+            **{**self.config.__dict__, "play_lstm_hidden": h2})
+        return type(self)(cfg, p)
+
     def play_lstm_step(
         self,
         e: NDArray[np.float64],

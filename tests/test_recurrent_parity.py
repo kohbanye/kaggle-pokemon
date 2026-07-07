@@ -172,3 +172,38 @@ def test_enable_deck_ctx_preserves_behaviour_and_roundtrips(
     re = loaded.step(state, rows, mask, options, option_rows, h0, c0,
                      ctx=loaded.deck_ctx(deck_vec))
     np.testing.assert_allclose(base[0], re[0], atol=1e-12)
+
+
+def test_widen_play_lstm_preserves_behaviour_and_roundtrips(
+    tmp_path: Path,
+) -> None:
+    """Widening the play LSTM changes no output; save/load keeps the new width."""
+    rng = np.random.default_rng(3)
+    net = RecurrentPolicyValueNet.random(rng, _CTX_CFG)  # widen WITH ctx enabled
+    wide = net.widen_play_lstm(rng, 40)
+    assert wide.config.play_lstm_hidden == 40
+    assert wide.config.deck_ctx_dim == _CTX_CFG.deck_ctx_dim
+
+    deck_vec = rng.standard_normal(_CTX_CFG.deck_feat_dim)
+    ctx_a, ctx_b = net.deck_ctx(deck_vec), wide.deck_ctx(deck_vec)
+    np.testing.assert_allclose(ctx_a, ctx_b, atol=1e-12)
+    h0, c0 = net.initial_state()
+    hw, cw = wide.initial_state()
+    assert hw.shape == (40,)
+    # multi-step parity: outputs identical although the hidden is wider
+    for t in range(4):
+        state, rows, mask, options, option_rows = _random_step_inputs(rng, 3 + t)
+        lo_a, v_a, h0, c0 = net.step(state, rows, mask, options, option_rows,
+                                     h0, c0, ctx=ctx_a)
+        lo_b, v_b, hw, cw = wide.step(state, rows, mask, options, option_rows,
+                                      hw, cw, ctx=ctx_b)
+        np.testing.assert_allclose(lo_a, lo_b, atol=1e-9)
+        np.testing.assert_allclose(v_a, v_b, atol=1e-9)
+
+    path = tmp_path / "wide.npz"
+    wide.save(path)
+    loaded = RecurrentPolicyValueNet.load(path)
+    assert loaded.config.play_lstm_hidden == 40
+    # torch mirror accepts the widened weights (bridge shape parity)
+    tnet = TorchRecurrentNet(loaded.config).double().eval()
+    tnet.load_numpy_params(loaded.params)

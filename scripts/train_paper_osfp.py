@@ -96,6 +96,8 @@ class Config:
     # potential-based reward shaping coefficients (0/0 = terminal-only reward)
     shaping_prize: float = 0.0
     shaping_board: float = 0.0
+    play_hidden: int = 0  # >0: widen the play LSTM to this size (net2net, lossless)
+    lr_final: float = 0.0  # >0: linear lr decay from lr to lr_final over the run
     train_deck: bool = True
     # Async actor-learner: collect+encode iteration n+1 on a background thread while
     # the learner updates on iteration n. The actor's weights then lag the learner by
@@ -274,6 +276,10 @@ class _Learner:
         self.lit.log_dict = lambda *_a, **_k: None  # type: ignore[method-assign]
         self.opt = torch.optim.Adam(self.lit.net.parameters(), lr=cfg.lr)
 
+    def set_lr(self, lr: float) -> None:
+        for g in self.opt.param_groups:
+            g["lr"] = lr
+
     def step(self, episodes: list) -> None:
         """One V-Trace/PPO update over a sample of the FIFO queue (in place)."""
         if not episodes:
@@ -350,6 +356,9 @@ def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/cons
     net_np = RecurrentPolicyValueNet.load(cfg.init_weights)
     if cfg.deck_ctx_dim > 0:
         net_np = net_np.enable_deck_ctx(rng, cfg.deck_ctx_dim)
+    if cfg.play_hidden > net_np.config.play_lstm_hidden:
+        net_np = net_np.widen_play_lstm(rng, cfg.play_hidden)
+        print(f"widened play LSTM -> {cfg.play_hidden} (behaviour-preserving)")
     learner = _Learner(cfg, net_np, card_feats)  # torch net + Adam, resident on GPU
     queue: deque = deque(maxlen=cfg.queue_episodes)
     actor = ThreadPoolExecutor(max_workers=1) if cfg.pipeline else None
@@ -373,6 +382,9 @@ def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/cons
             pick = rng.choice(len(sample), size=cfg.train_episodes, replace=False)
             sample = [sample[i] for i in pick]
         if sample:
+            if cfg.lr_final > 0 and cfg.iterations > 1:
+                frac = (job["n"] - 1) / (cfg.iterations - 1)
+                learner.set_lr(cfg.lr + (cfg.lr_final - cfg.lr) * frac)
             learner.step(sample)
             net_np = learner.to_numpy()  # export for the next collect + gate
         n = job["n"]
@@ -450,6 +462,13 @@ def main() -> None:
     )
     parser.add_argument("--smoke", action="store_true", help="3 tiny iterations")
     parser.add_argument(
+        "--play-hidden", type=int, default=0,
+        help="widen the play LSTM to this many units at load (net2net, "
+             "behaviour-preserving; 0 = keep the checkpoint's width)")
+    parser.add_argument(
+        "--lr-final", type=float, default=0.0,
+        help="linear lr decay from --lr to this value over the run (0 = constant)")
+    parser.add_argument(
         "--shaping-prize", type=float, default=0.0,
         help="potential-based reward shaping: coefficient per prize-differential "
              "(0 = off; shaping preserves the optimal policy)")
@@ -473,6 +492,7 @@ def main() -> None:
         deck_pool=args.deck_pool, pipeline=args.pipeline,
         deck_ctx_dim=args.deck_ctx_dim,
         shaping_prize=args.shaping_prize, shaping_board=args.shaping_board,
+        play_hidden=args.play_hidden, lr_final=args.lr_final,
         train_deck=not (args.no_deck_arm or args.deck_pool is not None),
     )
     if args.smoke:
