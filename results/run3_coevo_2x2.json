@@ -1,0 +1,61 @@
+{
+  "init": "data/qdcoevo/run2/round_6/rl/paper_final.npz",
+  "final": "data/qdcoevo/run3/round_6/rl/paper_final.npz",
+  "games_per_cell": 160,
+  "matchups": {
+    "init_play_netdeck": {
+      "winrate": 0.7,
+      "ci": [
+        0.625,
+        0.766
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "final_play_netdeck": {
+      "winrate": 0.812,
+      "ci": [
+        0.745,
+        0.865
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "init_play_metadeck": {
+      "winrate": 0.531,
+      "ci": [
+        0.454,
+        0.607
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "final_play_metadeck": {
+      "winrate": 0.581,
+      "ci": [
+        0.504,
+        0.655
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "duel_netdeck": {
+      "winrate": 0.725,
+      "ci": [
+        0.651,
+        0.788
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "duel_metadeck": {
+      "winrate": 0.575,
+      "ci": [
+        0.498,
+        0.649
+      ],
+      "decisive": 160,
+      "games": 160
+    }
+  }
+}

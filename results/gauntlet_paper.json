@@ -1,0 +1,434 @@
+[
+  {
+    "iter": 6,
+    "file": "data/paperosfp/main/paperiter_6.npz",
+    "winrate": 0.03333333333333333,
+    "ci_lo": 0.0130375510983506,
+    "ci_hi": 0.082580337559106,
+    "decisive": 120
+  },
+  {
+    "iter": 40,
+    "file": "data/paperosfp/main/paperiter_40.npz",
+    "winrate": 0.008333333333333333,
+    "ci_lo": 0.0014725557333420923,
+    "ci_hi": 0.045696291245049675,
+    "decisive": 120
+  },
+  {
+    "iter": 3,
+    "file": "data/paperosfp/main/paperiter_3.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 9,
+    "file": "data/paperosfp/main/paperiter_9.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 12,
+    "file": "data/paperosfp/main/paperiter_12.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 15,
+    "file": "data/paperosfp/main/paperiter_15.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 18,
+    "file": "data/paperosfp/main/paperiter_18.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 21,
+    "file": "data/paperosfp/main/paperiter_21.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 24,
+    "file": "data/paperosfp/main/paperiter_24.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 25,
+    "file": "data/paperosfp/main/paperiter_25.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 28,
+    "file": "data/paperosfp/main/paperiter_28.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 31,
+    "file": "data/paperosfp/main/paperiter_31.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 34,
+    "file": "data/paperosfp/main/paperiter_34.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 37,
+    "file": "data/paperosfp/main/paperiter_37.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 43,
+    "file": "data/paperosfp/main/paperiter_43.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 46,
+    "file": "data/paperosfp/main/paperiter_46.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 49,
+    "file": "data/paperosfp/main/paperiter_49.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 50,
+    "file": "data/paperosfp/main/paperiter_50.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 53,
+    "file": "data/paperosfp/main/paperiter_53.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 56,
+    "file": "data/paperosfp/main/paperiter_56.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 59,
+    "file": "data/paperosfp/main/paperiter_59.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 62,
+    "file": "data/paperosfp/main/paperiter_62.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 64,
+    "file": "data/paperosfp/main/paperiter_64.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 65,
+    "file": "data/paperosfp/main/paperiter_65.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 68,
+    "file": "data/paperosfp/main/paperiter_68.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 71,
+    "file": "data/paperosfp/main/paperiter_71.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 74,
+    "file": "data/paperosfp/main/paperiter_74.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 75,
+    "file": "data/paperosfp/main/paperiter_75.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 78,
+    "file": "data/paperosfp/main/paperiter_78.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 81,
+    "file": "data/paperosfp/main/paperiter_81.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 83,
+    "file": "data/paperosfp/main/paperiter_83.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 84,
+    "file": "data/paperosfp/main/paperiter_84.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 87,
+    "file": "data/paperosfp/main/paperiter_87.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 90,
+    "file": "data/paperosfp/main/paperiter_90.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 93,
+    "file": "data/paperosfp/main/paperiter_93.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 96,
+    "file": "data/paperosfp/main/paperiter_96.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 99,
+    "file": "data/paperosfp/main/paperiter_99.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 100,
+    "file": "data/paperosfp/main/paperiter_100.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 103,
+    "file": "data/paperosfp/main/paperiter_103.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 106,
+    "file": "data/paperosfp/main/paperiter_106.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 109,
+    "file": "data/paperosfp/main/paperiter_109.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 112,
+    "file": "data/paperosfp/main/paperiter_112.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 115,
+    "file": "data/paperosfp/main/paperiter_115.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 118,
+    "file": "data/paperosfp/main/paperiter_118.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 121,
+    "file": "data/paperosfp/main/paperiter_121.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 124,
+    "file": "data/paperosfp/main/paperiter_124.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 127,
+    "file": "data/paperosfp/main/paperiter_127.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 128,
+    "file": "data/paperosfp/main/paperiter_128.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 130,
+    "file": "data/paperosfp/main/paperiter_130.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 133,
+    "file": "data/paperosfp/main/paperiter_133.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 136,
+    "file": "data/paperosfp/main/paperiter_136.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 139,
+    "file": "data/paperosfp/main/paperiter_139.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 142,
+    "file": "data/paperosfp/main/paperiter_142.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  },
+  {
+    "iter": 145,
+    "file": "data/paperosfp/main/paperiter_145.npz",
+    "winrate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.031019166418703486,
+    "decisive": 120
+  }
+]
