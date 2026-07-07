@@ -90,6 +90,11 @@ class _Audit:
         ch_type = types[ch] if 0 <= ch < len(types) else -1
         row = {"turn": turn, "context": int(select.get("context", -1)),
                "types": types, "choice": ch, "choice_type": ch_type}
+        # own bench width at turn 3 (attrition survival stat)
+        if turn == 3:
+            players = current.get("players") or [{}, {}]
+            row["bench_t3"] = len(
+                [b for b in (players[you].get("bench") or []) if b])
         # go-first
         if row["context"] == CTX_IS_FIRST:
             row["went_first"] = ch_type == OPT_YES
@@ -152,6 +157,7 @@ def _init() -> None:
 _G_NET_PATHS = {
     "net_run1": "data/qdrl_run1/round_5/rl/paper_final.npz",
     "net_run4": "data/qdrl_run4/round_7/rl/paper_final.npz",
+    "net_run5": "data/qdrl_run5/round_7/rl/paper_final.npz",
 }
 
 
@@ -248,6 +254,7 @@ def main() -> None:
             "greedy_disagree": (round(sum(r["choice"] != r["greedy_choice"]
                                           for r in dis) / len(dis), 3)
                                 if dis else None),
+            "bench_t3": _rate(rows, "bench_t3")[0],
         }
         print(kind, json.dumps(report[kind]))
     args.out.write_text(json.dumps(report, indent=1))

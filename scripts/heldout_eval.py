@@ -64,6 +64,8 @@ SUBJECTS: list[tuple[str, str, str]] = [
     ("greedy|qd7_r4a", "qd7_r4a", "greedy"),
     ("greedy|qd8_r5", "qd8_r5", "greedy"),
     ("greedy|qd8_r3", "qd8_r3", "greedy"),
+    ("greedy|qd9_r1", "qd9_r1", "greedy"),
+    ("net|qd9_r1", "qd9_r1", "net"),
 ]
 # Opponent pilots (held-out configs: heuristic & go-first never appear in QD/NashConv).
 OPP_PILOTS = ("greedy", "heuristic", "greedyFF")
