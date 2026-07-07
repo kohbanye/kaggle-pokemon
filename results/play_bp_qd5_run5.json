@@ -1,0 +1,38 @@
+{
+ "greedy": {
+  "games": 96,
+  "winrate": 0.688,
+  "go_first": 1.0,
+  "missed_attach": null,
+  "missed_bench_T1_3": null,
+  "missed_evolve": null,
+  "missed_ko_turnlevel": 0.05,
+  "n_ko_turns": 318,
+  "greedy_disagree": 0.0,
+  "bench_t3": 1.744
+ },
+ "net_run4": {
+  "games": 96,
+  "winrate": 0.792,
+  "go_first": 0.0,
+  "missed_attach": 0.0,
+  "missed_bench_T1_3": null,
+  "missed_evolve": null,
+  "missed_ko_turnlevel": 0.022,
+  "n_ko_turns": 316,
+  "greedy_disagree": 0.256,
+  "bench_t3": 2.143
+ },
+ "net_run5": {
+  "games": 96,
+  "winrate": 0.76,
+  "go_first": 1.0,
+  "missed_attach": null,
+  "missed_bench_T1_3": null,
+  "missed_evolve": null,
+  "missed_ko_turnlevel": 0.004,
+  "n_ko_turns": 271,
+  "greedy_disagree": 0.207,
+  "bench_t3": 1.904
+ }
+}

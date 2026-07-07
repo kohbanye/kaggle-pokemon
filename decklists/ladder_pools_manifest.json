@@ -1,0 +1,244 @@
+{
+ "anchors": [
+  {
+   "file": "lad00_M_evo_1pz_e1003.csv",
+   "elo": 1003.7,
+   "team": "niyo",
+   "episode": 83696141,
+   "archetype": "M/evo/1pz"
+  },
+  {
+   "file": "lad01_D_evo_1pz_e905.csv",
+   "elo": 905.7,
+   "team": "Shunji Minode",
+   "episode": 83486327,
+   "archetype": "D/evo/1pz"
+  },
+  {
+   "file": "lad02_P_evo_1pz_e890.csv",
+   "elo": 890.4,
+   "team": "yuziri",
+   "episode": 83348496,
+   "archetype": "P/evo/1pz"
+  },
+  {
+   "file": "lad03_F_evo_mid_e843.csv",
+   "elo": 843.9,
+   "team": "shu8Cream",
+   "episode": 84145920,
+   "archetype": "F/evo/mid"
+  }
+ ],
+ "heldout2": [
+  {
+   "file": "lad00_P_evo_1pz_e790.csv",
+   "elo": 790.3,
+   "team": "Mitudru Dutta",
+   "episode": 83601693,
+   "archetype": "P/evo/1pz"
+  },
+  {
+   "file": "lad01_W_evo_mid_e776.csv",
+   "elo": 776.2,
+   "team": "Sou Hano",
+   "episode": 83339022,
+   "archetype": "W/evo/mid"
+  },
+  {
+   "file": "lad02_G_evo_mid_e792.csv",
+   "elo": 792.5,
+   "team": "[ODS] waniz",
+   "episode": 83351267,
+   "archetype": "G/evo/mid"
+  },
+  {
+   "file": "lad03_G_evo_1pz_e741.csv",
+   "elo": 741.2,
+   "team": "HCRL",
+   "episode": 83345572,
+   "archetype": "G/evo/1pz"
+  },
+  {
+   "file": "lad04_F_evo_mid_e839.csv",
+   "elo": 839.4,
+   "team": "shige",
+   "episode": 83595055,
+   "archetype": "F/evo/mid"
+  },
+  {
+   "file": "lad05_P_evo_mid_e583.csv",
+   "elo": 583.5,
+   "team": "Ryoya Tsuruoka",
+   "episode": 83528772,
+   "archetype": "P/evo/mid"
+  },
+  {
+   "file": "lad06_D_evo_1pz_e770.csv",
+   "elo": 770.5,
+   "team": "Iliamna",
+   "episode": 84147210,
+   "archetype": "D/evo/1pz"
+  },
+  {
+   "file": "lad07_M_evo_mid_e711.csv",
+   "elo": 711.1,
+   "team": "Adam Radziwanowski",
+   "episode": 83344202,
+   "archetype": "M/evo/mid"
+  },
+  {
+   "file": "lad08_F_evo_1pz_e782.csv",
+   "elo": 782.7,
+   "team": "surugawannoebi",
+   "episode": 83341310,
+   "archetype": "F/evo/1pz"
+  },
+  {
+   "file": "lad09_P_basic_big_e589.csv",
+   "elo": 589.3,
+   "team": "Mactorr",
+   "episode": 83525037,
+   "archetype": "P/basic/big"
+  },
+  {
+   "file": "lad10_R_evo_1pz_e576.csv",
+   "elo": 576.3,
+   "team": "colapis",
+   "episode": 83674809,
+   "archetype": "R/evo/1pz"
+  },
+  {
+   "file": "lad11_L_evo_1pz_e745.csv",
+   "elo": 745.9,
+   "team": "\u4e8e\u7b11\u975elilishyxf",
+   "episode": 83346359,
+   "archetype": "L/evo/1pz"
+  },
+  {
+   "file": "lad12_P_basic_mid_e633.csv",
+   "elo": 633.9,
+   "team": "KenPTCG",
+   "episode": 83347838,
+   "archetype": "P/basic/mid"
+  },
+  {
+   "file": "lad13_G_basic_mid_e595.csv",
+   "elo": 595.6,
+   "team": "the mudkips",
+   "episode": 83347191,
+   "archetype": "G/basic/mid"
+  },
+  {
+   "file": "lad14_P_evo_big_e587.csv",
+   "elo": 587.9,
+   "team": "Pushu?",
+   "episode": 83587800,
+   "archetype": "P/evo/big"
+  },
+  {
+   "file": "lad15_G_basic_big_e538.csv",
+   "elo": 538.2,
+   "team": "gongdo",
+   "episode": 83589246,
+   "archetype": "G/basic/big"
+  },
+  {
+   "file": "lad16_C_evo_mid_e519.csv",
+   "elo": 519.5,
+   "team": "sota_k_1021",
+   "episode": 83634522,
+   "archetype": "C/evo/mid"
+  },
+  {
+   "file": "lad17_W_basic_mid_e485.csv",
+   "elo": 485.8,
+   "team": "whitness00",
+   "episode": 83619836,
+   "archetype": "W/basic/mid"
+  },
+  {
+   "file": "lad18_M_evo_1pz_e485.csv",
+   "elo": 485.3,
+   "team": "Amberlogy",
+   "episode": 83689929,
+   "archetype": "M/evo/1pz"
+  },
+  {
+   "file": "lad19_W_evo_1pz_e476.csv",
+   "elo": 476.9,
+   "team": "Ingenio",
+   "episode": 83336769,
+   "archetype": "W/evo/1pz"
+  },
+  {
+   "file": "lad20_P_evo_1pz_e782.csv",
+   "elo": 782.3,
+   "team": "monaou",
+   "episode": 84148881,
+   "archetype": "P/evo/1pz"
+  },
+  {
+   "file": "lad21_W_evo_mid_e722.csv",
+   "elo": 722.5,
+   "team": "chiri.",
+   "episode": 83339702,
+   "archetype": "W/evo/mid"
+  },
+  {
+   "file": "lad22_G_evo_mid_e738.csv",
+   "elo": 738.8,
+   "team": "GGMaster",
+   "episode": 83342122,
+   "archetype": "G/evo/mid"
+  },
+  {
+   "file": "lad23_G_evo_1pz_e696.csv",
+   "elo": 696.4,
+   "team": "Roma Tikhonov",
+   "episode": 83353536,
+   "archetype": "G/evo/1pz"
+  },
+  {
+   "file": "lad24_F_evo_mid_e766.csv",
+   "elo": 766.4,
+   "team": "Koki Funahashi",
+   "episode": 84148669,
+   "archetype": "F/evo/mid"
+  },
+  {
+   "file": "lad25_P_evo_mid_e546.csv",
+   "elo": 546.5,
+   "team": "re_eee_ne",
+   "episode": 83485786,
+   "archetype": "P/evo/mid"
+  },
+  {
+   "file": "lad26_D_evo_1pz_e623.csv",
+   "elo": 623.6,
+   "team": "Sota Uchiyama",
+   "episode": 83604612,
+   "archetype": "D/evo/1pz"
+  },
+  {
+   "file": "lad27_M_evo_mid_e688.csv",
+   "elo": 688.2,
+   "team": "saeNeko",
+   "episode": 83350613,
+   "archetype": "M/evo/mid"
+  },
+  {
+   "file": "lad28_F_evo_1pz_e707.csv",
+   "elo": 707.1,
+   "team": "\u96fb\u6c17\u901a\u4fe1\u30dd\u30b1\u30e2\u30f3\u5927\u5b66",
+   "episode": 83349292,
+   "archetype": "F/evo/1pz"
+  },
+  {
+   "file": "lad29_P_basic_big_e556.csv",
+   "elo": 556.4,
+   "team": "shosemaru",
+   "episode": 83594387,
+   "archetype": "P/basic/big"
+  }
+ ]
+}

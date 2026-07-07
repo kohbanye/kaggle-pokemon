@@ -1,0 +1,61 @@
+{
+  "matchups": {
+    "play_net_vs_greedy_on_netdeck": {
+      "winrate": 0.581,
+      "ci": [
+        0.504,
+        0.655
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "play_net_vs_greedy_on_metadeck": {
+      "winrate": 0.656,
+      "ci": [
+        0.58,
+        0.725
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "deck_net_vs_meta_netplay": {
+      "winrate": 0.15,
+      "ci": [
+        0.103,
+        0.213
+      ],
+      "decisive": 160,
+      "games": 160
+    },
+    "mirror": {
+      "winrate": 0.569,
+      "ci": [
+        0.491,
+        0.643
+      ],
+      "decisive": 160,
+      "games": 160
+    }
+  },
+  "loss_cause": {
+    "abort_rate": 0.0,
+    "draw_rate": 0.0,
+    "avg_win_turns": 59.8,
+    "avg_loss_turns": 37.0
+  },
+  "slot_bias": {
+    "mirror_first_winrate": 0.688,
+    "mirror_second_winrate": 0.45
+  },
+  "value_calibration": {
+    "sign_accuracy": 0.645,
+    "early_game": 0.557,
+    "late_game": 0.709,
+    "mean_abs_value": 0.38,
+    "n_decisions": 40445
+  },
+  "policy_entropy": {
+    "mean": 2.096,
+    "median": 2.152
+  }
+}

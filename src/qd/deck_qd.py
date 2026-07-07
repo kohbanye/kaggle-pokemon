@@ -6,23 +6,28 @@ the mutator build/repair through :func:`~src.deck.legal_next_ids`, so the QD sea
 only ever proposes **legal** decks (the engine's only hard rule). Playability beyond
 legality is left to fitness, not hand-coded constraints.
 
-The **behaviour descriptor** is the deck's archetype niche -- ``(prize-liability bin,
-setup-speed bin)``, the two genuine *trade-offs* that define the modern Mega-era meta:
+The **behaviour descriptor** (v3, Step 5) is the deck's archetype niche --
+``(prize-liability, setup-speed, evolution-depth, toolbox-breadth)`` bins, four
+genuine construction *trade-offs* of the modern Mega-era meta (grounded in the
+2026-07 competitive-deckbuilding research doc):
 
-- **prize liability** (attrition ↔ power): single-prize attackers give the opponent
-  fewer prizes per KO and win the prize race, but ex (2 prizes) / Mega ex (3 prizes)
-  hit harder and set up faster. Measured as "extra prize points" the deck can give up
-  (ex = +1, Mega = +2 per copy); bin 0 is a pure single-prize deck.
-- **setup speed** (aggro ↔ ramp): the cheapest attack the deck can field -- a
-  1-energy attacker spams from turn 1, a 3-4 energy attacker needs a setup turn.
+- **prize liability** (attrition ↔ power): single-prize attackers lose fewer prizes
+  per KO and win the prize race; ex (2) / Mega ex (3) hit harder. v3 measures the
+  *role-weighted average* prizes-per-KO (attackers weigh 1.0, support Pokemon 0.25).
+- **setup speed** (aggro ↔ ramp): the cheapest attack the deck can field.
+- **evolution depth** (tempo ↔ ceiling): mean evolution stage over the Pokemon.
+  Stage-2 engines (the dominant real-world archetypes) pay setup turns for a
+  stronger board; all meta anchors are Basics-only, so this axis opens a region
+  the search never explored.
+- **toolbox breadth** (linear ↔ answer-rich): distinct attacker species -- a thick
+  single line maximises consistency, many one-of attackers buy matchup coverage.
 
-Both are derived from the *decklist alone* (no engine). The earlier ``(colour,
+All are derived from the *decklist alone* (no engine). The earlier ``(colour,
 energy-count)`` descriptor failed to illuminate the space -- colour duplicated the
-soft colour penalty (and pulled the archive toward the rainbow decks the penalty
-discourages) while every strong deck piled into the top energy bin -- so the archive
-degenerated to "best mono/duo deck per colour". Colour stays as the soft fitness
-*penalty* (see :func:`colour_count`), not a niche axis. MAP-Elites keeps the best deck
-per niche.
+soft colour penalty while every strong deck piled into the top energy bin. Colour
+stays as the soft fitness *penalty* (see :func:`colour_count`), energy count as a
+mutation target (:data:`ENERGY_TARGET`), not niche axes. MAP-Elites keeps the best
+deck per niche.
 """
 
 from __future__ import annotations
@@ -50,12 +55,28 @@ SPEED_BIN_EDGES = (1, 2, 3)
 _EX_PRIZES = 2
 _MEGA_PRIZES = 3
 
+# ---- Descriptor v3 (Step 5) -- 4 axes grounded in competitive-TCG trade-offs ----
+# (docs/deck-search-redesign.md + the 2026-07 deckbuilding research doc). All are
+# decklist-only. Role-weighted prize liability replaces raw prize *points* as the
+# archive axis: an ex/Mega ATTACKER is real liability, a support ex much less so.
+PL_BIN_EDGES = (1.3, 1.6, 1.9, 2.2)  # avg prizes/KO over role-weighted Pokemon; 5 bins
+_ATTACKER_WEIGHT = 1.0  # main-attacker role weight in the liability average
+_SUPPORT_WEIGHT = 0.25  # non-attacking (engine/support) Pokemon weight
+# Mean evolution stage over the deck's Pokemon (Basic=0 .. Stage 2=2): the setup-cost
+# axis the meta anchors never explore (they are all-Basic; 37% of the pool evolves).
+EVO_BIN_EDGES = (0.05, 0.25, 0.5)  # 4 bins: basics-only / splash / line / evo-core
+# Distinct attacker species: linear (Ceruledge-like) vs toolbox (Pidgeot-like). 3 bins.
+TOOLBOX_BIN_EDGES = (3, 7)
+
 # Heuristic mutation (Step 3): role-aware operators + weights (see card_role / mutate).
 ENERGY_TARGET = (8, 15)  # normal-Standard energy count (docs/deck-search-redesign §0.4)
 _ENERGY_BLOCK = 2  # energy cards moved per energy-block adjustment
 _TRAINER_REFILL_BIAS = 0.7  # P(refill a freed energy slot with a Trainer)
-_OP_NAMES = ("same_role", "package", "energy_block", "random")
-_OP_WEIGHTS = (0.45, 0.25, 0.15, 0.15)  # tunable; free "random" is a low explore floor
+_OP_NAMES = ("same_role", "package", "energy_block", "evo_line", "random")
+_OP_WEIGHTS = (0.35, 0.20, 0.15, 0.20, 0.10)  # free "random" = low explore floor
+_EVO_LINE_ADD_PROB = 0.6  # evo_line op: P(add a line) vs remove an existing one
+_EVO_LINE_COPIES = (2, 3)  # copies per line member when adding (2-2[-2] or 3-3[-3])
+_DONOR_A_PROB = 0.5  # crossover: unbiased per-gene parent choice
 
 
 def random_legal_deck(pool: CardPool, rng: np.random.Generator) -> list[int]:
@@ -305,6 +326,94 @@ def _energy_increase(
     return out
 
 
+def evo_line_ids(pool: CardPool, cid: int) -> list[list[int]]:
+    """The full evolution line ending at ``cid``, as id-choices per member.
+
+    Walks ``evolves_from`` names down to the Basic: for a Stage 2 this returns
+    ``[[basic ids], [stage-1 ids], [cid]]`` (a name can have several printings, any
+    of which completes the line). Returns ``[[cid]]`` for a Basic. Empty inner list
+    if a previous-stage name has no card in the pool (line not buildable).
+    """
+    by_name: dict[str, list[int]] = {}
+    for i, info in pool.cards.items():
+        if info.supertype == "Pokemon":
+            by_name.setdefault(info.name, []).append(i)
+    chain: list[list[int]] = [[cid]]
+    prev = pool.cards[cid].evolves_from
+    while prev:
+        ids = by_name.get(prev, [])
+        chain.append(ids)
+        prev = pool.cards[ids[0]].evolves_from if ids else ""
+    chain.reverse()  # Basic first
+    return chain
+
+
+def _evo_line_remove(
+    keep: list[int], pool: CardPool, rng: np.random.Generator,
+    in_deck_evo: list[int],
+) -> list[int] | None:
+    """Remove one whole evolution line (every copy of every name in the chain).
+
+    The removal set is closed *upward* too -- cutting a middle stage must not
+    orphan the stages above it still in the deck. Returns ``None`` when the cut
+    would zero the deck's attacker role (same guard as :func:`_package_swap`).
+    """
+    target = in_deck_evo[int(rng.integers(len(in_deck_evo)))]
+    names = {pool.cards[ids[0]].name
+             for ids in evo_line_ids(pool, target) if ids}
+    changed = True
+    while changed:
+        changed = False
+        for c in keep:
+            info = pool.cards[c]
+            if info.name not in names and info.evolves_from in names:
+                names.add(info.name)
+                changed = True
+    remaining = [c for c in keep if pool.cards[c].name not in names]
+    if any(card_role(pool.cards[c])[2] for c in remaining):
+        return remaining
+    return None
+
+
+def _evo_line_edit(
+    keep: list[int], pool: CardPool, rng: np.random.Generator,
+) -> list[int]:
+    """Add a coherent evolution LINE (Basic + Stage 1 [+ Stage 2] together) or
+    remove an existing one whole -- the coordinated multi-name edit none of the
+    single-name ops can make, and the operator that makes the descriptor's
+    evolution-depth niches reachable with playable lines (an orphan Stage 2 is
+    dead weight, which is exactly the junk-seeding trap the redesign doc warns
+    about).
+    """
+    keep = list(keep)
+    in_deck_evo = sorted({c for c in keep if card_stage(pool.cards[c]) > 0})
+    if in_deck_evo and rng.random() >= _EVO_LINE_ADD_PROB:
+        removed = _evo_line_remove(keep, pool, rng, in_deck_evo)
+        if removed is not None:
+            return removed
+    # Add a line: pick a random evolved Pokemon from the pool with a buildable chain.
+    evo_pool = [i for i, info in pool.cards.items()
+                if card_stage(info) > 0 and _is_attacker(info)]
+    if not evo_pool:
+        return keep
+    top = evo_pool[int(rng.integers(len(evo_pool)))]
+    chain = evo_line_ids(pool, top)
+    if any(not ids for ids in chain):
+        return keep  # previous stage missing from the pool
+    n = int(_EVO_LINE_COPIES[int(rng.integers(len(_EVO_LINE_COPIES)))])
+    line = [ids[int(rng.integers(len(ids)))] for ids in chain]  # one printing each
+    room = n * len(line)
+    for _ in range(room):  # free the slots first (role-redundancy weighted)
+        if len(keep) == 0:
+            break
+        keep.pop(_pick_removal_index(keep, pool, rng))
+    for member in line:
+        for _ in range(n):
+            if member in legal_next_ids(keep, pool):
+                keep.append(member)
+    return keep  # any shortfall is topped up by mutate()'s defensive refill
+
+
 def _energy_block_adjust(
     keep: list[int], pool: CardPool, rng: np.random.Generator,
 ) -> list[int]:
@@ -357,6 +466,8 @@ def mutate(
             keep = _package_swap(keep, pool, rng)
         elif name == "energy_block":
             keep = _energy_block_adjust(keep, pool, rng)
+        elif name == "evo_line":
+            keep = _evo_line_edit(keep, pool, rng)
         else:
             keep = _single_random_swap(keep, pool, rng)
     while len(keep) < DECK_SIZE:  # defensive top-up (ops may leave freed slots)
@@ -365,6 +476,90 @@ def mutate(
             break
         keep.append(legal[int(rng.integers(len(legal)))])
     return keep
+
+
+def _gene_key(info: CardInfo, root_of: dict[str, str]) -> tuple:
+    """Crossover gene of a card: its evolution-line root (Pokemon) or its role.
+
+    Pokemon belonging to the same evolution line share one gene, so recombination
+    moves LINES atomically (an orphan Stage 2 is dead weight); trainers/energy
+    recombine by deckbuilding role.
+    """
+    if info.supertype == "Pokemon":
+        return ("line", root_of.get(info.name, info.name))
+    return ("role", *card_role(info))
+
+
+def _line_roots(pool: CardPool) -> dict[str, str]:
+    """Map every Pokemon name to its evolution-line root (Basic) name."""
+    prev = {i.name: i.evolves_from for i in pool.cards.values()
+            if i.supertype == "Pokemon"}
+    roots: dict[str, str] = {}
+    for name in prev:
+        cur = name
+        seen = {cur}
+        while prev.get(cur) and prev[cur] in prev and prev[cur] not in seen:
+            cur = prev[cur]
+            seen.add(cur)
+        roots[name] = cur
+    return roots
+
+
+def crossover(
+    deck_a: list[int],
+    deck_b: list[int],
+    pool: CardPool,
+    rng: np.random.Generator,
+) -> list[int]:
+    """Uniform package crossover: child inherits whole genes from either parent.
+
+    A gene = one evolution line (all its stages together) or one trainer/energy
+    role bucket. Genes are shuffled and each is taken whole from a random parent
+    if it still fits (legality-checked per card; a gene that no longer fits is
+    skipped, never split). The child is topped up to 60 through
+    :func:`~src.deck.legal_next_ids` -- always legal, like every operator here.
+    This is the coordinated cross-archetype edit mutation cannot make: e.g. take
+    parent A's attacker line with parent B's trainer engine.
+    """
+    roots = _line_roots(pool)
+    buckets: dict[tuple, dict[str, list[int]]] = {}
+    for tag, deck in (("a", deck_a), ("b", deck_b)):
+        for cid in deck:
+            info = pool.cards.get(cid)
+            if info is None:
+                continue
+            buckets.setdefault(_gene_key(info, roots), {"a": [], "b": []})[
+                tag].append(cid)
+    child: list[int] = []
+    keys = list(buckets)
+    rng.shuffle(keys)  # type: ignore[arg-type]
+    for key in keys:
+        donor = buckets[key]["a" if rng.random() < _DONOR_A_PROB else "b"]
+        if donor and len(child) + len(donor) <= DECK_SIZE:
+            _graft_gene(child, donor, pool)
+    while len(child) < DECK_SIZE:  # coherent top-up: no orphan evolutions
+        legal = sorted(legal_next_ids(child, pool))
+        if not legal:
+            break
+        names = {pool.cards[c].name for c in child}
+        coherent = [c for c in legal
+                    if card_stage(pool.cards[c]) == 0
+                    or pool.cards[c].evolves_from in names]
+        cands = coherent or legal
+        child.append(cands[int(rng.integers(len(cands)))])
+    return child
+
+
+def _graft_gene(child: list[int], donor: list[int], pool: CardPool) -> None:
+    """Append a whole gene if every card fits; back it out whole on a cap clash."""
+    added: list[int] = []
+    for cid in donor:
+        if cid in legal_next_ids(child, pool):
+            child.append(cid)
+            added.append(cid)
+    if len(added) != len(donor):  # take genes whole or not at all (atomic lines)
+        for cid in added:
+            child.remove(cid)
 
 
 def primary_colour(deck: list[int], pool: CardPool) -> str:
@@ -453,12 +648,95 @@ def speed_bin(cost: int | None) -> int:
     return sum(cost > edge for edge in SPEED_BIN_EDGES)
 
 
-def behaviour_descriptor(deck: list[int], pool: CardPool) -> tuple[int, int]:
-    """Archetype niche of a deck: ``(prize-liability bin, setup-speed bin)``."""
-    return prize_bin(prize_points(deck, pool)), speed_bin(setup_cost(deck, pool))
+def card_stage(info: CardInfo) -> int:
+    """Evolution stage of a Pokemon card: Basic 0, Stage 1 -> 1, Stage 2 -> 2."""
+    if info.stage_or_type.startswith("Stage 1"):
+        return 1
+    if info.stage_or_type.startswith("Stage 2"):
+        return 2
+    return 0
 
 
-def deck_stats(deck: list[int], pool: CardPool) -> dict[str, int | None]:
+def _is_attacker(info: CardInfo) -> bool:
+    return info.supertype == "Pokemon" and info.min_attack_cost is not None
+
+
+def prize_liability(deck: list[int], pool: CardPool) -> float:
+    """Role-weighted average prizes-per-KO over the deck's Pokemon (1.0 .. 3.0).
+
+    ``sum(copies * prizes * role) / sum(copies * role)`` with attackers at weight
+    1.0 and non-attacking (engine/support) Pokemon at 0.25 -- a support ex is far
+    less exposed than an ex attacker that must sit in the Active. 1.0 = pure
+    single-prize; a Mega-attacker core approaches 3.0. Decks with no Pokemon
+    (impossible: legality needs a Basic) default to 1.0.
+    """
+    num = den = 0.0
+    for cid in deck:
+        info = pool.cards.get(cid)
+        if info is None or info.supertype != "Pokemon":
+            continue
+        w = _ATTACKER_WEIGHT if _is_attacker(info) else _SUPPORT_WEIGHT
+        num += w * prize_value(info)
+        den += w
+    return num / den if den else 1.0
+
+
+def pl_bin(liability: float) -> int:
+    """Bin role-weighted prize liability into ``0..len(PL_BIN_EDGES)``."""
+    return sum(liability > edge for edge in PL_BIN_EDGES)
+
+
+def evolution_depth(deck: list[int], pool: CardPool) -> float:
+    """Mean evolution stage over the deck's Pokemon (0.0 all-Basic .. 2.0)."""
+    stages = [
+        card_stage(info)
+        for cid in deck
+        if (info := pool.cards.get(cid)) is not None and info.supertype == "Pokemon"
+    ]
+    return sum(stages) / len(stages) if stages else 0.0
+
+
+def evo_bin(depth: float) -> int:
+    """Bin evolution depth into ``0..len(EVO_BIN_EDGES)`` (0 = basics-only)."""
+    return sum(depth > edge for edge in EVO_BIN_EDGES)
+
+
+def toolbox_breadth(deck: list[int], pool: CardPool) -> int:
+    """Distinct attacker species in the deck (linear core vs toolbox answers)."""
+    return len({
+        info.name
+        for cid in deck
+        if (info := pool.cards.get(cid)) is not None and _is_attacker(info)
+    })
+
+
+def toolbox_bin(n: int) -> int:
+    """Bin attacker-species count into ``0..len(TOOLBOX_BIN_EDGES)``."""
+    return sum(n > edge for edge in TOOLBOX_BIN_EDGES)
+
+
+def behaviour_descriptor(
+    deck: list[int], pool: CardPool,
+) -> tuple[int, int, int, int]:
+    """Archetype niche (descriptor v3): ``(prize-liability, setup-speed,
+    evolution-depth, toolbox-breadth)`` bins -- max 5*4*4*3 = 240 cells.
+
+    v2 was ``(prize-points bin, speed bin)`` (20 cells); v3 keeps the two validated
+    trade-offs (liability now role-weighted) and adds the two axes the 2026-07
+    research ranked highest among the decklist-computable ones: evolution depth
+    (the setup-cost axis; every meta anchor is all-Basic, so the region real
+    Stage-2 archetypes live in was structurally unexplored) and toolbox breadth
+    (linear vs answer-rich construction).
+    """
+    return (
+        pl_bin(prize_liability(deck, pool)),
+        speed_bin(setup_cost(deck, pool)),
+        evo_bin(evolution_depth(deck, pool)),
+        toolbox_bin(toolbox_breadth(deck, pool)),
+    )
+
+
+def deck_stats(deck: list[int], pool: CardPool) -> dict[str, int | float | None]:
     """Coarse composition + niche features (for logging / inspection)."""
     kinds = Counter(card_kind(pool, cid) for cid in deck)
     return {
@@ -467,5 +745,8 @@ def deck_stats(deck: list[int], pool: CardPool) -> dict[str, int | None]:
         "trainer": kinds.get("trainer", 0),
         "distinct": len(set(deck)),
         "prize_points": prize_points(deck, pool),
+        "prize_liability": round(prize_liability(deck, pool), 2),
+        "evo_depth": round(evolution_depth(deck, pool), 2),
+        "toolbox": toolbox_breadth(deck, pool),
         "min_attack_cost": setup_cost(deck, pool),
     }

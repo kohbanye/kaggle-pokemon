@@ -17,17 +17,26 @@ from src.qd import (
 )
 from src.qd.deck_qd import (
     _energy_block_adjust,
+    _evo_line_edit,
     _package_swap,
     colour_count,
+    crossover,
     energy_bin,
     energy_count,
+    evo_bin,
+    evo_line_ids,
+    evolution_depth,
+    pl_bin,
     prize_bin,
+    prize_liability,
     prize_points,
     ramp_ids,
     random_legal_deck_biased,
     setup_cost,
     single_prize_ids,
     speed_bin,
+    toolbox_bin,
+    toolbox_breadth,
 )
 
 
@@ -83,6 +92,65 @@ def _role_pool() -> CardPool:
                  "C"),
     ]
     return CardPool({info.card_id: info for info in infos})
+
+
+def _evo_pool() -> CardPool:
+    """A pool with a full Basic -> Stage 1 -> Stage 2 line (for the evo-line tests).
+
+    Dedicated pool (like ``_role_pool``) so the evolution links can't perturb the
+    ``_pool()`` set-equality tests. ``Zard`` evolves from ``Meleon`` evolves from
+    ``Mander``; ``Solo`` is an unrelated Basic attacker; Basic Energy keeps any
+    60 completable.
+    """
+    infos = [
+        CardInfo(1, "Mander", "Pokemon", "Basic Pokémon", True, False, False, "R",
+                 min_attack_cost=1),
+        CardInfo(2, "Meleon", "Pokemon", "Stage 1 Pokémon", False, False, False, "R",
+                 min_attack_cost=2, evolves_from="Mander"),
+        CardInfo(3, "Zard", "Pokemon", "Stage 2 Pokémon", False, False, False, "R",
+                 is_ex=True, min_attack_cost=3, evolves_from="Meleon"),
+        CardInfo(4, "Solo", "Pokemon", "Basic Pokémon", True, False, False, "W",
+                 min_attack_cost=1),
+        CardInfo(10, "TrItem", "Trainer", "Item", False, False, False, ""),
+        CardInfo(20, "Fire Energy", "Energy", "Basic Energy", False, True, False, "R"),
+    ]
+    return CardPool({info.card_id: info for info in infos})
+
+
+def test_evo_line_ids_walks_the_chain() -> None:
+    pool = _evo_pool()
+    assert evo_line_ids(pool, 3) == [[1], [2], [3]]  # Basic first
+    assert evo_line_ids(pool, 2) == [[1], [2]]
+    assert evo_line_ids(pool, 1) == [[1]]  # a Basic is its own line
+
+
+def test_evo_line_edit_adds_and_removes_coherent_lines() -> None:
+    pool = _evo_pool()
+    rng = np.random.default_rng(7)
+    base = [4] * 4 + [20] * 56  # no evolution cards -> the op can only ADD a line
+    added = removed = False
+    for _ in range(60):
+        out = _evo_line_edit(base, pool, rng)
+        assert legality_errors(out, pool) == [] or len(out) < 60  # legal prefix
+        c = Counter(out)
+        if c[3]:  # Stage 2 present -> its whole chain must be present
+            assert c[2], "orphan Stage 2 (Stage 1 missing)"
+            assert c[1], "orphan Stage 2 (Basic missing)"
+            added = True
+    assert added
+    with_line = [4] * 4 + [1, 1, 2, 2, 3, 3] + [20] * 50
+    for _ in range(60):
+        out = _evo_line_edit(with_line, pool, rng)
+        c = Counter(out)
+        if not c[3] and not c[2] and not c[1]:
+            removed = True  # the whole line went, not a partial strand
+        # never a partial removal that leaves an orphan Stage 2
+        if c[3]:
+            assert c[2]
+            assert c[1]
+        # attacker guard: some attacker always survives
+        assert any(card_role(pool.cards[x])[2] for x in out)
+    assert removed
 
 
 def test_random_legal_deck_is_legal() -> None:
@@ -170,15 +238,59 @@ def test_ramp_seed_reaches_high_speed_bin() -> None:
 
 def test_behaviour_descriptor() -> None:
     pool = _pool()
-    # Single-prize, 1-energy attacker deck -> (prize bin 0, speed bin 0).
+    # Single-prize 1-energy Basic attackers, 2 species -> all-zero niche.
     aggro = [1] * 4 + [4] * 1 + [20] * 55
-    assert behaviour_descriptor(aggro, pool) == (0, 0)
-    # Mega-heavy, 3-energy attacker deck -> high prize liability, slow.
+    assert behaviour_descriptor(aggro, pool) == (0, 0, 0, 0)
+    # Mega-only attacker deck -> max prize liability (3.0), ramp speed.
     mega = [3] * 4 + [21] * 56
-    pbin, sbin = behaviour_descriptor(mega, pool)
-    assert pbin == 2  # 4 Mega -> 8 extra points; 8>0,8>4,not 8>8 -> bin 2
+    pbin, sbin, ebin, tbin = behaviour_descriptor(mega, pool)
+    assert pbin == 4  # role-weighted liability 3.0 > every PL edge
     assert sbin == 2  # cheapest attack costs 3 -> ramp
+    assert ebin == 0  # all Basic
+    assert tbin == 0  # single attacker species
     assert deck_stats(aggro, pool)["prize_points"] == 0
+
+
+def test_prize_liability_role_weighting() -> None:
+    """A support ex weighs 0.25 vs an attacker's 1.0 in the liability average."""
+    infos = [
+        CardInfo(1, "Atk1", "Pokemon", "Basic Pokémon", True, False, False, "R",
+                 min_attack_cost=1),
+        CardInfo(2, "SupEx", "Pokemon", "Basic Pokémon", True, False, False, "P",
+                 is_ex=True),  # no attack -> support role
+        CardInfo(3, "AtkEx", "Pokemon", "Basic Pokémon", True, False, False, "W",
+                 is_ex=True, min_attack_cost=2),
+    ]
+    pool = CardPool({i.card_id: i for i in infos})
+    assert prize_liability([1, 1], pool) == 1.0  # pure single-prize
+    # 2 single-prize attackers + 2 support ex: (2*1 + 0.25*2*2)/(2 + 0.25*2) = 1.2
+    assert abs(prize_liability([1, 1, 2, 2], pool) - 1.2) < 1e-9
+    # The same ex as ATTACKERS doubles their pull: (2*1 + 2*2)/4 = 1.5
+    assert abs(prize_liability([1, 1, 3, 3], pool) - 1.5) < 1e-9
+    assert pl_bin(1.0) == 0
+    assert pl_bin(1.5) == 1
+    assert pl_bin(2.0) == 3
+    assert pl_bin(3.0) == 4
+
+
+def test_evolution_depth_and_bin() -> None:
+    pool = _evo_pool()
+    assert evolution_depth([1, 1, 20], pool) == 0.0  # Basics only
+    # 2 Basic + 1 Stage1 + 1 Stage2 -> (0+0+1+2)/4 = 0.75
+    assert abs(evolution_depth([1, 1, 2, 3], pool) - 0.75) < 1e-9
+    assert evo_bin(0.0) == 0
+    assert evo_bin(0.2) == 1
+    assert evo_bin(0.4) == 2
+    assert evo_bin(0.75) == 3
+
+
+def test_toolbox_breadth_counts_attacker_species() -> None:
+    pool = _pool()
+    assert toolbox_breadth([1] * 4 + [20] * 10, pool) == 1
+    assert toolbox_breadth([1, 2, 3, 4], pool) == 4  # PkR, PkW, PkG, PkR2
+    assert toolbox_bin(1) == 0
+    assert toolbox_bin(4) == 1
+    assert toolbox_bin(8) == 2
 
 
 def test_colour_count_distinct_pokemon_colours() -> None:
@@ -315,3 +427,34 @@ def test_energy_block_adjust_trends_toward_range() -> None:
     assert energy_count(_energy_block_adjust(under, pool, rng), pool) >= energy_count(
         under, pool,
     )
+
+
+def test_crossover_legal_and_line_atomic() -> None:
+    pool = _evo_pool()
+    rng = np.random.default_rng(8)
+    # Parent A: the evolution line + energy; parent B: Solo aggro + items.
+    a = [1, 1, 2, 2, 3, 3] + [20] * 54
+    b = [4, 4, 4, 4] + [10, 10, 10, 10] + [20] * 52
+    for _ in range(40):
+        child = crossover(a, b, pool, rng)
+        assert len(child) == 60
+        assert legality_errors(child, pool) == []
+        c = Counter(child)
+        # Line atomicity: a Stage 2 never arrives without its whole chain.
+        if c[3]:
+            assert c[2]
+            assert c[1]
+
+
+def test_crossover_mixes_parent_packages() -> None:
+    pool = _evo_pool()
+    rng = np.random.default_rng(9)
+    a = [1, 1, 2, 2, 3, 3] + [20] * 54  # line, no items
+    b = [4, 4, 4, 4] + [10, 10, 10, 10] + [20] * 52  # items, no line
+    mixed = False
+    for _ in range(60):
+        c = Counter(crossover(a, b, pool, rng))
+        if c[3] and c[10]:  # A's Stage-2 line AND B's item package together
+            mixed = True
+            break
+    assert mixed, "crossover never combined packages from both parents"

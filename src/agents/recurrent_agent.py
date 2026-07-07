@@ -26,6 +26,7 @@ import numpy as np
 from src.net.deck_sample import sample_deck_with_logp
 from src.net.embedding import CardEmbeddingIndex
 from src.net.encode import (
+    deck_context,
     encode_options,
     encode_state,
     option_embed_rows,
@@ -81,6 +82,9 @@ class RecurrentNetAgent(Agent):
                 self.deck, self.deck_logp = sample_deck_with_logp(
                     net, cb_pool, self.feats, self._rng,
                 )
+        # Deck-conditioning context (None unless the net was trained with it);
+        # fixed per deck, so computed once here rather than per decision.
+        self._ctx = net.deck_ctx(deck_context(self.deck, self.feats))
 
     def reset(self, seed: int) -> None:
         """Re-seed sampling and zero the play LSTM (call at game start)."""
@@ -114,6 +118,7 @@ class RecurrentNetAgent(Agent):
             # Advance the play LSTM and score off the new hidden state.
             logits, value, self._h, self._c = self.net.step(
                 state_vec, rows, mask, option_feats, option_rows, self._h, self._c,
+                ctx=self._ctx,
             )
             if logits.shape[0] != len(options):
                 return None

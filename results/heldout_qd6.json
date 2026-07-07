@@ -1,0 +1,181 @@
+{
+  "heldout": [
+    "ho_colorless_kanga",
+    "ho_colorless_terapagos",
+    "ho_dark_absol",
+    "ho_dark_yveltal",
+    "ho_fighting_koraidon",
+    "ho_fighting_zygarde",
+    "ho_fire_gouging",
+    "ho_fire_volcanion",
+    "ho_grass_heracross",
+    "ho_grass_ironleaves",
+    "ho_lightning_pikachu",
+    "ho_lightning_zekrom",
+    "ho_metal_mawile",
+    "ho_metal_zacian",
+    "ho_psychic_latias",
+    "ho_psychic_mewtwo",
+    "ho_water_blackkyurem",
+    "ho_water_kyurem",
+    "md2_dark_psychic",
+    "md2_fight_metal",
+    "md_dark_okidogi",
+    "md_fighting_regirock",
+    "md_fire_ogerpon",
+    "md_grass_durant",
+    "md_lightning_thorns",
+    "md_metal_genesect",
+    "md_psychic_diancie",
+    "md_stall_snorlax",
+    "md_water_dondozo",
+    "md_water_regice"
+  ],
+  "opp_pilots": [
+    "greedy",
+    "heuristic",
+    "greedyFF"
+  ],
+  "games_per_pair": 30,
+  "overall": {
+    "greedy|qd6_rl": {
+      "winrate": 0.147,
+      "ci": [
+        0.134,
+        0.161
+      ],
+      "n": 2694
+    },
+    "net|qd6_rl": {
+      "winrate": 0.146,
+      "ci": [
+        0.133,
+        0.16
+      ],
+      "n": 2700
+    },
+    "greedy|qd6_alt": {
+      "winrate": 0.409,
+      "ci": [
+        0.391,
+        0.428
+      ],
+      "n": 2692
+    }
+  },
+  "per_pilot": {
+    "greedy|qd6_rl": {
+      "greedy": 0.145,
+      "heuristic": 0.149,
+      "greedyFF": 0.147
+    },
+    "net|qd6_rl": {
+      "greedy": 0.146,
+      "heuristic": 0.164,
+      "greedyFF": 0.129
+    },
+    "greedy|qd6_alt": {
+      "greedy": 0.433,
+      "heuristic": 0.394,
+      "greedyFF": 0.402
+    }
+  },
+  "per_opp": {
+    "greedy|qd6_rl": {
+      "ho_colorless_kanga": 0.089,
+      "ho_colorless_terapagos": 0.022,
+      "ho_dark_absol": 0.056,
+      "ho_dark_yveltal": 0.0,
+      "ho_fighting_koraidon": 0.044,
+      "ho_fighting_zygarde": 0.033,
+      "ho_fire_gouging": 0.022,
+      "ho_fire_volcanion": 0.067,
+      "ho_grass_heracross": 0.033,
+      "ho_grass_ironleaves": 0.0,
+      "ho_lightning_pikachu": 0.315,
+      "ho_lightning_zekrom": 0.299,
+      "ho_metal_mawile": 0.044,
+      "ho_metal_zacian": 0.156,
+      "ho_psychic_latias": 0.111,
+      "ho_psychic_mewtwo": 0.1,
+      "ho_water_blackkyurem": 0.078,
+      "ho_water_kyurem": 0.278,
+      "md2_dark_psychic": 0.556,
+      "md2_fight_metal": 0.244,
+      "md_dark_okidogi": 0.089,
+      "md_fighting_regirock": 0.2,
+      "md_fire_ogerpon": 0.344,
+      "md_grass_durant": 0.078,
+      "md_lightning_thorns": 0.371,
+      "md_metal_genesect": 0.078,
+      "md_psychic_diancie": 0.078,
+      "md_stall_snorlax": 0.189,
+      "md_water_dondozo": 0.233,
+      "md_water_regice": 0.213
+    },
+    "net|qd6_rl": {
+      "ho_colorless_kanga": 0.022,
+      "ho_colorless_terapagos": 0.089,
+      "ho_dark_absol": 0.0,
+      "ho_dark_yveltal": 0.0,
+      "ho_fighting_koraidon": 0.078,
+      "ho_fighting_zygarde": 0.044,
+      "ho_fire_gouging": 0.067,
+      "ho_fire_volcanion": 0.1,
+      "ho_grass_heracross": 0.0,
+      "ho_grass_ironleaves": 0.0,
+      "ho_lightning_pikachu": 0.2,
+      "ho_lightning_zekrom": 0.3,
+      "ho_metal_mawile": 0.078,
+      "ho_metal_zacian": 0.144,
+      "ho_psychic_latias": 0.144,
+      "ho_psychic_mewtwo": 0.089,
+      "ho_water_blackkyurem": 0.022,
+      "ho_water_kyurem": 0.178,
+      "md2_dark_psychic": 0.467,
+      "md2_fight_metal": 0.189,
+      "md_dark_okidogi": 0.089,
+      "md_fighting_regirock": 0.311,
+      "md_fire_ogerpon": 0.389,
+      "md_grass_durant": 0.067,
+      "md_lightning_thorns": 0.4,
+      "md_metal_genesect": 0.122,
+      "md_psychic_diancie": 0.067,
+      "md_stall_snorlax": 0.322,
+      "md_water_dondozo": 0.244,
+      "md_water_regice": 0.167
+    },
+    "greedy|qd6_alt": {
+      "ho_colorless_kanga": 0.244,
+      "ho_colorless_terapagos": 0.311,
+      "ho_dark_absol": 0.333,
+      "ho_dark_yveltal": 0.3,
+      "ho_fighting_koraidon": 0.333,
+      "ho_fighting_zygarde": 0.367,
+      "ho_fire_gouging": 0.156,
+      "ho_fire_volcanion": 0.211,
+      "ho_grass_heracross": 0.322,
+      "ho_grass_ironleaves": 0.122,
+      "ho_lightning_pikachu": 0.552,
+      "ho_lightning_zekrom": 0.58,
+      "ho_metal_mawile": 0.289,
+      "ho_metal_zacian": 0.378,
+      "ho_psychic_latias": 0.478,
+      "ho_psychic_mewtwo": 0.489,
+      "ho_water_blackkyurem": 0.404,
+      "ho_water_kyurem": 0.36,
+      "md2_dark_psychic": 0.722,
+      "md2_fight_metal": 0.4,
+      "md_dark_okidogi": 0.478,
+      "md_fighting_regirock": 0.6,
+      "md_fire_ogerpon": 0.467,
+      "md_grass_durant": 0.278,
+      "md_lightning_thorns": 0.611,
+      "md_metal_genesect": 0.367,
+      "md_psychic_diancie": 0.544,
+      "md_stall_snorlax": 0.567,
+      "md_water_dondozo": 0.506,
+      "md_water_regice": 0.522
+    }
+  }
+}

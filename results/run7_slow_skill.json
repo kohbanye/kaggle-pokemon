@@ -1,0 +1,177 @@
+{
+  "decks": [
+    "strong_control",
+    "ramp",
+    "single_prize"
+  ],
+  "results": {
+    "init|strong_control": {
+      "net_vs_greedy": 0.625,
+      "ci": [
+        0.47,
+        0.758
+      ],
+      "decisive": 40
+    },
+    "init|ramp": {
+      "net_vs_greedy": 0.55,
+      "ci": [
+        0.398,
+        0.693
+      ],
+      "decisive": 40
+    },
+    "init|single_prize": {
+      "net_vs_greedy": 0.6,
+      "ci": [
+        0.446,
+        0.737
+      ],
+      "decisive": 40
+    },
+    "r1|strong_control": {
+      "net_vs_greedy": 0.65,
+      "ci": [
+        0.495,
+        0.779
+      ],
+      "decisive": 40
+    },
+    "r1|ramp": {
+      "net_vs_greedy": 0.55,
+      "ci": [
+        0.398,
+        0.693
+      ],
+      "decisive": 40
+    },
+    "r1|single_prize": {
+      "net_vs_greedy": 0.575,
+      "ci": [
+        0.422,
+        0.715
+      ],
+      "decisive": 40
+    },
+    "r2|strong_control": {
+      "net_vs_greedy": 0.8,
+      "ci": [
+        0.652,
+        0.895
+      ],
+      "decisive": 40
+    },
+    "r2|ramp": {
+      "net_vs_greedy": 0.45,
+      "ci": [
+        0.307,
+        0.602
+      ],
+      "decisive": 40
+    },
+    "r2|single_prize": {
+      "net_vs_greedy": 0.7,
+      "ci": [
+        0.546,
+        0.819
+      ],
+      "decisive": 40
+    },
+    "r3|strong_control": {
+      "net_vs_greedy": 0.8,
+      "ci": [
+        0.652,
+        0.895
+      ],
+      "decisive": 40
+    },
+    "r3|ramp": {
+      "net_vs_greedy": 0.6,
+      "ci": [
+        0.446,
+        0.737
+      ],
+      "decisive": 40
+    },
+    "r3|single_prize": {
+      "net_vs_greedy": 0.675,
+      "ci": [
+        0.52,
+        0.799
+      ],
+      "decisive": 40
+    },
+    "r4|strong_control": {
+      "net_vs_greedy": 0.675,
+      "ci": [
+        0.52,
+        0.799
+      ],
+      "decisive": 40
+    },
+    "r4|ramp": {
+      "net_vs_greedy": 0.675,
+      "ci": [
+        0.52,
+        0.799
+      ],
+      "decisive": 40
+    },
+    "r4|single_prize": {
+      "net_vs_greedy": 0.7,
+      "ci": [
+        0.546,
+        0.819
+      ],
+      "decisive": 40
+    },
+    "r5|strong_control": {
+      "net_vs_greedy": 0.75,
+      "ci": [
+        0.598,
+        0.858
+      ],
+      "decisive": 40
+    },
+    "r5|ramp": {
+      "net_vs_greedy": 0.575,
+      "ci": [
+        0.422,
+        0.715
+      ],
+      "decisive": 40
+    },
+    "r5|single_prize": {
+      "net_vs_greedy": 0.675,
+      "ci": [
+        0.52,
+        0.799
+      ],
+      "decisive": 40
+    },
+    "r6|strong_control": {
+      "net_vs_greedy": 0.625,
+      "ci": [
+        0.47,
+        0.758
+      ],
+      "decisive": 40
+    },
+    "r6|ramp": {
+      "net_vs_greedy": 0.425,
+      "ci": [
+        0.285,
+        0.578
+      ],
+      "decisive": 40
+    },
+    "r6|single_prize": {
+      "net_vs_greedy": 0.65,
+      "ci": [
+        0.495,
+        0.779
+      ],
+      "decisive": 40
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "net": "data/qdcoevo/run7/round_6/rl/paper_final.npz",
+  "deck": "decklists/single_prize_psychic.csv",
+  "overall_winrate": 0.067,
+  "ci": [
+    0.043,
+    0.103
+  ],
+  "decisive": 270,
+  "per_meta_deck": {
+    "darkness_aggro": 0.067,
+    "fighting_aggro": 0.033,
+    "fire_aggro": 0.0,
+    "grass_aggro": 0.033,
+    "lightning_aggro": 0.2,
+    "metal_aggro": 0.0,
+    "psychic_aggro": 0.233,
+    "run4_best": 0.033,
+    "water_aggro": 0.0
+  }
+}

@@ -43,6 +43,9 @@ CTX_IS_FIRST = 41  # SelectContext.IS_FIRST
 INIT = "data/paperosfp/main/paper_final.npz"
 RUN3 = "data/qdcoevo/run3/round_6/rl/paper_final.npz"
 RUN7 = "data/qdcoevo/run7/round_6/rl/paper_final.npz"
+QD5 = "data/qdrl_run1/round_5/rl/paper_final.npz"
+QD6 = "data/qdrl_run2/round_8/rl/paper_final.npz"
+QD7 = "data/qdrl_run3/round_7/rl/paper_final.npz"
 
 # label -> (kind, deck, ckpt|None, force_first).  Covers play-on-metal robustness,
 # real submission units, and exploiter probes (forced-go-first, type variety).
@@ -58,6 +61,24 @@ STRATS: dict[str, tuple[str, str, str | None, bool]] = {
     "greedy|fire":        ("greedy", "fire_aggro", None, False),    # type variety
     "greedy|psychic":     ("greedy", "psychic_aggro", None, False),
     "greedyFF|metal":     ("greedy", "metal_aggro", None, True),    # go-2nd exploiter
+    # QD-searched decks (Step 1/2/3/4 bests; qd2_sur = the 574.8 ladder submission).
+    # These are the population's strongest exploiters -- keep them in.
+    "greedy|qd_step1_best": ("greedy", "qd_step1_best", None, False),
+    "greedy|qd3_rand":    ("greedy", "qd3_rand", None, False),
+    "greedy|qd2_sur":     ("greedy", "qd2_sur", None, False),
+    "greedy|qd4_coevo":   ("greedy", "qd4_coevo", None, False),     # Step 4 candidate
+    "greedy|qd4_prod":    ("greedy", "qd4_prod", None, False),      # Step 4 production
+    # Step 5 QD<->RL: the co-trained (net, deck) unit and the deck under greedy.
+    "greedy|qd5_rl":      ("greedy", "qd5_rl", None, False),
+    "qd5net|qd5_rl":      ("net", "qd5_rl", QD5, False),
+    # Step 5b (crossover+racing+deck_ctx run): best cell + a normal-shape cell.
+    "greedy|qd6_rl":      ("greedy", "qd6_rl", None, False),
+    "qd6net|qd6_rl":      ("net", "qd6_rl", QD6, False),
+    "greedy|qd6_alt":     ("greedy", "qd6_alt", None, False),
+    # Step 5c (anchored coevo run): best cell under both pilots.
+    "greedy|qd7_rl":      ("greedy", "qd7_rl", None, False),
+    "qd7net|qd7_rl":      ("net", "qd7_rl", QD7, False),
+    "greedy|qd7_r5":      ("greedy", "qd7_r5", None, False),  # run3 r5 sleeper best
 }
 
 _G: dict = {}
@@ -81,13 +102,21 @@ class _ForcedFirst:
         return self.inner(obs)
 
 
+def _deck_path(nm: str) -> Path:
+    """Resolve a deck name: ``decklists/`` first, then ``decklists/candidates/``
+    (QD-searched decks live there so the QD gauntlet's ``decklists/*.csv`` glob
+    doesn't pick them up)."""
+    p = ROOT / "decklists" / f"{nm}.csv"
+    return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
+
+
 def _init(net_paths: dict[str, str], deck_names: list[str]) -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["nets"] = {p: RecurrentPolicyValueNet.load(p) for p in set(net_paths.values())}
-    _G["decks"] = {nm: read_deck(ROOT / "decklists" / f"{nm}.csv") for nm in deck_names}
+    _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in deck_names}
 
 
 def _agent(label: str) -> object:

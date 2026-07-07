@@ -1,0 +1,21 @@
+{
+  "net": "data/sp_specialist/rl/paper_final.npz",
+  "deck": "decklists/single_prize_psychic.csv",
+  "overall_winrate": 0.031,
+  "ci": [
+    0.017,
+    0.054
+  ],
+  "decisive": 360,
+  "per_meta_deck": {
+    "darkness_aggro": 0.0,
+    "fighting_aggro": 0.0,
+    "fire_aggro": 0.0,
+    "grass_aggro": 0.0,
+    "lightning_aggro": 0.1,
+    "metal_aggro": 0.0,
+    "psychic_aggro": 0.15,
+    "run4_best": 0.025,
+    "water_aggro": 0.0
+  }
+}

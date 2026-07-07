@@ -30,6 +30,7 @@ from src.deck import legal_next_ids
 from src.net.deck_factored import N_CATEGORIES, category_of_rows
 from src.net.encode import (
     OPTION_DIM,
+    deck_context,
     encode_options,
     encode_state,
     option_embed_rows,
@@ -59,6 +60,7 @@ class BattleStep:
     option_rows: NDArray[np.intp]  # (K,)
     action: int  # index of the sampled option
     behaviour_logp: float  # log μ(action | state) at collection time
+    phi: float = 0.0  # potential Φ(s) for reward shaping (0 = shaping off)
 
 
 @dataclass
@@ -78,9 +80,36 @@ class Episode:
     deck_card_legal: NDArray[np.bool_]  # (Td, N_pool) legal rows in the picked category
     deck_logp: NDArray[np.float64]  # (Td,) factored behaviour log-prob
     ret: float
+    deck_vec: NDArray[np.float64] | None = None  # deck-context (conditioning input)
 
 
 # --- building episodes from the raw collector logs --------------------------
+
+
+def board_potential(current: dict, you: int,
+                    prize_coef: float, board_coef: float) -> float:
+    """Potential Φ(s) for reward shaping: prize + board-supply differentials.
+
+    The engine meta is ATTRITION -- 95% of ladder games end because the loser
+    has no Pokemon left (results/episodes analysis) -- so the potential rewards
+    both the prize race and keeping your board stocked. Potential-BASED shaping
+    (``r_t = Φ(s_{t+1}) - Φ(s_t)``, terminal treated as Φ=0) provably preserves
+    the optimal policy while densifying the terminal-only ±1 signal.
+    """
+    players = current.get("players") or [{}, {}]
+
+    def prizes_taken(p: dict) -> int:
+        return 6 - len(p.get("prize") or [])
+
+    def board(p: dict) -> int:
+        return (len([c for c in (p.get("active") or []) if c])
+                + len([c for c in (p.get("bench") or []) if c]))
+
+    me, opp = players[you], players[1 - you]
+    # NB you draw YOUR OWN prizes when you KO the opponent -- prizes_taken(me)
+    # is MY score (a unit test caught the reversed sign here).
+    return (prize_coef * (prizes_taken(me) - prizes_taken(opp))
+            + board_coef * (board(me) - board(opp)))
 
 
 def _outcome(winner: int, slot: int) -> float:
@@ -97,6 +126,7 @@ def _battle_steps(
     slot: int,
     feats: CardFeatures,
     index: CardEmbeddingIndex | None,
+    shaping: tuple[float, float] | None = None,
 ) -> list[BattleStep]:
     """Encode one slot's ordered single-select decisions into battle steps."""
     steps: list[BattleStep] = []
@@ -115,6 +145,10 @@ def _battle_steps(
         if not 0 <= action < len(options):
             continue
         current = obs.get("current") or {}
+        phi = 0.0
+        if shaping is not None and current:
+            you = int(current.get("yourIndex", slot))
+            phi = board_potential(current, you, shaping[0], shaping[1])
         steps.append(BattleStep(
             state=encode_state(current, slot, feats),
             state_rows=state_embed_rows(current, slot, index)[0],
@@ -123,6 +157,7 @@ def _battle_steps(
             option_rows=option_embed_rows(options, current, slot, index),
             action=action,
             behaviour_logp=float(decision.get("logp", 0.0)),
+            phi=phi,
         ))
     return steps
 
@@ -192,6 +227,7 @@ def build_episodes(
     feats: CardFeatures,
     index: CardEmbeddingIndex,
     pool: CardPool,
+    shaping: tuple[float, float] | None = None,
 ) -> list[Episode]:
     """Encode raw ``"game"`` records into :class:`Episode` objects.
 
@@ -214,12 +250,13 @@ def build_episodes(
             arr = _deck_arrays(deck, deck_logp, pool, index, cat_of)
             if arr is None:
                 continue
-            steps = _battle_steps(decisions, slot, feats, index)
+            steps = _battle_steps(decisions, slot, feats, index, shaping)
             if not steps:
                 continue
             episodes.append(Episode(
                 steps, arr.rows, arr.cats, arr.cat_legal, arr.card_legal,
                 arr.logps, _outcome(winner, slot),
+                deck_vec=deck_context(deck, feats),
             ))
     return episodes
 
@@ -267,13 +304,24 @@ def _collate_battle(episodes: list[Episode]) -> dict[str, torch.Tensor]:
         # finite (an all-(-inf) row -> nan, and nan*0 would poison the masked means).
         # ``valid`` already excludes them from every loss term.
         option_mask[i, len(ep.battle) :, 0] = True
-        rewards[i, len(ep.battle) - 1] = ep.ret  # terminal reward on the last step
-    return {
+        # Potential-based shaping: r_t = Φ(s_{t+1}) - Φ(s_t), terminal Φ := 0, so
+        # the last step gets ret - Φ(s_T) and the return telescopes to
+        # ret - Φ(s_1). With shaping off every phi is 0 -> terminal-only reward.
+        phis = [st.phi for st in ep.battle]
+        for t in range(len(ep.battle) - 1):
+            rewards[i, t] = phis[t + 1] - phis[t]
+        rewards[i, len(ep.battle) - 1] = ep.ret - phis[-1]
+    out = {
         "states": states, "state_rows": state_rows, "state_mask": state_mask,
         "options": options, "option_mask": option_mask, "option_rows": option_rows,
         "actions": actions, "behaviour_logp": behaviour_logp, "rewards": rewards,
         "valid": valid, "bootstrap": torch.zeros(bsz),
     }
+    if all(ep.deck_vec is not None for ep in episodes):
+        out["deck_vec"] = torch.stack(
+            [torch.from_numpy(ep.deck_vec).float() for ep in episodes],
+        )
+    return out
 
 
 def _collate_deck(episodes: list[Episode]) -> dict[str, torch.Tensor]:

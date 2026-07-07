@@ -63,6 +63,10 @@ class CardInfo:
     is_ex: bool = False
     is_mega: bool = False
     min_attack_cost: int | None = None
+    # Name of the Pokemon this card evolves from (the CSV "Previous stage" column),
+    # "" for Basics / non-Pokemon. Lets the QD mutation add/remove whole evolution
+    # LINES (Basic + Stage 1 + Stage 2 together) -- an orphan Stage 2 is dead weight.
+    evolves_from: str = ""
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,7 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
         card_id = int(row["card_id"])
         type_code = row.get("type_code")
         mac = row.get("min_attack_cost")
+        prev = row.get("previous_stage")
         cards[card_id] = CardInfo(
             card_id=card_id,
             name=str(row["name"]),
@@ -125,6 +130,7 @@ def build_pool(lang: str = "EN", data_dir: Path | None = None) -> CardPool:
             is_ex=bool(row.get("is_ex", False)),
             is_mega=bool(row.get("is_mega", False)),
             min_attack_cost=_opt_int(mac),  # NaN (no attack) -> None
+            evolves_from=prev if isinstance(prev, str) else "",  # NaN -> ""
         )
     return CardPool(cards)
 

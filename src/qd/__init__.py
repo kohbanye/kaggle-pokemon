@@ -9,13 +9,21 @@ RL net keeps learning to *play*. Only engine legality is enforced -- no hand-cod
 """
 
 from src.qd.archive import Elite, MapElitesArchive
+from src.qd.coevo import HallOfFame, HofEntry, build_gauntlet
 from src.qd.deck_qd import (
     behaviour_descriptor,
     card_role,
+    card_stage,
     colour_count,
+    crossover,
     deck_stats,
+    evo_bin,
+    evo_line_ids,
+    evolution_depth,
     mutate,
+    pl_bin,
     prize_bin,
+    prize_liability,
     prize_points,
     ramp_ids,
     random_legal_deck,
@@ -23,20 +31,32 @@ from src.qd.deck_qd import (
     setup_cost,
     single_prize_ids,
     speed_bin,
+    toolbox_bin,
+    toolbox_breadth,
 )
 from src.qd.surrogate import DeckFeaturizer, RidgeSurrogate, select_children
 
 __all__ = [
     "DeckFeaturizer",
     "Elite",
+    "HallOfFame",
+    "HofEntry",
     "MapElitesArchive",
     "RidgeSurrogate",
     "behaviour_descriptor",
+    "build_gauntlet",
     "card_role",
+    "card_stage",
     "colour_count",
+    "crossover",
     "deck_stats",
+    "evo_bin",
+    "evo_line_ids",
+    "evolution_depth",
     "mutate",
+    "pl_bin",
     "prize_bin",
+    "prize_liability",
     "prize_points",
     "ramp_ids",
     "random_legal_deck",
@@ -45,4 +65,6 @@ __all__ = [
     "setup_cost",
     "single_prize_ids",
     "speed_bin",
+    "toolbox_bin",
+    "toolbox_breadth",
 ]

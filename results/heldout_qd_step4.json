@@ -1,0 +1,91 @@
+{
+  "heldout": [
+    "ho_colorless_kanga",
+    "ho_colorless_terapagos",
+    "ho_dark_absol",
+    "ho_dark_yveltal",
+    "ho_fighting_koraidon",
+    "ho_fighting_zygarde",
+    "ho_fire_gouging",
+    "ho_fire_volcanion",
+    "ho_grass_heracross",
+    "ho_grass_ironleaves",
+    "ho_lightning_pikachu",
+    "ho_lightning_zekrom",
+    "ho_metal_mawile",
+    "ho_metal_zacian",
+    "ho_psychic_latias",
+    "ho_psychic_mewtwo",
+    "ho_water_blackkyurem",
+    "ho_water_kyurem",
+    "md2_dark_psychic",
+    "md2_fight_metal",
+    "md_dark_okidogi",
+    "md_fighting_regirock",
+    "md_fire_ogerpon",
+    "md_grass_durant",
+    "md_lightning_thorns",
+    "md_metal_genesect",
+    "md_psychic_diancie",
+    "md_stall_snorlax",
+    "md_water_dondozo",
+    "md_water_regice"
+  ],
+  "opp_pilots": [
+    "greedy",
+    "heuristic",
+    "greedyFF"
+  ],
+  "games_per_pair": 30,
+  "overall": {
+    "greedy|qd4_coevo": {
+      "winrate": 0.648,
+      "ci": [
+        0.63,
+        0.666
+      ],
+      "n": 2695
+    }
+  },
+  "per_pilot": {
+    "greedy|qd4_coevo": {
+      "greedy": 0.686,
+      "heuristic": 0.584,
+      "greedyFF": 0.676
+    }
+  },
+  "per_opp": {
+    "greedy|qd4_coevo": {
+      "ho_colorless_kanga": 0.456,
+      "ho_colorless_terapagos": 0.5,
+      "ho_dark_absol": 0.778,
+      "ho_dark_yveltal": 0.811,
+      "ho_fighting_koraidon": 0.456,
+      "ho_fighting_zygarde": 0.233,
+      "ho_fire_gouging": 0.6,
+      "ho_fire_volcanion": 0.589,
+      "ho_grass_heracross": 0.667,
+      "ho_grass_ironleaves": 0.289,
+      "ho_lightning_pikachu": 0.753,
+      "ho_lightning_zekrom": 0.807,
+      "ho_metal_mawile": 0.644,
+      "ho_metal_zacian": 0.789,
+      "ho_psychic_latias": 0.456,
+      "ho_psychic_mewtwo": 0.333,
+      "ho_water_blackkyurem": 0.556,
+      "ho_water_kyurem": 0.708,
+      "md2_dark_psychic": 0.933,
+      "md2_fight_metal": 0.8,
+      "md_dark_okidogi": 0.922,
+      "md_fighting_regirock": 0.811,
+      "md_fire_ogerpon": 0.733,
+      "md_grass_durant": 0.456,
+      "md_lightning_thorns": 0.809,
+      "md_metal_genesect": 0.767,
+      "md_psychic_diancie": 0.456,
+      "md_stall_snorlax": 0.789,
+      "md_water_dondozo": 0.822,
+      "md_water_regice": 0.733
+    }
+  }
+}
