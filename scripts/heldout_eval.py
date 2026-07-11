@@ -114,14 +114,58 @@ def _play(task: dict) -> dict:
             "dec": int(res.a_won or res.b_won)}
 
 
-def main() -> None:  # noqa: C901 - linear arg-parse + subject assembly
+def _resolve_subjects(subjects_arg: str) -> list[tuple[str, str, str]]:
+    """The subjects to run: the SUBJECTS anchors filtered to --subjects, plus any
+    ad-hoc ``pilot|deck`` label built on the fly (deck resolved via deck_path)."""
+    if not subjects_arg:
+        return SUBJECTS
+    want = [s.strip() for s in subjects_arg.split(",") if s.strip()]
+    known = {label for label, _, _ in SUBJECTS}
+    subjects = [s for s in SUBJECTS if s[0] in want]
+    for label in want:
+        if label in known:
+            continue
+        if "|" not in label:
+            raise SystemExit(f"unknown subject label (need pilot|deck): {label}")
+        pilot, deck = label.split("|", 1)
+        subjects = [*subjects, (label, deck, pilot)]
+    return subjects
+
+
+def _aggregate(rows: list[dict], heldout: list[str], games: int) -> dict:
+    """Rows -> nested win-rate report (overall / per opp-pilot / per opp-deck)."""
+    by: dict[str, list[dict]] = {}
+    by_pilot: dict[tuple[str, str], list[dict]] = {}
+    by_opp: dict[tuple[str, str], list[dict]] = {}
+    for r in rows:
+        by.setdefault(r["subject"], []).append(r)
+        by_pilot.setdefault((r["subject"], r["opp_pilot"]), []).append(r)
+        by_opp.setdefault((r["subject"], r["opp"]), []).append(r)
+
+    def wr(rs: list[dict]) -> dict:
+        w, d = sum(x["won"] for x in rs), sum(x["dec"] for x in rs)
+        p, lo, hi = wilson_interval(w, d)
+        return {"winrate": round(p, 3), "ci": [round(lo, 3), round(hi, 3)], "n": d}
+
+    out = {"heldout": heldout, "opp_pilots": list(OPP_PILOTS),
+           "games_per_pair": games, "overall": {}, "per_pilot": {}, "per_opp": {}}
+    for label, rs in by.items():
+        out["overall"][label] = wr(rs)
+    for (label, op), rs in by_pilot.items():
+        out["per_pilot"].setdefault(label, {})[op] = wr(rs)["winrate"]
+    for (label, opp), rs in by_opp.items():
+        out["per_opp"].setdefault(label, {})[opp] = wr(rs)["winrate"]
+    return out
+
+
+def main() -> None:
     ap = argparse.ArgumentParser(description="Held-out generalization eval")
     ap.add_argument("--games", type=int, default=30)
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--out", type=Path, default=ROOT / "results/heldout.json")
     ap.add_argument(
         "--pool", type=str, default="heldout",
-        help="held-out deck directory under decklists/ (heldout = synthetic v1; "
+        help="held-out deck dir under decklists/ (heldout = synthetic v1; "
              "heldout2 = real-ladder v2 from build_heldout_v2.py)",
     )
     ap.add_argument(
@@ -130,29 +174,14 @@ def main() -> None:  # noqa: C901 - linear arg-parse + subject assembly
     )
     ap.add_argument(
         "--subjects", type=str, default="",
-        help="comma list of subject labels; a 'pilot|deck' label not in SUBJECTS is "
-             "built on the fly (deck resolved via run_eval.deck_path)",
+        help="comma subject labels; a 'pilot|deck' not in SUBJECTS is built on the fly",
     )
     args = ap.parse_args()
-    subjects = SUBJECTS
-    if args.subjects:
-        want = [s.strip() for s in args.subjects.split(",") if s.strip()]
-        known = {label for label, _, _ in SUBJECTS}
-        subjects = [s for s in SUBJECTS if s[0] in want]
-        # Dynamic subjects: a "pilot|deck" label not in SUBJECTS (e.g. co-evolution
-        # elites) is constructed on the fly -- deck resolved via deck_path.
-        for label in want:
-            if label in known:
-                continue
-            if "|" not in label:
-                raise SystemExit(f"unknown subject label (need pilot|deck): {label}")
-            pilot, deck = label.split("|", 1)
-            subjects = [*subjects, (label, deck, pilot)]
 
+    subjects = _resolve_subjects(args.subjects)
     heldout = sorted(p.stem
                      for p in (ROOT / "decklists" / args.pool).glob("*.csv"))
     subject_names = sorted({deck for _, deck, _ in subjects})
-
     tasks = [
         {"label": label, "deck": deck, "pilot": pilot, "opp": opp,
          "opp_pilot": op, "subj_first": k % 2 == 0,
@@ -169,36 +198,13 @@ def main() -> None:  # noqa: C901 - linear arg-parse + subject assembly
               initargs=(heldout, subject_names, str(args.net), args.pool)) as pp:
         rows = pp.map(_play, tasks)
 
-    by: dict[str, list[dict]] = {}                  # subject -> rows
-    by_pilot: dict[tuple[str, str], list[dict]] = {}   # (subject, opp_pilot) -> rows
-    by_opp: dict[tuple[str, str], list[dict]] = {}     # (subject, opp) -> rows
-    for r in rows:
-        by.setdefault(r["subject"], []).append(r)
-        by_pilot.setdefault((r["subject"], r["opp_pilot"]), []).append(r)
-        by_opp.setdefault((r["subject"], r["opp"]), []).append(r)
-
-    def wr(rs: list[dict]) -> dict:
-        w, d = sum(x["won"] for x in rs), sum(x["dec"] for x in rs)
-        p, lo, hi = wilson_interval(w, d)
-        return {"winrate": round(p, 3), "ci": [round(lo, 3), round(hi, 3)], "n": d}
-
-    out = {"heldout": heldout, "opp_pilots": list(OPP_PILOTS),
-           "games_per_pair": args.games, "overall": {}, "per_pilot": {},
-           "per_opp": {}}
-    for label, rs in by.items():
-        out["overall"][label] = wr(rs)
-    for (label, op), rs in by_pilot.items():
-        out["per_pilot"].setdefault(label, {})[op] = wr(rs)["winrate"]
-    for (label, opp), rs in by_opp.items():
-        out["per_opp"].setdefault(label, {})[opp] = wr(rs)["winrate"]
-
+    out = _aggregate(rows, heldout, args.games)
     args.out.write_text(json.dumps(out, indent=2))
     print(f"-> {args.out}")
     for label, _, _ in subjects:
         o = out["overall"][label]
-        pp_ = out["per_pilot"][label]
         print(f"  {label:<22} held-out-winrate={o['winrate']} CI{o['ci']} "
-              f"n={o['n']}  by-pilot={pp_}")
+              f"n={o['n']}  by-pilot={out['per_pilot'][label]}")
 
 
 if __name__ == "__main__":

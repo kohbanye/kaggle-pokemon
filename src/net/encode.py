@@ -16,6 +16,12 @@ crash a match):
 
 The encoders read card stats through :class:`~src.net.features.CardFeatures`,
 which the runner builds from injected engine data, so nothing here imports ``cg``.
+
+File map (top to bottom): dims/area constants -> ``encode_state`` (state block) ->
+``_option_target`` (what an option points at) -> rich target-state features ->
+``encode_option``/``encode_options`` -> embedding row indices -> ``deck_context``.
+(A future split could lift the option-target primitives + rich features into their own
+module; they currently share ``AREA_*``/``_ENERGY_NORM`` with the state encoder.)
 """
 
 from __future__ import annotations
@@ -102,6 +108,7 @@ _ATK_DAMAGE_NORM = 200.0
 _ATK_COST_NORM = 5.0
 
 
+# --- state encoding (obs['current'] -> STATE_DIM vector) ---------------------
 def _active_pokemon(player: dict) -> dict | None:
     """The face-up Active Pokemon dict, or None (empty spot or face-down)."""
     spot = player.get("active") or []
@@ -370,6 +377,7 @@ def _rich_feats(
     return out
 
 
+# --- option encoding (one Option -> OPTION_DIM[_RICH] vector) ----------------
 def encode_option(
     option: dict,
     current: dict | None,
