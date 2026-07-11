@@ -17,6 +17,23 @@ internet), ~10 min/game** — so external LLM/API calls at match time are imposs
 heavy local models are impractical. See `README.md`, `PLAN.md`, and
 `docs/research/game-ai-survey.md` for the full strategy.
 
+## Current pipeline (QD × AlphaZero) — the go-forward path
+
+A submission is `(deck, pilot)`. Two levers are co-evolved: the **deck** via QD/MAP-Elites
+and the **play** policy via an LSTM AlphaZero net trained on ISMCTS search. The orchestrator
+`scripts/coevo_az.py` runs, per generation: `qd_deck_search.py --pilots net` (QD evolves
+decks the net pilots) → `collect_ismcts.py` (net-guided **PUCT ISMCTS** self-play logging
+`(state, π, z)`) → `train_az_lstm.py` (LSTM policy CE(π) + value MSE(z) via `net.play_sequence`,
+warm-started, exports numpy) → `heldout_eval.py` (gate on the real-ladder `decklists/heldout2`
+pool). The play net is the recurrent `RecurrentPolicyValueNet` throughout (`src/net/`), the
+search is `src/search/ismcts.py` (value-head leaves + opponent-deck belief determinization),
+and AZ trajectory data is `src/net/az_data.py`. **To understand the project, read
+`scripts/coevo_az.py` first** — everything below is the infrastructure it composes.
+
+Empirically the deck is the bigger lever (QD found the current best deck); the AZ play net
+matches but does not broadly beat the `greedy_plus` heuristic (tempo-limited). Older arms
+(PIMC-distillation Q-net, V-Trace RL, MLP-AZ) were tried and removed — see the memory notes.
+
 ## Commands
 
 Environment is managed with **uv** (Python 3.12).

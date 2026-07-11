@@ -42,15 +42,33 @@ def _masked_mean(values: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
     return (values * valid).sum() / denom
 
 
+def _entropy_per_step(logp: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Per-step policy entropy ``(B, T)`` (masked candidates excluded)."""
+    safe_logp = logp.masked_fill(~mask, 0.0)
+    return -(logp.exp() * safe_logp).sum(dim=-1)
+
+
 def _entropy(
     logp: torch.Tensor,
     mask: torch.Tensor,
     valid: torch.Tensor,
 ) -> torch.Tensor:
     """Mean per-step policy entropy over valid steps (masked candidates excluded)."""
-    safe_logp = logp.masked_fill(~mask, 0.0)
-    per_step = -(logp.exp() * safe_logp).sum(dim=-1)  # (B, T)
-    return _masked_mean(per_step, valid)
+    return _masked_mean(_entropy_per_step(logp, mask), valid)
+
+
+def _normalize_adv(adv: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
+    """Whiten advantages over the valid steps (mean 0, std 1); padded steps -> 0.
+
+    Standard PPO advantage normalisation. It de-biases the systematically-positive
+    advantages that arise when the agent wins most games (every sampled action then
+    gets a positive raw advantage ``z - V`` and is reinforced regardless of quality),
+    turning them into a *relative* signal, and fixes the per-batch gradient scale (an
+    all-wins batch no longer pushes every action up by a large amount).
+    """
+    mean = _masked_mean(adv, valid)
+    var = _masked_mean((adv - mean) ** 2, valid)
+    return ((adv - mean) / (var.sqrt() + 1e-8)) * valid
 
 
 def _ppo_surrogate(
@@ -85,6 +103,9 @@ class LitVtracePPO(L.LightningModule):
         clip_c: float = 1.0,
         rho_min: float = 0.0,
         train_deck: bool = True,
+        normalize_adv: bool = True,
+        entropy_floor: float = 0.0,
+        entropy_floor_coef: float = 0.0,
     ) -> None:
         super().__init__()
         # train_deck=False -> battle-only: the deck (CB) head is NOT trained, used
@@ -104,6 +125,15 @@ class LitVtracePPO(L.LightningModule):
         self.clip_rho = clip_rho
         self.clip_c = clip_c
         self.rho_min = rho_min
+        # Battle-arm advantage whitening (standard PPO; on by default).
+        self.normalize_adv = normalize_adv
+        # Entropy floor: hinge-penalise steps whose per-step entropy drops below
+        # ``entropy_floor`` (nats), weighted by ``entropy_floor_coef``. Unlike the mean
+        # entropy bonus (diluted 1/T over the trajectory, so a single collapsed
+        # high-leverage step -- e.g. the go-first/second opening -- gets ~no gradient),
+        # the floor targets exactly the collapsed steps and leaves diverse ones alone.
+        self.entropy_floor = entropy_floor
+        self.entropy_floor_coef = entropy_floor_coef
 
     # --- battle arm (V-Trace + PPO) -----------------------------------------
 
@@ -139,16 +169,28 @@ class LitVtracePPO(L.LightningModule):
         adv = torch.as_tensor(
             vt.pg_advantages, dtype=values.dtype, device=values.device,
         )
+        # Whiten the PG advantage (the value targets ``vs`` stay raw -- they are a
+        # regression target, not a gradient signal).
+        if self.normalize_adv:
+            adv = _normalize_adv(adv, valid)
 
         policy_loss = _ppo_surrogate(
             logp_taken, batch["behaviour_logp"], adv, valid, self.clip_eps,
         )
         value_loss = _masked_mean((values - vs) ** 2, valid)
-        entropy = _entropy(logp, batch["option_mask"], valid)
+        per_step_ent = _entropy_per_step(logp, batch["option_mask"])
+        entropy = _masked_mean(per_step_ent, valid)
         loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+        floor_pen = torch.zeros((), device=loss.device, dtype=loss.dtype)
+        if self.entropy_floor > 0.0 and self.entropy_floor_coef > 0.0:
+            floor_pen = _masked_mean(
+                torch.relu(self.entropy_floor - per_step_ent), valid,
+            )
+            loss = loss + self.entropy_floor_coef * floor_pen
         self.log_dict(
             {"battle_policy": policy_loss, "battle_value": value_loss,
-             "battle_entropy": entropy}, prog_bar=False,
+             "battle_entropy": entropy, "battle_entropy_floor": floor_pen},
+            prog_bar=False,
         )
         # Battle-start value (first step) is the learned baseline for the deck arm.
         return loss, values[:, 0].detach()

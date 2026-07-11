@@ -64,6 +64,7 @@ ENERGY_RAINBOW = 10
 CTX_SETUP_ACTIVE = 1
 CTX_SWITCH = 3
 CTX_TO_ACTIVE = 4
+CTX_IS_FIRST = 41  # YesNo: "would you like to go first?" (OPT_YES = go first)
 
 
 def legal_fallback(select: dict) -> list[int]:
@@ -119,3 +120,29 @@ class Agent:
         if obs.get("select") is None:
             return list(self.deck)
         return self.act(obs)
+
+
+class ForcedFirstAgent(Agent):
+    """Wrap an agent so it always chooses to go FIRST at the IS_FIRST decision.
+
+    A go-second-tic exploiter: whatever the inner policy would do, at the opening
+    IS_FIRST YesNo it takes the first turn. Used both as an eval probe and as a
+    training opponent (pressuring a learner that has collapsed to going second).
+    """
+
+    name = "forced_first"
+
+    def __init__(self, inner: Agent) -> None:
+        super().__init__(inner.deck)
+        self.inner = inner
+
+    def reset(self, seed: int) -> None:
+        self.inner.reset(seed)
+
+    def act(self, obs: dict) -> list[int]:
+        sel = obs.get("select") or {}
+        if int(sel.get("context", -1)) == CTX_IS_FIRST:
+            for i, o in enumerate(sel.get("option") or []):
+                if int(o.get("type", -1)) == OPT_YES:
+                    return [i]
+        return self.inner.act(obs)

@@ -28,6 +28,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Stage the submission bundle")
     parser.add_argument("--deck", type=Path, default=DEFAULT_DECK)
     parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument(
+        "--main", type=Path, default=SRC_MAIN,
+        help="self-contained agent main.py to bundle (default: greedy; use "
+             "submission/main_greedy_plus.py for the greedy_plus pilot)")
     args = parser.parse_args()
 
     deck = load_deck_csv(args.deck)
@@ -40,7 +44,7 @@ def main() -> None:
     if args.out.exists():
         shutil.rmtree(args.out)
     args.out.mkdir(parents=True)
-    shutil.copy(SRC_MAIN, args.out / "main.py")
+    shutil.copy(args.main, args.out / "main.py")
     shutil.copy(args.deck, args.out / "deck.csv")
     shutil.copytree(
         CG_SRC, args.out / "cg", ignore=shutil.ignore_patterns("__pycache__"),

@@ -72,7 +72,7 @@ def _init(pilot: str, gauntlet: list[list[int]], pilots: list[str]) -> None:
 
 
 def _make_pilot(kind: str, deck: list[int]) -> object:
-    """One pilot agent for ``deck``: the recurrent net, or a greedy/heuristic agent."""
+    """One pilot agent for ``deck``: the recurrent (AZ) net or a scripted agent."""
     if kind == "net":
         return RecurrentNetAgent(
             deck, _G["engine"], net=_G["net"], cb_pool=_G["pool"],
@@ -193,7 +193,7 @@ def _build_seeds(  # noqa: PLR0913 - distinct seed inputs, not a bundle
     return seeds
 
 
-def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
+def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="MAP-Elites deck search")
     ap.add_argument("--pilot", type=Path, default=PILOT)
     ap.add_argument("--workers", type=int, default=14)
@@ -302,7 +302,11 @@ def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "results/qd_archive.json")
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> None:  # noqa: PLR0912, PLR0915, C901 - CLI driver, ablation arms
+    args = _build_parser().parse_args()
     if args.quick:
         args.init, args.generations, args.batch, args.n_games = 16, 5, 8, 3
     pilots = [p.strip() for p in args.pilots.split(",") if p.strip()]

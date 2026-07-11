@@ -26,7 +26,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "data" / "sample_submission"))
 
-from scripts.run_eval import load_engine_data, play_game, read_deck  # noqa: E402
+from scripts.run_eval import (  # noqa: E402
+    deck_path,
+    load_engine_data,
+    play_game,
+    read_deck,
+)
 from src.agents import build_agent  # noqa: E402
 from src.agents.base import OPT_YES  # noqa: E402
 from src.agents.recurrent_agent import RecurrentNetAgent  # noqa: E402
@@ -34,38 +39,17 @@ from src.deck import build_pool  # noqa: E402
 from src.harness.stats import wilson_interval  # noqa: E402
 
 CTX_IS_FIRST = 41  # SelectContext.IS_FIRST (mirrors nashconv_eval.py)
-NET = "data/qdcoevo/run7/round_6/rl/paper_final.npz"
+NET = "data/coevo_az/gen8/net.npz"  # go-forward AZ checkpoint (--net overrides)
 
-# Subjects we evaluate: (label, deck name, pilot). "net" uses the run7 checkpoint.
+# Static anchor subjects (label, deck, pilot). Ad-hoc subjects are added on the fly via
+# --subjects "pilot|deck" (see main), so this stays short -- just the baselines.
 SUBJECTS: list[tuple[str, str, str]] = [
-    ("net_run7|metal", "metal_aggro", "net"),
-    ("greedy|metal", "metal_aggro", "greedy"),
-    ("net_run7|run7_best", "run7_best", "net"),
-    ("greedy|run7_best", "run7_best", "greedy"),
-    ("net_run7|grass", "grass_aggro", "net"),
-    # QD-searched decks (Step 1/2/3/4 bests; see results/heldout_qd_step*.json for
-    # earlier runs). Use --subjects to score only the new candidate.
-    ("greedy|qd_step1_best", "qd_step1_best", "greedy"),
-    ("greedy|qd2_sur", "qd2_sur", "greedy"),
-    ("greedy|qd3_rand", "qd3_rand", "greedy"),
-    ("greedy|qd4_coevo", "qd4_coevo", "greedy"),
-    ("greedy|qd4_prod", "qd4_prod", "greedy"),
-    ("greedy|qd5_rl", "qd5_rl", "greedy"),
-    ("net|qd5_rl", "qd5_rl", "net"),  # "net" resolves to --net (default: run7)
-    ("net|qd4_prod", "qd4_prod", "net"),
-    ("greedy|qd6_rl", "qd6_rl", "greedy"),
-    ("net|qd6_rl", "qd6_rl", "net"),
-    ("greedy|qd6_alt", "qd6_alt", "greedy"),
-    ("greedy|qd7_rl", "qd7_rl", "greedy"),
-    ("net|qd7_rl", "qd7_rl", "net"),
-    ("greedy|qd7_r5", "qd7_r5", "greedy"),
-    ("net|qd7_r5", "qd7_r5", "net"),
-    ("greedy|qd7_r3a", "qd7_r3a", "greedy"),
-    ("greedy|qd7_r4a", "qd7_r4a", "greedy"),
-    ("greedy|qd8_r5", "qd8_r5", "greedy"),
-    ("greedy|qd8_r3", "qd8_r3", "greedy"),
-    ("greedy|qd9_r1", "qd9_r1", "greedy"),
-    ("net|qd9_r1", "qd9_r1", "net"),
+    # Standing baselines (score ad-hoc candidates via --subjects "pilot|deck").
+    ("greedy|metal", "metal_aggro", "greedy"),            # weak-pilot floor
+    ("greedy_plus|qd7_r5", "qd7_r5", "greedy_plus"),      # prior best deck
+    ("greedy_plus|g8_e0", "g8_e0", "greedy_plus"),        # current best deck
+    ("net|g8_e0", "g8_e0", "net"),                        # AZ pilot on coevo deck
+    ("greedy_plus|grass", "grass_aggro", "greedy_plus"),
 ]
 # Opponent pilots (held-out configs: heuristic & go-first never appear in QD/NashConv).
 OPP_PILOTS = ("greedy", "heuristic", "greedyFF")
@@ -91,14 +75,6 @@ class _ForcedFirst:
         return self.inner(obs)
 
 
-def _deck_path(nm: str) -> Path:
-    """Resolve a deck name: ``decklists/`` first, then ``decklists/candidates/``
-    (QD-searched decks live there so the QD gauntlet's ``decklists/*.csv`` glob
-    doesn't pick them up)."""
-    p = ROOT / "decklists" / f"{nm}.csv"
-    return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
-
-
 def _init(heldout_names: list[str], subject_names: list[str],
           net_path: str | None = None, pool_dir: str = "heldout") -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
@@ -106,18 +82,18 @@ def _init(heldout_names: list[str], subject_names: list[str],
     _G["engine"] = load_engine_data()
     _G["pool"] = build_pool()
     _G["net"] = RecurrentPolicyValueNet.load(net_path or str(ROOT / NET))
-    _G["decks"] = {nm: read_deck(_deck_path(nm)) for nm in subject_names}
+    _G["decks"] = {nm: read_deck(deck_path(nm)) for nm in subject_names}
     _G["decks"].update({nm: read_deck(ROOT / "decklists" / pool_dir / f"{nm}.csv")
                         for nm in heldout_names})
 
 
 def _subject(deck_name: str, pilot: str) -> object:
     deck = _G["decks"][deck_name]
-    if pilot == "net":
+    if pilot == "net":  # the recurrent (AZ) net checkpoint from --net
         return RecurrentNetAgent(deck, _G["engine"], net=_G["net"],
                                  cb_pool=_G["pool"], build_deck_from_net=False,
                                  temperature=0.0)
-    return build_agent("greedy", deck, _G["engine"])
+    return build_agent(pilot, deck, _G["engine"])  # any registered scripted pilot
 
 
 def _opponent(deck_name: str, pilot: str) -> object:
@@ -138,6 +114,50 @@ def _play(task: dict) -> dict:
             "dec": int(res.a_won or res.b_won)}
 
 
+def _resolve_subjects(subjects_arg: str) -> list[tuple[str, str, str]]:
+    """The subjects to run: the SUBJECTS anchors filtered to --subjects, plus any
+    ad-hoc ``pilot|deck`` label built on the fly (deck resolved via deck_path)."""
+    if not subjects_arg:
+        return SUBJECTS
+    want = [s.strip() for s in subjects_arg.split(",") if s.strip()]
+    known = {label for label, _, _ in SUBJECTS}
+    subjects = [s for s in SUBJECTS if s[0] in want]
+    for label in want:
+        if label in known:
+            continue
+        if "|" not in label:
+            raise SystemExit(f"unknown subject label (need pilot|deck): {label}")
+        pilot, deck = label.split("|", 1)
+        subjects = [*subjects, (label, deck, pilot)]
+    return subjects
+
+
+def _aggregate(rows: list[dict], heldout: list[str], games: int) -> dict:
+    """Rows -> nested win-rate report (overall / per opp-pilot / per opp-deck)."""
+    by: dict[str, list[dict]] = {}
+    by_pilot: dict[tuple[str, str], list[dict]] = {}
+    by_opp: dict[tuple[str, str], list[dict]] = {}
+    for r in rows:
+        by.setdefault(r["subject"], []).append(r)
+        by_pilot.setdefault((r["subject"], r["opp_pilot"]), []).append(r)
+        by_opp.setdefault((r["subject"], r["opp"]), []).append(r)
+
+    def wr(rs: list[dict]) -> dict:
+        w, d = sum(x["won"] for x in rs), sum(x["dec"] for x in rs)
+        p, lo, hi = wilson_interval(w, d)
+        return {"winrate": round(p, 3), "ci": [round(lo, 3), round(hi, 3)], "n": d}
+
+    out = {"heldout": heldout, "opp_pilots": list(OPP_PILOTS),
+           "games_per_pair": games, "overall": {}, "per_pilot": {}, "per_opp": {}}
+    for label, rs in by.items():
+        out["overall"][label] = wr(rs)
+    for (label, op), rs in by_pilot.items():
+        out["per_pilot"].setdefault(label, {})[op] = wr(rs)["winrate"]
+    for (label, opp), rs in by_opp.items():
+        out["per_opp"].setdefault(label, {})[opp] = wr(rs)["winrate"]
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Held-out generalization eval")
     ap.add_argument("--games", type=int, default=30)
@@ -145,31 +165,23 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=ROOT / "results/heldout.json")
     ap.add_argument(
         "--pool", type=str, default="heldout",
-        help="held-out deck directory under decklists/ (heldout = synthetic v1; "
+        help="held-out deck dir under decklists/ (heldout = synthetic v1; "
              "heldout2 = real-ladder v2 from build_heldout_v2.py)",
     )
     ap.add_argument(
         "--net", type=Path, default=ROOT / NET,
-        help="checkpoint used by 'net'-piloted SUBJECTS (default: the run7 net)",
+        help="recurrent (AZ) checkpoint used by 'net'-piloted subjects",
     )
     ap.add_argument(
         "--subjects", type=str, default="",
-        help="comma list of SUBJECTS labels to run (default: all) -- results are "
-             "comparable across runs because the held-out pool is fixed",
+        help="comma subject labels; a 'pilot|deck' not in SUBJECTS is built on the fly",
     )
     args = ap.parse_args()
-    subjects = SUBJECTS
-    if args.subjects:
-        want = {s.strip() for s in args.subjects.split(",") if s.strip()}
-        unknown = want - {label for label, _, _ in SUBJECTS}
-        if unknown:
-            raise SystemExit(f"unknown subject labels: {sorted(unknown)}")
-        subjects = [s for s in SUBJECTS if s[0] in want]
 
+    subjects = _resolve_subjects(args.subjects)
     heldout = sorted(p.stem
                      for p in (ROOT / "decklists" / args.pool).glob("*.csv"))
     subject_names = sorted({deck for _, deck, _ in subjects})
-
     tasks = [
         {"label": label, "deck": deck, "pilot": pilot, "opp": opp,
          "opp_pilot": op, "subj_first": k % 2 == 0,
@@ -183,40 +195,16 @@ def main() -> None:
           f"opp_pilots={len(OPP_PILOTS)} total={len(tasks)}")
 
     with Pool(args.workers, initializer=_init,
-              initargs=(heldout, subject_names, str(args.net),
-                        args.pool)) as pp:
+              initargs=(heldout, subject_names, str(args.net), args.pool)) as pp:
         rows = pp.map(_play, tasks)
 
-    by: dict[str, list[dict]] = {}                  # subject -> rows
-    by_pilot: dict[tuple[str, str], list[dict]] = {}   # (subject, opp_pilot) -> rows
-    by_opp: dict[tuple[str, str], list[dict]] = {}     # (subject, opp) -> rows
-    for r in rows:
-        by.setdefault(r["subject"], []).append(r)
-        by_pilot.setdefault((r["subject"], r["opp_pilot"]), []).append(r)
-        by_opp.setdefault((r["subject"], r["opp"]), []).append(r)
-
-    def wr(rs: list[dict]) -> dict:
-        w, d = sum(x["won"] for x in rs), sum(x["dec"] for x in rs)
-        p, lo, hi = wilson_interval(w, d)
-        return {"winrate": round(p, 3), "ci": [round(lo, 3), round(hi, 3)], "n": d}
-
-    out = {"heldout": heldout, "opp_pilots": list(OPP_PILOTS),
-           "games_per_pair": args.games, "overall": {}, "per_pilot": {},
-           "per_opp": {}}
-    for label, rs in by.items():
-        out["overall"][label] = wr(rs)
-    for (label, op), rs in by_pilot.items():
-        out["per_pilot"].setdefault(label, {})[op] = wr(rs)["winrate"]
-    for (label, opp), rs in by_opp.items():
-        out["per_opp"].setdefault(label, {})[opp] = wr(rs)["winrate"]
-
+    out = _aggregate(rows, heldout, args.games)
     args.out.write_text(json.dumps(out, indent=2))
     print(f"-> {args.out}")
     for label, _, _ in subjects:
         o = out["overall"][label]
-        pp_ = out["per_pilot"][label]
         print(f"  {label:<22} held-out-winrate={o['winrate']} CI{o['ci']} "
-              f"n={o['n']}  by-pilot={pp_}")
+              f"n={o['n']}  by-pilot={out['per_pilot'][label]}")
 
 
 if __name__ == "__main__":

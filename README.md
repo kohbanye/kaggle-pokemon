@@ -22,26 +22,44 @@ competition (Simulation Track). Host: Kaggle × The Pokémon Company × Matsuo L
 
 ```
 .
-├── data/                       # downloaded competition data (gitignored)
-│   ├── EN_Card_Data.csv        #   ~1,250 cards, one row per move/ability
-│   ├── JP_Card_Data.csv
-│   └── sample_submission/      #   main.py + deck.csv + cg/ (the engine)
-├── notebooks/
-│   └── 01_card_data_eda.ipynb  # card-pool EDA (built from the script below)
+├── data/                       # downloaded data + trained nets/archives (gitignored)
+│   └── sample_submission/      #   reference main.py + deck.csv + cg/ (the engine)
+├── decklists/                  # 60-card decks: metas + anchors/ + candidates/ + coevo/
+├── notebooks/01_card_data_eda.ipynb   # card-pool EDA (generated from a builder script)
 ├── src/
 │   ├── cards.py                # card CSV loader + energy/cost/damage parsing
-│   ├── agents/                 # swappable policies (pure dict->list[int])
-│   │   ├── random_agent.py     #   random legal-move baseline
-│   │   └── greedy_agent.py     #   develop-then-attack baseline
+│   ├── deck.py                 # card pool + legal deck building
+│   ├── agents/                 # swappable policies (pure dict->list[int]); REGISTRY
+│   │   ├── greedy_agent.py     #   develop-then-attack baseline
+│   │   ├── heuristic_agent.py  #   tempo/positional heuristic (greedy_plus config)
+│   │   └── recurrent_agent.py  #   the LSTM policy/value net, numpy serving
+│   ├── net/                    # policy/value/deck net: encode → serve(numpy)/train(torch)
+│   ├── search/                 # ISMCTS (AlphaZero), determinizer, opponent belief
+│   ├── qd/                     # QD / MAP-Elites deck search library
 │   └── harness/                # Wilson CI + win-rate aggregation (pure)
-├── scripts/
-│   ├── download_data.sh        # fetch competition data (after accepting rules)
-│   ├── build_eda_notebook.py   # regenerate the EDA notebook
-│   ├── sim_smoke.py            # verify the simulator runs (Linux only)
-│   └── run_eval.py             # battle runner / eval harness (Linux only)
+├── scripts/                    # entry points -- see the "Current pipeline" section below
 ├── results/                    # eval summaries (JSON committed, CSVs gitignored)
 └── Dockerfile                  # linux/amd64 box to run the simulator
 ```
+
+## Current pipeline (QD × AlphaZero)
+
+A submission is `(deck, pilot)`. Two levers, co-evolved:
+**deck** via QD/MAP-Elites, **play** via an LSTM AlphaZero net trained on ISMCTS search.
+
+```
+scripts/coevo_az.py         ── the flywheel: for each generation
+  ├─ qd_deck_search.py      ──   QD evolves decks, piloted by the current net   [deck]
+  ├─ collect_ismcts.py      ──   net-guided PUCT ISMCTS self-play → (state,π,z)  [search]
+  ├─ train_az_lstm.py       ──   LSTM-AZ: policy CE(π) + value MSE(z)            [play]
+  └─ heldout_eval.py        ──   gate on the real-ladder held-out pool (heldout2)
+scripts/build_submission.py ── bundle main.py + deck.csv + cg/ for the ladder
+```
+
+Everything else in `scripts/` is tooling: `run_eval.py` (base battle harness),
+`nashconv_eval.py` (exploitability), `ismcts_timing.py` (search perf), `ladder_episodes.py`
++ `build_heldout_v2.py` (refresh the eval pool from ladder replays), `build_eda_notebook.py`.
+**New here? Start with `CLAUDE.md`, then read `scripts/coevo_az.py`.**
 
 ## Setup
 
