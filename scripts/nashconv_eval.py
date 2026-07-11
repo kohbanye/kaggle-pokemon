@@ -33,7 +33,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "data" / "sample_submission"))
 
-from scripts.run_eval import load_engine_data, play_game, read_deck  # noqa: E402
+from scripts.run_eval import (  # noqa: E402
+    deck_path,
+    load_engine_data,
+    play_game,
+    read_deck,
+)
 from src.agents import build_agent  # noqa: E402
 from src.agents.base import OPT_YES  # noqa: E402
 from src.agents.recurrent_agent import RecurrentNetAgent  # noqa: E402
@@ -103,11 +108,8 @@ class _ForcedFirst:
 
 
 def _deck_path(nm: str) -> Path:
-    """Resolve a deck name: ``decklists/`` first, then ``decklists/candidates/``
-    (QD-searched decks live there so the QD gauntlet's ``decklists/*.csv`` glob
-    doesn't pick them up)."""
-    p = ROOT / "decklists" / f"{nm}.csv"
-    return p if p.exists() else ROOT / "decklists" / "candidates" / f"{nm}.csv"
+    """Resolve a deck name across ``decklists/`` and its subdirs (shared resolver)."""
+    return deck_path(nm)
 
 
 def _init(net_paths: dict[str, str], deck_names: list[str]) -> None:

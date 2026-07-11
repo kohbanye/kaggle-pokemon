@@ -70,6 +70,25 @@ def read_deck(path: Path) -> list[int]:
     return deck
 
 
+# Search order for a bare deck NAME: canonical decklists, then the accreted subdirs
+# (QD candidates, co-evolution elites, real-ladder anchors).
+_DECK_DIRS = ("", "candidates", "coevo", "anchors")
+
+
+def deck_path(name: str) -> Path:
+    """Resolve a deck NAME to its CSV path across ``decklists/`` and its subdirs."""
+    for sub in _DECK_DIRS:
+        p = ROOT / "decklists" / sub / f"{name}.csv"
+        if p.exists():
+            return p
+    return ROOT / "decklists" / f"{name}.csv"
+
+
+def resolve_deck(name: str) -> list[int]:
+    """Resolve a deck NAME to its 60 card ids (via :func:`deck_path`)."""
+    return read_deck(deck_path(name))
+
+
 def load_engine_data() -> dict:
     """Engine-derived card/attack stats injected into agents (see src.agents).
 

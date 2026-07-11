@@ -72,7 +72,7 @@ def _init(pilot: str, gauntlet: list[list[int]], pilots: list[str]) -> None:
 
 
 def _make_pilot(kind: str, deck: list[int]) -> object:
-    """One pilot agent for ``deck``: the recurrent net, or a greedy/heuristic agent."""
+    """One pilot agent for ``deck``: the recurrent (AZ) net or a scripted agent."""
     if kind == "net":
         return RecurrentNetAgent(
             deck, _G["engine"], net=_G["net"], cb_pool=_G["pool"],

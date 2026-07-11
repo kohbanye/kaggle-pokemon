@@ -103,6 +103,33 @@ def test_greedy_non_main_uses_legal_fallback() -> None:
     assert agent.act(obs) == [0]
 
 
+# --- greedyFF (forced-go-first) -------------------------------------------
+
+_IS_FIRST_OBS = {
+    "select": {"type": 0, "context": 41, "minCount": 1, "maxCount": 1,
+               "option": [{"type": 2}, {"type": 1}]},  # [NO(second), YES(first)]
+    "current": {"yourIndex": 0}, "logs": [],
+}
+
+
+def test_greedyff_registered_and_returns_deck() -> None:
+    assert build_agent("greedyFF", DECK)(DECK_REQUEST) == DECK
+
+
+def test_greedyff_takes_the_yes_option_at_is_first() -> None:
+    """At the IS_FIRST YesNo, greedyFF picks the OPT_YES (go-first) index."""
+    agent = build_agent("greedyFF", DECK)
+    assert agent.act(_IS_FIRST_OBS) == [1]  # index of the OPT_YES option
+
+
+def test_greedyff_delegates_non_opening_to_greedy() -> None:
+    """Away from the opening it plays exactly as the wrapped greedy would."""
+    obs = _main_obs([OPT_PLAY, OPT_ATTACK, OPT_END])
+    ff = build_agent("greedyFF", DECK)
+    plain = GreedyAgent(DECK)
+    assert ff.act(obs) == plain.act(obs)
+
+
 # --- random ---------------------------------------------------------------
 
 def test_random_returns_legal_count_in_range() -> None:

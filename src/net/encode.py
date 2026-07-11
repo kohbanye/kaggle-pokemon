@@ -42,6 +42,7 @@ AREA_BENCH = 5
 
 # OptionType spans 0..16 (cg.api.OptionType); one-hot width for an option's type.
 NUM_OPTION_TYPES = 17
+_OPT_PLAY = 7  # play-a-card-from-hand (its ``index`` is a HAND slot, area implied)
 
 # Per-block widths (concatenation order documented in the module docstring).
 _ACTIVE_SCALAR_WIDTH = 3  # hp fraction, energy count, has-active
@@ -69,6 +70,15 @@ OPTION_DIM = (
     + _OPTION_ATTACK_WIDTH
     + _OPTION_NUMBER_WIDTH
 )
+
+# Rich target-STATE features (opt-in ``rich=True``; appended after the base block).
+# The base encoding only sees the target card's PRINTED stats, so two options acting
+# on same-name Pokemon in different board states encode identically -- measured to
+# make 21.6% of the search-teacher's override decisions untrainable (bottleneck diag
+# 2026-07-08). These capture the decision-relevant CURRENT state: energy progress
+# toward attack costs (the attach-targeting signal), lethality/threat, HP.
+_OPTION_RICH_WIDTH = 10
+OPTION_DIM_RICH = OPTION_DIM + _OPTION_RICH_WIDTH
 
 # Learned-embedding card slots in the state (shared card embedding, Phase 5d): the
 # four board groups whose cards get a learned embedding fed into the play head.
@@ -221,6 +231,13 @@ def _option_target(
     else:
         target_area = int(option.get("area", -1))
         target_index = int(option.get("index", -1))
+        # OPT_PLAY options carry only ``index`` (a hand slot; the engine leaves the
+        # area implicit). Without this default the played card was UNRESOLVABLE --
+        # zero card features + UNK embedding row for EVERY play option, i.e. the net
+        # could never see WHICH card it was playing (bottleneck diag 2026-07-08).
+        if target_area < 0 and target_index >= 0 and int(
+                option.get("type", -1)) == _OPT_PLAY:
+            target_area = AREA_HAND
 
     target_id: int | None = None
     if 0 <= owner < len(players):
@@ -228,13 +245,141 @@ def _option_target(
     return target_id, target_area, owner
 
 
-def encode_option(
+# --- rich target-state features (see OPTION_DIM_RICH) ------------------------
+
+_ENERGY_COLORLESS = 0
+_ENERGY_RAINBOW = 10
+_RICH_DMG_NORM = 300.0
+
+
+def _pokemon_dict_at(player: dict, area: int, index: int) -> dict | None:
+    """The board/hand card dict an option points at (None when unresolvable)."""
+    if index < 0:
+        return None
+    spot = {AREA_ACTIVE: player.get("active"), AREA_BENCH: player.get("bench"),
+            AREA_HAND: player.get("hand")}.get(area) or []
+    return spot[index] if 0 <= index < len(spot) else None
+
+
+def _afford(cost: list[int], energies: list[int]) -> bool:
+    pool: dict[int, int] = {}
+    for e in energies:
+        pool[e] = pool.get(e, 0) + 1
+    colorless = 0
+    for c in cost:
+        if c == _ENERGY_COLORLESS:
+            colorless += 1
+        elif pool.get(c, 0) > 0:
+            pool[c] -= 1
+        elif pool.get(_ENERGY_RAINBOW, 0) > 0:
+            pool[_ENERGY_RAINBOW] -= 1
+        else:
+            return False
+    return sum(pool.values()) >= colorless
+
+
+def _eff_dmg(attacker_type: int, defender: dict | None, dmg: int) -> int:
+    if dmg > 0 and defender is not None and defender.get("weak") == attacker_type:
+        return dmg * 2
+    return dmg
+
+
+def _card_of(pk: dict | None, feats: CardFeatures) -> dict | None:
+    """Engine card stats for a board/hand card dict (None when unknown)."""
+    cid = (pk or {}).get("id")
+    return feats.cards.get(cid) if isinstance(cid, int) else None
+
+
+def _best_dmg_now(pk: dict | None, defender: dict | None, feats: CardFeatures) -> int:
+    """Best weakness-adjusted damage ``pk`` can deal NOW with attached energy."""
+    card = _card_of(pk, feats)
+    if pk is None or card is None:
+        return 0
+    energies = pk.get("energies") or []
+    atype = card.get("type", _ENERGY_COLORLESS)
+    best = 0
+    for aid in card.get("attacks", []):
+        info = feats.attacks.get(aid)
+        if info is not None and _afford(info["cost"], energies):
+            best = max(best, _eff_dmg(atype, defender, info["dmg"]))
+    return best
+
+
+def _rich_feats(
     option: dict,
     current: dict | None,
     your_index: int,
     feats: CardFeatures,
 ) -> NDArray[np.float64]:
-    """Encode one presented ``Option`` into an :data:`OPTION_DIM` vector."""
+    """The :data:`_OPTION_RICH_WIDTH` target-state features for one option."""
+    out = np.zeros(_OPTION_RICH_WIDTH, dtype=np.float64)
+    players = (current or {}).get("players") or []
+    if len(players) < 2:  # noqa: PLR2004
+        return out
+    _tid, target_area, owner = _option_target(option, current, your_index)
+    if not 0 <= owner < len(players):
+        return out
+    in_area, in_index = option.get("inPlayArea"), option.get("inPlayIndex")
+    if in_area is not None and in_index is not None:
+        pk = _pokemon_dict_at(players[owner], int(in_area), int(in_index))
+    else:
+        pk = _pokemon_dict_at(players[owner], target_area,
+                              int(option.get("index", -1)))
+    opp = players[1 - your_index]
+    opp_active = (opp.get("active") or [None])[0]
+    opp_card = _card_of(opp_active, feats)
+
+    card = _card_of(pk, feats)
+    energies = list(pk.get("energies") or []) if pk else []
+    out[0] = len(energies) / _ENERGY_NORM
+    if card is not None:
+        costs = [len(feats.attacks[a]["cost"]) for a in card.get("attacks", [])
+                 if a in feats.attacks]
+        if costs:
+            # energies still missing to the cheapest attack (0 = can pay something)
+            out[1] = max(min(costs) - len(energies), 0) / 3.0
+            # would ONE more (any-colour) energy newly afford some attack?
+            ext = [*energies, _ENERGY_RAINBOW]
+            out[2] = float(any(
+                not _afford(feats.attacks[a]["cost"], energies)
+                and _afford(feats.attacks[a]["cost"], ext)
+                for a in card.get("attacks", []) if a in feats.attacks))
+    best_now = _best_dmg_now(pk, opp_card, feats)
+    out[3] = float(best_now > 0)  # can attack now
+    # (4,5): this option's own attack when it IS an attack, else best-now
+    aid = option.get("attackId")
+    if isinstance(aid, int) and aid in feats.attacks and card is not None:
+        eff = _eff_dmg(card.get("type", _ENERGY_COLORLESS), opp_card,
+                       feats.attacks[aid]["dmg"])
+    else:
+        eff = best_now
+    out[4] = eff / _RICH_DMG_NORM
+    opp_hp = opp_active.get("hp") if opp_active else None
+    out[5] = float(opp_hp is not None and eff >= opp_hp and eff > 0)  # lethal
+    if pk is not None:
+        hp, mx = pk.get("hp"), pk.get("maxHp") or 0
+        if hp is None and card is not None:  # hand card: printed HP
+            hp = mx = card.get("hp", 0)
+        out[6] = (hp or 0) / mx if mx else 0.0
+        my_card = _card_of(pk, feats)
+        threat = _best_dmg_now(opp_active, my_card, feats)
+        out[7] = threat / _RICH_DMG_NORM
+        out[8] = float(hp is not None and threat >= (hp or 0) and threat > 0)
+    if card is not None:
+        out[9] = (3 if card.get("mega") else 2 if card.get("ex") else 1) / 3.0
+    return out
+
+
+def encode_option(
+    option: dict,
+    current: dict | None,
+    your_index: int,
+    feats: CardFeatures,
+    *,
+    rich: bool = False,
+) -> NDArray[np.float64]:
+    """Encode one presented ``Option`` into an :data:`OPTION_DIM` vector
+    (:data:`OPTION_DIM_RICH` when ``rich`` -- appends target-state features)."""
     opt_type = int(option.get("type", -1))
     type_onehot = np.zeros(NUM_OPTION_TYPES, dtype=np.float64)
     if 0 <= opt_type < NUM_OPTION_TYPES:
@@ -259,13 +404,16 @@ def encode_option(
     number = option.get("number")
     number_feat = [(number or 0) / _NUMBER_NORM]
 
-    return np.concatenate([
+    parts = [
         type_onehot,
         target_feat,
         np.asarray(flags, dtype=np.float64),
         np.asarray(attack_feats, dtype=np.float64),
         np.asarray(number_feat, dtype=np.float64),
-    ])
+    ]
+    if rich:
+        parts.append(_rich_feats(option, current, your_index, feats))
+    return np.concatenate(parts)
 
 
 def encode_options(
@@ -273,12 +421,15 @@ def encode_options(
     current: dict | None,
     your_index: int,
     feats: CardFeatures,
+    *,
+    rich: bool = False,
 ) -> NDArray[np.float64]:
-    """Stack the option encodings into a ``(len(options), OPTION_DIM)`` matrix."""
+    """Stack the option encodings into a ``(len(options), OPTION_DIM[_RICH])``."""
     if not options:
-        return np.zeros((0, OPTION_DIM), dtype=np.float64)
+        return np.zeros((0, OPTION_DIM_RICH if rich else OPTION_DIM),
+                        dtype=np.float64)
     return np.stack([
-        encode_option(opt, current, your_index, feats) for opt in options
+        encode_option(opt, current, your_index, feats, rich=rich) for opt in options
     ])
 
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import fields
 
-from .base import Agent
+from .base import Agent, ForcedFirstAgent
 from .greedy_agent import GreedyAgent
 from .heuristic_agent import HeuristicAgent, HeuristicConfig
 from .net_agent import NetAgent
@@ -40,7 +40,19 @@ def _attack_damage(engine: dict | None) -> dict[int, int]:
 REGISTRY: dict[str, AgentFactory] = {
     "random": lambda deck, _engine: RandomAgent(deck),
     "greedy": lambda deck, engine: GreedyAgent(deck, _attack_damage(engine)),
+    # forced-go-first greedy: the go-second-tic exploiter (eval probe + train opponent).
+    "greedyFF": lambda deck, engine: ForcedFirstAgent(
+        GreedyAgent(deck, _attack_damage(engine)),
+    ),
     "heuristic": lambda deck, engine: HeuristicAgent(deck, engine),
+    # greedy_plus: the heuristic with its two tempo-NEGATIVE features off
+    # (attach_target energy-spreading + retreat). Keeps the tempo-positive ones
+    # (KO/prize-aware attacks, promote, bench-dev, weakness) so it beats plain greedy
+    # at equal deck on every deck tested (+3.5..+20pp), unlike full `heuristic` which
+    # loses on the fastest aggro. The strong observation-only baseline / RL teacher.
+    "greedy_plus": lambda deck, engine: HeuristicAgent(
+        deck, engine, HeuristicConfig(attach_target=False, retreat=False),
+    ),
     # Phase 3 skeleton: random-init policy/value net (fixed seed = reproducible).
     "net": lambda deck, engine: NetAgent(deck, engine),
 }
@@ -72,6 +84,7 @@ def build_agent(
 __all__ = [
     "REGISTRY",
     "Agent",
+    "ForcedFirstAgent",
     "GreedyAgent",
     "HeuristicAgent",
     "HeuristicConfig",

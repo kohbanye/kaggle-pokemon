@@ -78,6 +78,21 @@ class Config:
     clip_rho: float = 1.0
     clip_c: float = 1.0
     rho_min: float = 0.05  # the paper's rho lower-clip (improved technique)
+    # Battle-arm advantage whitening (standard PPO; de-biases the systematically-
+    # positive raw advantages of a winning agent). On by default.
+    normalize_adv: bool = True
+    # Entropy floor: hinge-penalise per-step entropy below this (nats), weight
+    # entropy_floor_coef. Targets collapsed high-leverage steps (the go-first/second
+    # opening tic) that the diluted mean-entropy bonus can't hold open. 0/0 = off.
+    entropy_floor: float = 0.0
+    entropy_floor_coef: float = 0.0
+    # Opponent diversification: with prob ``scripted_prob`` per iteration the opponent
+    # is a fixed SCRIPTED agent drawn from ``opp_agents`` (e.g. greedy/greedyFF/
+    # heuristic) instead of self-play / a past checkpoint -- the learner best-responds
+    # to non-self styles, attacking the self-play data-distribution saturation. The
+    # scripted opponent pilots an archive deck (QD mode) and is NOT admitted to H.
+    opp_agents: tuple[str, ...] = ()
+    scripted_prob: float = 0.0
     workers: int = 1
     native: bool = False
     eval_every: int = 10
@@ -192,9 +207,18 @@ def _build_episodes_par(  # noqa: PLR0913 - encode-request parameters
 
 
 def _opp_args(cfg: Config, opp: PoolEntry | None) -> list[str]:
-    """Collector opponent flag: self-play / a meta-deck baseline / a past checkpoint."""
+    """Collector opponent flag: self-play / scripted agent / meta-deck / checkpoint."""
+    # A scripted-agent opponent (ref = "agent:<name>") -- opponent diversification: the
+    # learner best-responds to a non-self style (greedy/greedyFF/heuristic) rather than
+    # only to itself. It composes with --deck-pool (opp pilots an archive deck).
+    scripted = opp is not None and opp.ref.startswith("agent:")
     if cfg.deck_pool is not None:  # QD mode: both sides draw from the archive
-        return ["--deck-pool", _path(cfg, cfg.deck_pool)]
+        args = ["--deck-pool", _path(cfg, cfg.deck_pool)]
+        if scripted:
+            args += ["--opp-agent", opp.ref.split(":", 1)[1]]
+        return args
+    if scripted:
+        return ["--opp-agent", opp.ref.split(":", 1)[1]]
     if opp is None:
         return ["--self-play"]
     if opp.kind == "baseline":  # a fixed meta deck (external deck-quality pressure)
@@ -271,6 +295,8 @@ class _Learner:
             entropy_coef=cfg.entropy_coef, deck_entropy_coef=cfg.deck_entropy_coef,
             clip_eps=cfg.clip_eps, clip_rho=cfg.clip_rho, clip_c=cfg.clip_c,
             rho_min=cfg.rho_min, train_deck=cfg.train_deck,
+            normalize_adv=cfg.normalize_adv, entropy_floor=cfg.entropy_floor,
+            entropy_floor_coef=cfg.entropy_floor_coef,
         ).to(self.device)
         self.lit.log = lambda *_a, **_k: None  # type: ignore[method-assign]
         self.lit.log_dict = lambda *_a, **_k: None  # type: ignore[method-assign]
@@ -367,7 +393,13 @@ def run(cfg: Config) -> None:  # noqa: C901, PLR0915 - orchestrator: launch/cons
         """Save the current (actor) weights and kick off iteration ``n``'s collect."""
         wp = cfg.out_dir / f"paperiter_{n}.npz"
         net_np.save(wp)  # the collector loads this; stable file before the thread runs
-        opp = history.sample(n, rng)
+        # Opponent diversification: some iterations face a scripted non-self agent
+        # (drawn uniformly from cfg.opp_agents) instead of the self-play/checkpoint
+        # mixture -- direct pressure against self-play distribution saturation.
+        if cfg.opp_agents and rng.random() < cfg.scripted_prob:
+            opp = PoolEntry("baseline", f"agent:{rng.choice(cfg.opp_agents)}", -1)
+        else:
+            opp = history.sample(n, rng)
         out = cfg.out_dir / f"games_{n}"
         args = (cfg, build_pp, wp, opp, cfg.seed + n * 1000, out, feats, index, pool)
         fut = actor.submit(_collect_build, *args) if actor else None
@@ -481,6 +513,24 @@ def main() -> None:
         help="enable deck-conditioned play with this context width (0 = off); "
              "a checkpoint without conditioning is migrated behaviour-preserving",
     )
+    parser.add_argument(
+        "--no-normalize-adv", action="store_true",
+        help="disable battle-arm advantage whitening (on by default)")
+    parser.add_argument(
+        "--entropy-floor", type=float, default=0.0,
+        help="hinge-penalise per-step entropy below this many nats (0 = off); "
+             "holds open collapsed high-leverage steps like the opening choice")
+    parser.add_argument(
+        "--entropy-floor-coef", type=float, default=0.0,
+        help="weight for the entropy-floor hinge penalty (0 = off)")
+    parser.add_argument(
+        "--opp-agents", type=str, default="",
+        help="comma-separated scripted opponents for diversification, e.g. "
+             "'greedy,greedyFF,heuristic' (empty = self-play/checkpoints only)")
+    parser.add_argument(
+        "--scripted-prob", type=float, default=0.0,
+        help="per-iteration probability the opponent is a scripted agent from "
+             "--opp-agents (0 = off)")
     args = parser.parse_args()
 
     cfg = Config(
@@ -494,6 +544,11 @@ def main() -> None:
         shaping_prize=args.shaping_prize, shaping_board=args.shaping_board,
         play_hidden=args.play_hidden, lr_final=args.lr_final,
         train_deck=not (args.no_deck_arm or args.deck_pool is not None),
+        normalize_adv=not args.no_normalize_adv,
+        entropy_floor=args.entropy_floor,
+        entropy_floor_coef=args.entropy_floor_coef,
+        opp_agents=tuple(a for a in args.opp_agents.split(",") if a),
+        scripted_prob=args.scripted_prob,
     )
     if args.smoke:
         cfg.iterations, cfg.games_per_iter = 3, 4

@@ -14,7 +14,11 @@ import torch
 
 from src.net.encode import OPTION_DIM, SLOT_MAX, STATE_DIM, STATE_EMBED_SLOTS
 from src.net.features import CARD_FEAT_DIM
-from src.net.lit_vtrace import LitVtracePPO
+from src.net.lit_vtrace import (
+    LitVtracePPO,
+    _entropy_per_step,
+    _normalize_adv,
+)
 from src.net.recurrent_model import RecurrentNetConfig
 from src.net.recurrent_torch import TorchRecurrentNet
 from src.net.trajectory_data import (
@@ -145,6 +149,36 @@ def test_reward_shaping_telescopes_and_default_off() -> None:
     ep0 = Episode([step(0.0) for _ in range(3)], ret=-1.0, **deck)
     r0 = _collate_battle([ep0])["rewards"][0, :3]
     assert torch.allclose(r0, torch.tensor([0.0, 0.0, -1.0]))  # old behaviour
+
+
+def test_normalize_adv_whitens_over_valid_steps() -> None:
+    """Whitened advantages have masked mean 0 / std 1; padded steps are zeroed."""
+    adv = torch.tensor([[1.0, 3.0, 5.0, 99.0], [2.0, 4.0, 0.0, 0.0]])
+    valid = torch.tensor([[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 0.0]])
+    out = _normalize_adv(adv, valid)
+    n = valid.sum()
+    mean = (out * valid).sum() / n
+    var = ((out - mean) ** 2 * valid).sum() / n
+    assert abs(float(mean)) < 1e-5
+    assert abs(float(var) - 1.0) < 1e-4
+    assert float(out[0, 3]) == 0.0  # padded step stays zero (not de-meaned)
+    assert float(out[1, 2]) == 0.0
+
+
+def test_entropy_floor_penalises_only_collapsed_steps() -> None:
+    """The hinge fires on a below-floor (collapsed) step and not on a diverse one."""
+    # step 0: near-deterministic 2-way logits (entropy ~ 0); step 1: uniform (~ln2).
+    logp = torch.log_softmax(
+        torch.tensor([[[10.0, -10.0], [0.0, 0.0]]]), dim=-1,
+    )
+    mask = torch.ones(1, 2, 2, dtype=torch.bool)
+    per_step = _entropy_per_step(logp, mask)
+    assert float(per_step[0, 0]) < 0.01           # collapsed
+    assert abs(float(per_step[0, 1]) - 0.6931) < 1e-3  # ln 2
+    floor = 0.5
+    hinge = torch.relu(floor - per_step)
+    assert float(hinge[0, 0]) > 0.4               # collapsed step penalised
+    assert float(hinge[0, 1]) == 0.0              # diverse step untouched
 
 
 def test_board_potential_differentials() -> None:

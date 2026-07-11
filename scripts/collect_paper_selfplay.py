@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import numpy as np  # noqa: E402
 from run_eval import load_engine_data, play_game, read_deck  # noqa: E402
 
+from src.agents import build_agent  # noqa: E402
 from src.agents.recurrent_agent import RecurrentNetAgent  # noqa: E402
 from src.deck import build_pool  # noqa: E402
 from src.net.cb import build_deck  # noqa: E402
@@ -65,7 +66,11 @@ class _TrajectoryRecorder:
         self.decisions = []
 
     def on_decision(self, slot: int, obs: dict, choice: list[int]) -> None:
-        logp = self.agents[slot].last_logp if self.agents is not None else 0.0
+        # A scripted opponent (greedy/greedyFF/heuristic) has no ``last_logp``; its
+        # decisions are logged but never turned into episodes (only LEARNER slots are),
+        # so 0.0 is a harmless placeholder.
+        agent = self.agents[slot] if self.agents is not None else None
+        logp = getattr(agent, "last_logp", 0.0)
         self.decisions.append({
             "slot": int(slot),
             "agent": self.names[slot],
@@ -86,6 +91,14 @@ def parse_args() -> argparse.Namespace:
         "--opp-deck", type=Path, default=None,
         help="opponent plays this fixed meta deck piloted by the learner net "
              "(the OSFP meta-deck baseline: external pressure on deck quality)",
+    )
+    parser.add_argument(
+        "--opp-agent", type=str, default=None,
+        help="opponent is a fixed SCRIPTED agent (greedy/greedyFF/heuristic) instead "
+             "of the learner net -- opponent diversification. In --deck-pool mode it "
+             "pilots an archive deck; else --opp-deck (or the fallback). Only the "
+             "learner slot is recorded, so the learner best-responds to a non-self "
+             "style.",
     )
     parser.add_argument("--self-play", action="store_true")
     parser.add_argument("--games", type=int, default=64)
@@ -112,9 +125,10 @@ def parse_args() -> argparse.Namespace:
         and args.opp_deck is None
         and args.gate_deck is None
         and args.deck_pool is None
+        and args.opp_agent is None
     ):
         parser.error("need --self-play / --opp-weights / --opp-deck / --gate-deck / "
-                     "--deck-pool")
+                     "--deck-pool / --opp-agent")
     return args
 
 
@@ -180,12 +194,15 @@ def main() -> None:
             [c["deck"] for c in raw["cells"]] if isinstance(raw, dict) else raw
         )
 
+    # --opp-agent: the opponent is a fixed SCRIPTED agent (not the learner net) --
+    # opponent diversification. Only the learner slot is recorded either way.
+    scripted_opp = args.opp_agent is not None
     rec = _TrajectoryRecorder()
     wins = losses = draws = 0
     with shard.open("w") as handle:
         for k in range(args.games):
             seed = args.seed + k
-            if deck_pool is not None:  # archive self-play: both decks from the pool
+            if deck_pool is not None:  # decks from the archive
                 drng = np.random.default_rng(seed)
                 ldeck = list(deck_pool[int(drng.integers(len(deck_pool)))])
                 odeck = list(deck_pool[int(drng.integers(len(deck_pool)))])
@@ -193,17 +210,25 @@ def main() -> None:
                     ldeck, engine, net=learner_net, cb_pool=pool,
                     build_deck_from_net=False, temperature=args.temperature, seed=seed,
                 )
-                opp = RecurrentNetAgent(
-                    odeck, engine, net=learner_net, cb_pool=pool,
-                    build_deck_from_net=False, temperature=args.temperature,
-                    seed=seed + 7919,
+                opp = (
+                    build_agent(args.opp_agent, odeck, engine) if scripted_opp
+                    else RecurrentNetAgent(
+                        odeck, engine, net=learner_net, cb_pool=pool,
+                        build_deck_from_net=False, temperature=args.temperature,
+                        seed=seed + 7919,
+                    )
                 )
             else:
                 learner = RecurrentNetAgent(
                     fallback, engine, net=learner_net, cb_pool=pool, sample_deck=True,
                     temperature=args.temperature, seed=seed,
                 )
-                if opp_deck is not None:  # fixed meta deck, piloted by the learner net
+                if scripted_opp:  # scripted opponent pilots --opp-deck (or fallback)
+                    opp = build_agent(
+                        args.opp_agent, opp_deck if opp_deck is not None else fallback,
+                        engine,
+                    )
+                elif opp_deck is not None:  # fixed meta deck, piloted by learner net
                     opp = RecurrentNetAgent(
                         opp_deck, engine, net=learner_net, cb_pool=pool,
                         build_deck_from_net=False, temperature=args.temperature,
@@ -215,8 +240,11 @@ def main() -> None:
                         temperature=args.temperature, seed=seed + 7919,
                     )
             learner_first = k % 2 == 0
+            # Both slots are the learner only in true net self-play (archive or mirror)
+            # with NO scripted opponent; a scripted opp is always the OPPONENT slot.
+            self_both = (args.self_play or deck_pool is not None) and not scripted_opp
             names = (
-                (LEARNER, LEARNER) if args.self_play or deck_pool is not None
+                (LEARNER, LEARNER) if self_both
                 else (LEARNER, OPPONENT) if learner_first
                 else (OPPONENT, LEARNER)
             )

@@ -79,11 +79,13 @@ def _init(net_paths: dict[str, str]) -> None:
 
 
 def _subject_agent(label: str, deck: list[int]) -> object:
-    kind, _ = SUBJECTS[label]
-    if kind == "net":
+    # A loaded net (SUBJECTS nets and any extra --nets checkpoints both live in
+    # _G["nets"]) is piloted; otherwise build the heuristic reference by kind.
+    if label in _G.get("nets", {}):
         return RecurrentNetAgent(deck, _G["engine"], net=_G["nets"][label],
                                  cb_pool=_G["pool"], build_deck_from_net=False,
                                  temperature=0.0)
+    kind = SUBJECTS.get(label, ("greedy", None))[0]
     return build_agent(kind, deck, _G["engine"])
 
 
@@ -165,11 +167,19 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Play diagnostics across checkpoints")
     ap.add_argument("--games", type=int, default=24, help="games per subject/opponent")
     ap.add_argument("--workers", type=int, default=14)
+    ap.add_argument("--nets", nargs="*", default=None, metavar="LABEL=PATH",
+                    help="extra net checkpoints to evaluate (added to the subject set)")
+    ap.add_argument("--subjects", nargs="*", default=None,
+                    help="subset of SUBJECTS + --nets labels (default: all)")
     ap.add_argument("--out", type=Path, default=ROOT / "results/play_diag.json")
     args = ap.parse_args()
 
+    extra = dict(kv.split("=", 1) for kv in (args.nets or []))
     net_paths = {lbl: str(_ckpt(p)) for lbl, (k, p) in SUBJECTS.items()
                  if k == "net" and p is not None}
+    net_paths.update({lbl: str(Path(p).resolve()) for lbl, p in extra.items()})
+    default_subjects = (["greedy(ref)", *extra] if extra else list(SUBJECTS))
+    subjects = args.subjects or default_subjects
 
     # opponents: greedy on each deck + a random-on-metal floor
     opps = [{"opp_kind": "greedy", "opp_deck": d,
@@ -180,11 +190,11 @@ def main() -> None:
     tasks = [
         {**o, "subject": s, "subj_first": k % 2 == 0,
          "seed": (si * 131 + oi) * 1000 + k}
-        for si, s in enumerate(SUBJECTS)
+        for si, s in enumerate(subjects)
         for oi, o in enumerate(opps)
         for k in range(args.games)
     ]
-    print(f"subjects={len(SUBJECTS)} opponents={len(opps)} "
+    print(f"subjects={len(subjects)} opponents={len(opps)} "
           f"games/pair={args.games} total={len(tasks)}")
 
     with Pool(args.workers, initializer=_init, initargs=(net_paths,)) as pp:
@@ -202,7 +212,7 @@ def main() -> None:
         p, lo, hi = wilson_interval(w, d)
         return {"winrate": round(p, 3), "ci": [round(lo, 3), round(hi, 3)], "n": d}
 
-    per_opp = {s: {} for s in SUBJECTS}
+    per_opp: dict[str, dict] = {s: {} for s in subjects}
     for (s, o), rs in by_pair.items():
         per_opp[s][o] = wr(rs)
 
@@ -233,7 +243,7 @@ def main() -> None:
 
     # the OOD gap: mirror (greedy/metal) vs mean over the off-deck panel
     summary = {}
-    for s in SUBJECTS:
+    for s in subjects:
         mirror = per_opp[s].get("greedy/metal", {}).get("winrate")
         offdeck = [per_opp[s][o]["winrate"] for o in per_opp[s]
                    if o.startswith("greedy/") and o != "greedy/metal"]
@@ -249,9 +259,10 @@ def main() -> None:
            "summary": summary, "per_opponent": per_opp, "behaviour": behaviour}
     args.out.write_text(json.dumps(out, indent=2))
     print(f"-> {args.out}")
-    for s in SUBJECTS:
+    for s in subjects:
         sm = summary[s]
-        print(f"  {s:<22} mirror={sm['vs_greedy_mirror']}  "
+        print(f"  {s:<22} all={sm['vs_all']['winrate']}  "
+              f"mirror={sm['vs_greedy_mirror']}  "
               f"offdeck={sm['vs_offdeck_mean']}  gap={sm['gap']}")
 
 
