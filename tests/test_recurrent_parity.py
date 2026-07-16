@@ -174,6 +174,77 @@ def test_enable_deck_ctx_preserves_behaviour_and_roundtrips(
     np.testing.assert_allclose(base[0], re[0], atol=1e-12)
 
 
+# --- opponent-belief conditioning (opp_ctx_dim > 0, PER-STEP) ----------------
+
+_OPP_CFG = RecurrentNetConfig(
+    n_cards=12, play_lstm_hidden=24, hidden=16, opp_ctx_dim=5, opp_feat_dim=9,
+)
+
+
+def test_opp_ctx_parity() -> None:
+    """Per-step opp-conditioned numpy step == torch play_sequence with opp_ctx."""
+    rng = np.random.default_rng(4)
+    net = RecurrentPolicyValueNet.random(rng, _OPP_CFG)
+    torch_net = TorchRecurrentNet(_OPP_CFG).double().eval()
+    torch_net.load_numpy_params(net.params)
+
+    t_len, k = 5, 4
+    steps = [_random_step_inputs(rng, k) for _ in range(t_len)]
+    # A DIFFERENT opponent-belief vector each step (belief sharpens over the game).
+    opp_vecs = [rng.standard_normal(_OPP_CFG.opp_feat_dim) for _ in range(t_len)]
+
+    h, c = net.initial_state()
+    np_logits, np_values = [], []
+    for (state, rows, mask, options, option_rows), ov in zip(
+        steps, opp_vecs, strict=True):
+        logits, value, h, c = net.step(
+            state, rows, mask, options, option_rows, h, c, opp_ctx=net.opp_ctx(ov),
+        )
+        np_logits.append(logits)
+        np_values.append(value)
+
+    states = torch.tensor(np.stack([s[0] for s in steps]))[None]
+    state_rows = torch.tensor(np.stack([s[1] for s in steps]))[None]
+    state_mask = torch.tensor(np.stack([s[2] for s in steps]))[None]
+    options = torch.tensor(np.stack([s[3] for s in steps]))[None]
+    option_rows = torch.tensor(np.stack([s[4] for s in steps]))[None]
+    opp_seq = torch.tensor(np.stack(opp_vecs))[None]  # (1, T, opp_feat_dim)
+    with torch.no_grad():
+        t_opp = torch_net.opp_ctx(opp_seq)
+        t_logits, t_values = torch_net.play_sequence(
+            states, state_rows, state_mask, options, option_rows, opp_ctx=t_opp,
+        )
+    for t in range(t_len):
+        np.testing.assert_allclose(np_logits[t], t_logits[0, t].numpy(), atol=1e-9)
+        np.testing.assert_allclose(np_values[t], float(t_values[0, t]), atol=1e-9)
+
+
+def test_enable_opp_ctx_preserves_behaviour_and_roundtrips(tmp_path: Path) -> None:
+    """Migrating to opp-conditioning is output-identical; save/load round-trips."""
+    rng = np.random.default_rng(5)
+    net = RecurrentPolicyValueNet.random(rng, _CFG)
+    mig = net.enable_opp_ctx(rng, ctx_dim=5, feat_dim=9)
+    assert mig.config.opp_ctx_dim == 5
+
+    opp_vec = rng.standard_normal(9)
+    state, rows, mask, options, option_rows = _random_step_inputs(rng, 4)
+    h0, c0 = net.initial_state()
+    base = net.step(state, rows, mask, options, option_rows, h0, c0)
+    cond = mig.step(state, rows, mask, options, option_rows, h0, c0,
+                    opp_ctx=mig.opp_ctx(opp_vec))
+    np.testing.assert_allclose(base[0], cond[0], atol=1e-12)  # logits identical
+    np.testing.assert_allclose(base[1], cond[1], atol=1e-12)  # value identical
+
+    path = tmp_path / "opp.npz"
+    mig.save(path)
+    loaded = RecurrentPolicyValueNet.load(path)
+    assert loaded.config.opp_ctx_dim == 5
+    assert loaded.config.opp_feat_dim == 9
+    # torch mirror accepts the migrated weights (bridge shape parity)
+    tnet = TorchRecurrentNet(loaded.config).double().eval()
+    tnet.load_numpy_params(loaded.params)
+
+
 def test_widen_play_lstm_preserves_behaviour_and_roundtrips(
     tmp_path: Path,
 ) -> None:

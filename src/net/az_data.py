@@ -45,6 +45,7 @@ class AzStep:
     options: NDArray[np.float64]
     option_rows: NDArray[np.intp]
     pi: NDArray[np.float64] | None   # (K,) visit-count target, or None (unsearched)
+    opp_vec: NDArray[np.float64] | None = None  # (item 1) expected-opp deck_context
 
 
 @dataclass
@@ -56,12 +57,19 @@ class AzEpisode:
 
 def build_az_episodes(
     games: list[dict], feats: CardFeatures, index: CardEmbeddingIndex,
+    hyp: tuple[list[list[int]], NDArray[np.float64]] | None = None,
 ) -> list[AzEpisode]:
     """Encode collected games into play-only AZ episodes.
 
     Each game: ``{winner, decisions: [{obs, choice, pi|None}], deck}`` where ``obs`` is
     the agent's observation at one of ITS single-select decisions (in order).
+
+    ``hyp`` = ``(hypothesis decks, their deck_context matrix)`` from
+    :func:`~src.net.opp_context.build_hypotheses`; when given, every step also carries
+    the belief-weighted expected-opponent context (item 1). The set MUST match serving.
     """
+    from src.net.opp_context import opp_context  # noqa: PLC0415
+
     episodes: list[AzEpisode] = []
     for game in games:
         z = float(game.get("z", 0.0))
@@ -78,12 +86,14 @@ def build_az_episodes(
             pi = mv.get("pi")
             pi_arr = (np.asarray(pi, dtype=np.float64)
                       if pi and len(pi) == len(options) else None)
+            opp_vec = (opp_context(cur, slot, hyp[0], hyp[1])
+                       if hyp is not None else None)
             steps.append(AzStep(
                 state=encode_state(cur, slot, feats),
                 state_rows=rows, state_mask=mask,
                 options=encode_options(options, cur, slot, feats),
                 option_rows=option_embed_rows(options, cur, slot, index),
-                pi=pi_arr,
+                pi=pi_arr, opp_vec=opp_vec,
             ))
         if steps:
             episodes.append(AzEpisode(steps, z, deck_context(deck, feats)))
@@ -114,6 +124,10 @@ def collate_az(episodes: list[AzEpisode]) -> dict[str, torch.Tensor]:
     value_target = torch.zeros(bsz, max_t)
     valid = torch.zeros(bsz, max_t, dtype=torch.bool)
     deck_vec = torch.zeros(bsz, episodes[0].deck_vec.shape[0])
+    # Per-step opponent-belief context (item 1); zeros when opp conditioning is off.
+    ov0 = next((s.opp_vec for ep in episodes for s in ep.steps
+                if s.opp_vec is not None), None)
+    opp_vec = (torch.zeros(bsz, max_t, ov0.shape[0]) if ov0 is not None else None)
 
     for i, ep in enumerate(episodes):
         deck_vec[i] = torch.from_numpy(ep.deck_vec).float()
@@ -130,10 +144,15 @@ def collate_az(episodes: list[AzEpisode]) -> dict[str, torch.Tensor]:
             if step.pi is not None:
                 pi[i, t, :k] = torch.from_numpy(step.pi / max(step.pi.sum(), 1e-9))
                 pi_valid[i, t] = True
+            if opp_vec is not None and step.opp_vec is not None:
+                opp_vec[i, t] = torch.from_numpy(step.opp_vec).float()
         option_mask[i, len(ep.steps):, 0] = True  # dummy-legal for padded softmax
-    return {
+    out = {
         "states": states, "state_rows": state_rows, "state_mask": state_mask,
         "options": options, "option_mask": option_mask, "option_rows": option_rows,
         "deck_vec": deck_vec, "pi": pi, "pi_valid": pi_valid,
         "value_target": value_target, "valid": valid,
     }
+    if opp_vec is not None:
+        out["opp_vec"] = opp_vec
+    return out

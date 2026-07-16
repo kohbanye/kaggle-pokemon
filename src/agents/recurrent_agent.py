@@ -85,6 +85,13 @@ class RecurrentNetAgent(Agent):
         # Deck-conditioning context (None unless the net was trained with it);
         # fixed per deck, so computed once here rather than per decision.
         self._ctx = net.deck_ctx(deck_context(self.deck, self.feats))
+        # Opponent-belief conditioning (item 1): the hypothesis set must match the one
+        # training used (:func:`~src.net.opp_context.build_hypotheses`, process-cached).
+        # opp_context is recomputed each decision (belief sharpens over the game).
+        self._hyp: tuple[list[list[int]], np.ndarray] | None = None
+        if net.config.opp_ctx_dim > 0:
+            from src.net.opp_context import build_hypotheses  # noqa: PLC0415
+            self._hyp = build_hypotheses(self.feats)
 
     def reset(self, seed: int) -> None:
         """Re-seed sampling and zero the play LSTM (call at game start)."""
@@ -115,10 +122,16 @@ class RecurrentNetAgent(Agent):
         option_rows = option_embed_rows(options, current, your_index, self._index)
 
         if max_count == SINGLE_SELECT:
+            # Per-decision opponent-belief context (item 1), None if not conditioned.
+            opp_ctx = None
+            if self._hyp is not None:
+                from src.net.opp_context import opp_context  # noqa: PLC0415
+                opp_ctx = self.net.opp_ctx(
+                    opp_context(current, your_index, self._hyp[0], self._hyp[1]))
             # Advance the play LSTM and score off the new hidden state.
             logits, value, self._h, self._c = self.net.step(
                 state_vec, rows, mask, option_feats, option_rows, self._h, self._c,
-                ctx=self._ctx,
+                ctx=self._ctx, opp_ctx=opp_ctx,
             )
             if logits.shape[0] != len(options):
                 return None

@@ -37,7 +37,8 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         # (w_ih (4ph,hidden), w_hh (4ph,ph), biases (4ph)) and gate order (i,f,g,o), so
         # the numpy serving net -- which still steps one decision at a time -- stays
         # bit-parity (see tests/test_recurrent_parity.py).
-        self.play_lstm = nn.LSTM(cfg.hidden + cfg.deck_ctx_dim, ph, batch_first=True)
+        self.play_lstm = nn.LSTM(
+            cfg.hidden + cfg.deck_ctx_dim + cfg.opp_ctx_dim, ph, batch_first=True)
         # Factored deck category head ({pokemon, trainer, energy}) off the deck LSTM.
         self.cat_head = nn.Linear(cfg.lstm_hidden, N_CATEGORIES)
         # Deck-conditioning projection (numpy layout: (deck_feat_dim, deck_ctx_dim),
@@ -46,6 +47,12 @@ class TorchRecurrentNet(TorchPolicyValueNet):
             self.deck_ctx_w = nn.Parameter(
                 torch.randn(cfg.deck_feat_dim, cfg.deck_ctx_dim)
                 * (2.0 / cfg.deck_feat_dim) ** 0.5,
+            )
+        # Opponent-belief projection (item 1), same numpy layout convention.
+        if cfg.opp_ctx_dim > 0:
+            self.opp_ctx_w = nn.Parameter(
+                torch.randn(cfg.opp_feat_dim, cfg.opp_ctx_dim)
+                * (2.0 / cfg.opp_feat_dim) ** 0.5,
             )
 
     # --- heads off the play-LSTM hidden -------------------------------------
@@ -86,6 +93,10 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         """Project deck-context vectors: ``(B, deck_feat_dim) -> (B, deck_ctx_dim)``."""
         return torch.tanh(deck_vec @ self.deck_ctx_w)
 
+    def opp_ctx(self, opp_vec: torch.Tensor) -> torch.Tensor:
+        """Project opponent-belief vectors: ``(..., opp_feat_dim) -> (..., dim)``."""
+        return torch.tanh(opp_vec @ self.opp_ctx_w)
+
     def play_sequence(  # noqa: PLR0913 - trajectory batch + optional conditioning
         self,
         states: torch.Tensor,
@@ -94,6 +105,7 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         options: torch.Tensor,
         option_rows: torch.Tensor,
         deck_ctx: torch.Tensor | None = None,
+        opp_ctx: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run the play LSTM over a battle trajectory batch.
 
@@ -119,10 +131,12 @@ class TorchRecurrentNet(TorchPolicyValueNet):
             state_mask.reshape(flat, *rest),
         )
         e = self.trunk(aug).reshape(bsz, t_len, -1)  # (B, T, hidden)
-        if deck_ctx is not None:
+        if deck_ctx is not None:  # own-deck context: constant over T
             e = torch.cat(
                 [e, deck_ctx.unsqueeze(1).expand(-1, t_len, -1)], dim=-1,
             )
+        if opp_ctx is not None:  # opponent-belief context: per-step (B, T, dim)
+            e = torch.cat([e, opp_ctx], dim=-1)
         out, _ = self.play_lstm(e)  # (B, T, ph); zero (h0, c0)
         values = self.value_from_h(out)  # (B, T)
         logits = self.policy_logits_seq(out, options, option_rows)  # (B, T, K)
@@ -145,6 +159,8 @@ class TorchRecurrentNet(TorchPolicyValueNet):
         ]
         if self.config.deck_ctx_dim > 0:
             keys.append((self.deck_ctx_w, "deck_ctx_w"))
+        if self.config.opp_ctx_dim > 0:
+            keys.append((self.opp_ctx_w, "opp_ctx_w"))
         return keys
 
     def to_numpy_net(self) -> RecurrentPolicyValueNet:

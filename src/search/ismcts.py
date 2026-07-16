@@ -104,6 +104,10 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
         gate_margin: float = 0.10,
         c_puct: float = 1.5,
         record: bool = False,
+        self_play: bool = False,
+        tau_moves: int = 8,
+        dir_alpha: float = 0.3,
+        dir_eps: float = 0.25,
         **kwargs: object,
     ) -> None:
         super().__init__(deck, engine, net=net, **kwargs)  # type: ignore[arg-type]
@@ -118,6 +122,16 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
         self.gate_margin = gate_margin
         self.c_puct = c_puct
         self.record = record
+        # AlphaZero self-play collection (items 2+3): PLAY the move sampled from the
+        # visit-count policy pi^(1/tau) (tau=1 for the first ``tau_moves`` decisions,
+        # then argmax) instead of the confidence-GATED net move -- so the state
+        # distribution and value targets are on-policy w.r.t. pi -- and inject
+        # Dirichlet(alpha) root-prior noise for exploration. Serving keeps the gate.
+        self.self_play = self_play
+        self.tau_moves = tau_moves
+        self.dir_alpha = dir_alpha
+        self.dir_eps = dir_eps
+        self._decision_idx = 0    # our single-select count this game (tau schedule)
         self._rollers = (
             RecurrentNetAgent(deck, engine, net=net, cb_pool=None,
                               build_deck_from_net=False, temperature=0.0),
@@ -131,6 +145,10 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
         # root visit-count on searched decisions (the AZ policy target), None otherwise.
         self.move_log: list[dict] = []
 
+    def reset(self, seed: int) -> None:
+        super().reset(seed)
+        self._decision_idx = 0
+
     def act(self, obs: dict) -> list[int]:
         base = super().act(obs)  # advances the real LSTM (one trajectory step)
         select = obs.get("select") or {}
@@ -141,6 +159,8 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
                       and bool(obs.get("search_begin_input")))
         self._last_pi = None
         choice = base
+        if single:
+            self._decision_idx += 1
         if searchable:
             try:
                 choice = self._ismcts(obs, options, base)
@@ -177,6 +197,9 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
         root_node = _Node()
         root_prior = self._prior({"current": cur, "select": obs["select"]}, your,
                                   h=self._h)
+        if self.self_play and len(root_prior) > 0:  # (3) Dirichlet root exploration
+            noise = self._rng.dirichlet([self.dir_alpha] * len(root_prior))
+            root_prior = (1.0 - self.dir_eps) * root_prior + self.dir_eps * noise
         for s, pr in zip(root_sigs, root_prior, strict=False):
             root_node.p[s] = float(pr)
         tree: dict[tuple, _Node] = {(): root_node}
@@ -355,7 +378,13 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
         obs: dict,  # noqa: ARG002 - kept for signature symmetry
     ) -> list[int]:
         """Set ``self._last_pi`` to the root visit-count policy (the AZ target) and
-        override the net only if the best searched root move clearly beats it."""
+        pick the move to PLAY.
+
+        - **self-play collection**: sample from ``pi^(1/tau)`` (tau=1 for the first
+          ``tau_moves`` decisions -> exploration, then argmax) so behaviour == pi and
+          the (state, pi, z) data is on-policy (item 2).
+        - **serving**: override the net only if the best searched root move clearly
+          beats it (the confidence gate)."""
         root = tree.get(())
         if root is None or not root.n:
             return base
@@ -364,9 +393,13 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
             n = root.n.get(s, 0)
             return root.w[s] / n if n > 0 else -2.0
 
-        tot = sum(root.n.get(s, 0) for s in root_sigs)
+        counts = np.array([root.n.get(s, 0) for s in root_sigs], dtype=np.float64)
+        tot = float(counts.sum())
         if tot:
-            self._last_pi = [round(root.n.get(s, 0) / tot, 5) for s in root_sigs]
+            self._last_pi = [round(c / tot, 5) for c in counts]
+
+        if self.self_play and tot:
+            return [self._sample_from_pi(counts)]
 
         best_sig = max(root.n, key=mean)
         if best_sig not in root_sigs:
@@ -377,3 +410,12 @@ class RecurrentIsmctsAgent(RecurrentNetAgent):
             self.searched += 1
             return [root_sigs.index(best_sig)]
         return base
+
+    def _sample_from_pi(self, counts: np.ndarray) -> int:
+        """Pick an option index from the visit counts: sample ``pi^(1/tau)`` while
+        ``_decision_idx <= tau_moves`` (tau=1), else argmax (tau->0)."""
+        if self._decision_idx > self.tau_moves:
+            return int(counts.argmax())
+        p = counts / counts.sum()
+        self.searched += 1
+        return int(self._rng.choice(len(p), p=p))

@@ -37,12 +37,15 @@ def _resolve(name: str) -> list[int]:
     return resolve_deck(name)
 
 
-def _init(deck_name: str, net_path: str, opp_decks: list[str] | None) -> None:
+def _init(deck_name: str, net_path: str, opp_decks: list[str] | None,
+          opp_nets: list[str] | None = None) -> None:
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
 
     _G["engine"] = load_engine_data()
     _G["deck"] = _resolve(deck_name)
     _G["net"] = RecurrentPolicyValueNet.load(net_path)
+    # (6) past-generation net checkpoints for the self-play opponent league.
+    _G["opp_nets"] = [RecurrentPolicyValueNet.load(p) for p in (opp_nets or [])]
     cards = _G["engine"]["cards"]
     _G["basics"] = [c for c in _G["deck"] if cards.get(c) and cards[c].get("basic")]
     meta = [read_deck(p) for p in sorted((ROOT / "decklists").glob("*.csv"))]
@@ -60,12 +63,23 @@ def _play(task: dict) -> dict:
     deck, engine = _G["deck"], _G["engine"]
     agent = RecurrentIsmctsAgent(
         deck, engine, _G["net"], opp_prior=_G["meta_prior"], opp_basics=_G["basics"],
-        opp_decks=_G["hyp"], iterations=task["iterations"], rollout_cap=0,
+        opp_decks=_G["hyp"], iterations=task["iterations"],
+        rollout_cap=task["rollout_cap"],
         move_budget_s=task["budget"], gate_margin=task["gate"], record=True,
+        self_play=True, tau_moves=task["tau_moves"],
         cb_pool=None, build_deck_from_net=False, temperature=0.0)
-    game_opp = task["opp_pilots"][task["seed"] % len(task["opp_pilots"])]
+    # Opponent pilot pool = scripted pilots + one "net:i" entry per league checkpoint.
+    pilot_pool = list(task["opp_pilots"]) + [
+        f"net:{i}" for i in range(len(_G["opp_nets"]))]
+    game_opp = pilot_pool[task["seed"] % len(pilot_pool)]
     opp_name, opp_deck = _G["opp_pool"][task["seed"] % len(_G["opp_pool"])]
-    opp = build_agent(game_opp, opp_deck, engine)
+    if game_opp.startswith("net:"):
+        from src.agents.recurrent_agent import RecurrentNetAgent  # noqa: PLC0415
+        opp = RecurrentNetAgent(opp_deck, engine, net=_G["opp_nets"][int(
+            game_opp.split(":")[1])], cb_pool=None, build_deck_from_net=False,
+            temperature=0.3, seed=task["seed"])
+    else:
+        opp = build_agent(game_opp, opp_deck, engine)
     sf = task["subj_first"]
     p0, p1 = (agent, opp) if sf else (opp, agent)
     res = play_game(p0, p1, a_is_player0=sf, seed=task["seed"])
@@ -83,23 +97,34 @@ def main() -> None:
     ap.add_argument("--iterations", type=int, default=64)
     ap.add_argument("--budget", type=float, default=999.0)
     ap.add_argument("--gate", type=float, default=0.10)
+    ap.add_argument("--rollout-cap", type=int, default=0,
+                    help="(4) value-leaf warmup: roll out <=N steps before the value "
+                         "head (0 = pure value leaf; 8-12 while value head is weak)")
+    ap.add_argument("--tau-moves", type=int, default=8,
+                    help="(2) sample the played move from pi for the first N decisions")
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--opp-pilots", default="greedy,greedy_plus,heuristic")
+    ap.add_argument("--opp-nets", default="",
+                    help="(6) past net checkpoints (comma .npz paths) mixed into the "
+                         "opponent pool as recurrent pilots -- true self-play league")
     ap.add_argument("--opp-decks", default="")
     ap.add_argument("--out", type=Path, default=ROOT / "data/az/r0.jsonl")
     args = ap.parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     opp_pilots = [p for p in args.opp_pilots.split(",") if p]
+    opp_nets = [p for p in args.opp_nets.split(",") if p]
     opp_decks = [d for d in args.opp_decks.split(",") if d]
     tasks = [{"subj_first": k % 2 == 0, "seed": 5000 + k, "iterations": args.iterations,
-              "budget": args.budget, "gate": args.gate, "opp_pilots": opp_pilots}
+              "budget": args.budget, "gate": args.gate, "opp_pilots": opp_pilots,
+              "opp_nets": opp_nets, "rollout_cap": args.rollout_cap,
+              "tau_moves": args.tau_moves}
              for k in range(args.games)]
     print(f"ISMCTS collecting {args.games} games on {args.deck} "
           f"(iters={args.iterations}) -> {args.out}", flush=True)
     n_g = n_pi = n_ovr = 0
     with args.out.open("w") as fh, Pool(
         args.workers, initializer=_init,
-        initargs=(args.deck, args.net, opp_decks or None),
+        initargs=(args.deck, args.net, opp_decks or None, opp_nets or None),
     ) as pp:
         for i, rec in enumerate(pp.imap_unordered(_play, tasks), 1):
             fh.write(json.dumps(rec) + "\n")
