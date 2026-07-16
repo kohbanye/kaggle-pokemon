@@ -60,6 +60,13 @@ class RecurrentNetConfig(NetConfig):
     play_lstm_hidden: int = 256
     deck_ctx_dim: int = 0
     deck_feat_dim: int = CARD_FEAT_DIM
+    # Opponent-belief conditioning (item 1): a PER-STEP expected-opponent deck_context
+    # (:func:`~src.net.opp_context.opp_context`), projected to ``opp_ctx_dim`` and
+    # concatenated to every LSTM input AFTER ``deck_ctx``. Unlike ``deck_ctx`` (our own
+    # 60 cards, constant per game) this changes each decision as the opponent reveals
+    # cards, so the single policy reads "who am I probably facing" and adapts. 0 = off.
+    opp_ctx_dim: int = 0
+    opp_feat_dim: int = CARD_FEAT_DIM
 
 
 def lstm_cell(  # noqa: PLR0913 - an LSTM cell's weights are irreducibly four tensors
@@ -110,13 +117,15 @@ class RecurrentPolicyValueNet(PolicyValueNet):
         # Play LSTM cell: input = trunk output (hidden) [+ deck context], state =
         # play_lstm_hidden.
         scale = 1.0 / np.sqrt(ph)
-        in_dim = cfg.hidden + cfg.deck_ctx_dim
+        in_dim = cfg.hidden + cfg.deck_ctx_dim + cfg.opp_ctx_dim
         p["play_lstm_w_ih"] = rng.standard_normal((4 * ph, in_dim)) * scale
         p["play_lstm_w_hh"] = rng.standard_normal((4 * ph, ph)) * scale
         p["play_lstm_b_ih"] = np.zeros(4 * ph)
         p["play_lstm_b_hh"] = np.zeros(4 * ph)
         if cfg.deck_ctx_dim > 0:
             p["deck_ctx_w"] = he_init(rng, cfg.deck_feat_dim, cfg.deck_ctx_dim)
+        if cfg.opp_ctx_dim > 0:
+            p["opp_ctx_w"] = he_init(rng, cfg.opp_feat_dim, cfg.opp_ctx_dim)
         # Deck category head (factored CB: {pokemon, trainer, energy}); reads the
         # deck-LSTM hidden. Near-zero init so picks start ~category-uniform.
         p["cat_w"] = rng.standard_normal((cfg.lstm_hidden, N_CATEGORIES)) * _HEAD_SCALE
@@ -149,6 +158,44 @@ class RecurrentPolicyValueNet(PolicyValueNet):
         if w is None:
             return None
         return np.tanh(deck_vec @ w)
+
+    def opp_ctx(
+        self, opp_vec: NDArray[np.float64],
+    ) -> NDArray[np.float64] | None:
+        """Project a per-decision expected-opponent context (None if disabled).
+
+        ``opp_vec`` is :func:`~src.net.opp_context.opp_context` for the current
+        observation (belief-weighted opponent ``deck_context``); recompute it each
+        decision and pass the projection to :meth:`step`.
+        """
+        w = self.params.get("opp_ctx_w")
+        if w is None:
+            return None
+        return np.tanh(opp_vec @ w)
+
+    def enable_opp_ctx(
+        self, rng: np.random.Generator, ctx_dim: int, feat_dim: int = CARD_FEAT_DIM,
+    ) -> RecurrentPolicyValueNet:
+        """A copy with opponent-belief conditioning added, **behaviour-preserving**.
+
+        Appends ``ctx_dim`` ZERO input columns to the play LSTM (so the opp context
+        contributes nothing until training moves them) plus the ``opp_ctx_w``
+        projection. Must be enabled AFTER ``deck_ctx`` so the input layout stays
+        ``[e | deck_ctx | opp_ctx]``. (No-op copy if already enabled.)
+        """
+        if "opp_ctx_w" in self.params:
+            return self
+        p = dict(self.params)
+        w_ih = p["play_lstm_w_ih"]
+        p["play_lstm_w_ih"] = np.concatenate(
+            [w_ih, np.zeros((w_ih.shape[0], ctx_dim))], axis=1,
+        )
+        p["opp_ctx_w"] = he_init(rng, feat_dim, ctx_dim)
+        cfg = RecurrentNetConfig(
+            **{**self.config.__dict__,
+               "opp_ctx_dim": ctx_dim, "opp_feat_dim": feat_dim},
+        )
+        return type(self)(cfg, p)
 
     def enable_deck_ctx(
         self, rng: np.random.Generator, ctx_dim: int, feat_dim: int = CARD_FEAT_DIM,
@@ -272,16 +319,20 @@ class RecurrentPolicyValueNet(PolicyValueNet):
         h: NDArray[np.float64],
         c: NDArray[np.float64],
         ctx: NDArray[np.float64] | None = None,
+        opp_ctx: NDArray[np.float64] | None = None,
     ) -> tuple[NDArray[np.float64], float, NDArray[np.float64], NDArray[np.float64]]:
         """One battle decision: returns ``(logits, value, h', c')``.
 
-        Advances the play LSTM with this observation (plus the per-game deck
-        context ``ctx`` from :meth:`deck_ctx`, when conditioning is enabled),
-        then scores the options and the position value off the new hidden state.
+        Advances the play LSTM with this observation, the per-game own-deck context
+        ``ctx`` (:meth:`deck_ctx`) and the per-decision opponent-belief context
+        ``opp_ctx`` (:meth:`opp_ctx`) when each is enabled -- input layout
+        ``[e | deck_ctx | opp_ctx]`` -- then scores the options and position value.
         """
         e = self.trunk_embed(x, rows, mask)
         if ctx is not None:
             e = np.concatenate([e, ctx])
+        if opp_ctx is not None:
+            e = np.concatenate([e, opp_ctx])
         h2, c2 = self.play_lstm_step(e, h, c)
         logits = self.policy_logits_from_h(h2, option_feats, option_rows)
         return logits, self.value_from_h(h2), h2, c2
@@ -305,6 +356,7 @@ class RecurrentPolicyValueNet(PolicyValueNet):
             hidden = int(params["trunk_w1"].shape[1])
             ph = int(params["play_lstm_w_hh"].shape[1])
             ctx = params.get("deck_ctx_w")  # deck conditioning, if trained with it
+            octx = params.get("opp_ctx_w")   # opponent-belief conditioning, if trained
             config = RecurrentNetConfig(
                 state_dim=(
                     int(params["trunk_w1"].shape[0]) - STATE_EMBED_SLOTS * embed_dim
@@ -320,5 +372,8 @@ class RecurrentPolicyValueNet(PolicyValueNet):
                 deck_ctx_dim=int(ctx.shape[1]) if ctx is not None else 0,
                 deck_feat_dim=(int(ctx.shape[0]) if ctx is not None
                                else CARD_FEAT_DIM),
+                opp_ctx_dim=int(octx.shape[1]) if octx is not None else 0,
+                opp_feat_dim=(int(octx.shape[0]) if octx is not None
+                              else CARD_FEAT_DIM),
             )
         return cls(config, params)

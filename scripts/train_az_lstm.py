@@ -42,29 +42,39 @@ def _batches(episodes: list, size: int) -> list[list]:
 
 
 def train(args: argparse.Namespace) -> None:
+    import numpy as np  # noqa: PLC0415
     import torch  # noqa: PLC0415
     import torch.nn.functional as torch_f  # noqa: PLC0415
 
+    from src.net.opp_context import build_hypotheses  # noqa: PLC0415
     from src.net.recurrent_model import RecurrentPolicyValueNet  # noqa: PLC0415
-    from src.net.recurrent_torch import (  # noqa: PLC0415
-        from_numpy_recurrent,
-    )
+    from src.net.recurrent_torch import from_numpy_recurrent  # noqa: PLC0415
 
     engine = load_engine_data()
     feats = CardFeatures(engine)
     pool = build_pool()
     index = CardEmbeddingIndex(pool)
 
+    # (item 1) enable opponent-belief conditioning: migrate the warm net (adds a zero,
+    # behaviour-preserving channel) and build the SAME hypothesis set serving uses.
+    warm = RecurrentPolicyValueNet.load(args.warm)
+    hyp = None
+    if args.opp_ctx_dim > 0:
+        warm = warm.enable_opp_ctx(np.random.default_rng(0), args.opp_ctx_dim)
+        hyp = build_hypotheses(feats)
+        print(f"opp-belief conditioning ON: dim={args.opp_ctx_dim}, "
+              f"{len(hyp[0])} hypothesis decks")
+
     files = [Path(p) for p in str(args.data).split(",") if p]
     games = [json.loads(ln) for f in files
              for ln in f.read_text().splitlines() if ln.strip()]
-    episodes = build_az_episodes(games, feats, index)
+    episodes = build_az_episodes(games, feats, index, hyp)
     n_steps = sum(len(e.steps) for e in episodes)
     n_pi = sum(1 for e in episodes for s in e.steps if s.pi is not None)
     print(f"AZ(LSTM): {len(episodes)} episodes, {n_steps} steps, {n_pi} pi-targets")
 
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net = from_numpy_recurrent(RecurrentPolicyValueNet.load(args.warm)).to(dev)
+    net = from_numpy_recurrent(warm).to(dev)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
     batches = _batches(episodes, args.batch)
 
@@ -73,9 +83,11 @@ def train(args: argparse.Namespace) -> None:
         for group in batches:
             b = {k: v.to(dev) for k, v in collate_az(group).items()}
             ctx = net.deck_ctx(b["deck_vec"]) if net.config.deck_ctx_dim > 0 else None
+            octx = (net.opp_ctx(b["opp_vec"])
+                    if net.config.opp_ctx_dim > 0 and "opp_vec" in b else None)
             logits, values = net.play_sequence(
                 b["states"], b["state_rows"], b["state_mask"],
-                b["options"], b["option_rows"], deck_ctx=ctx)
+                b["options"], b["option_rows"], deck_ctx=ctx, opp_ctx=octx)
             logits = logits.masked_fill(~b["option_mask"], _NEG_INF)
             logp = torch_f.log_softmax(logits, dim=-1)                 # (B,T,K)
             pmask = b["pi_valid"] & b["valid"]                          # (B,T)
@@ -109,6 +121,8 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--value-coef", type=float, default=1.0)
+    ap.add_argument("--opp-ctx-dim", type=int, default=0,
+                    help="(item 1) opponent-belief conditioning width (0 = off)")
     train(ap.parse_args())
 
 

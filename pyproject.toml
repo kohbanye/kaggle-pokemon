@@ -49,6 +49,11 @@ include = ["src", "tests"]
 exclude = [
     # imports the (gitignored, Linux-only) cg engine lazily -- same as scripts
     "src/search/ismcts.py",
+    "src/rebel/engine_game.py",
+    "src/rebel/agent.py",
+    "src/rebel/value_net_torch.py",
+    "src/rebel/recurrent_value_net_torch.py",
+    "src/rebel/vector_value_net_torch.py",
     "src/net/torch_model.py",
     "src/net/lit_vtrace.py",
     "src/net/recurrent_torch.py",
@@ -56,6 +61,7 @@ exclude = [
     "src/net/az_data.py",
     "tests/test_net_torch.py",
     "tests/test_recurrent_parity.py",
+    "tests/test_rebel_value_net.py",
     "tests/test_vtrace_learner.py",
 ]
 

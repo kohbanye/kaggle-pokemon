@@ -69,12 +69,17 @@ def _extract_elites(archive: Path, g: int, k: int) -> list[str]:
 
 
 def _collect(deck: str, net: Path, opps: list[str], out: Path,  # noqa: PLR0913
-             games: int, iters: int, workers: int) -> None:
-    _run(["uv", "run", "python", "scripts/collect_ismcts.py",
-          "--deck", deck, "--net", str(net), "--games", str(games),
-          "--iterations", str(iters), "--workers", str(workers),
-          "--opp-pilots", "greedy,greedy_plus,heuristic",
-          "--opp-decks", ",".join(opps), "--out", str(out)])
+             games: int, iters: int, workers: int,
+             opp_nets: list[Path], rollout_cap: int) -> None:
+    cmd = ["uv", "run", "python", "scripts/collect_ismcts.py",
+           "--deck", deck, "--net", str(net), "--games", str(games),
+           "--iterations", str(iters), "--workers", str(workers),
+           "--rollout-cap", str(rollout_cap),
+           "--opp-pilots", "greedy,greedy_plus,heuristic",
+           "--opp-decks", ",".join(opps), "--out", str(out)]
+    if opp_nets:  # (6) self-play league: past net generations as opponents
+        cmd += ["--opp-nets", ",".join(str(p) for p in opp_nets)]
+    _run(cmd)
 
 
 def _gate(deck: str, net: Path, games: int, workers: int) -> dict:
@@ -88,7 +93,7 @@ def _gate(deck: str, net: Path, games: int, workers: int) -> dict:
             "by_pilot": d["per_pilot"][f"net|{deck}"]}
 
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="QD x LSTM-AZ x ISMCTS co-evolution")
     ap.add_argument("--init-net", type=Path, default=INIT_NET)
     ap.add_argument("--seed-archive", type=Path,
@@ -102,13 +107,27 @@ def main() -> None:
     ap.add_argument("--pilot-decks", type=int, default=2)
     ap.add_argument("--play-games", type=int, default=300)
     ap.add_argument("--iters", type=int, default=96, help="ISMCTS iterations")
+    ap.add_argument("--league", type=int, default=3,
+                    help="(6) # most-recent past gens used as self-play opponents")
+    ap.add_argument("--warmup-cap", type=int, default=8,
+                    help="(4) value-leaf rollout cap during warmup gens")
+    ap.add_argument("--warmup-gens", type=int, default=2,
+                    help="(4) # early gens that use the rollout warmup")
+    ap.add_argument("--buffer-window", type=int, default=0,
+                    help="(7) keep only the last N collected data files (0 = all)")
+    ap.add_argument("--opp-ctx-dim", type=int, default=24,
+                    help="(1) opponent-belief conditioning width (0 = off)")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--eval-games", type=int, default=20)
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--work", type=Path, default=ROOT / "data/coevo_az")
     ap.add_argument("--out", type=Path, default=ROOT / "results/coevo_az.json")
-    args = ap.parse_args()
+    return ap.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
 
     args.work.mkdir(parents=True, exist_ok=True)
     net = args.init_net
@@ -127,15 +146,29 @@ def main() -> None:
         elites = _extract_elites(archive, g, args.elites)
         pilots = elites[:args.pilot_decks]
         opps = elites + ANCHORS
-        print(f"[g{g}] net pilots {pilots} vs opps={opps}", flush=True)
+        # (6) self-play league: the most-recent past generations' nets as opponents
+        # (recency-limited to the last ``league`` gens so it co-adapts, not overfits).
+        league = [args.work / f"gen{gg}" / "net.npz"
+                  for gg in range(max(1, g - args.league), g)]
+        league = [p for p in league if p.exists()]
+        # (4) value-leaf warmup: short rollouts while the value head is weak (early).
+        rollout_cap = args.warmup_cap if g <= args.warmup_gens else 0
+        print(f"[g{g}] net pilots {pilots} vs opps={opps} "
+              f"league={[p.parent.name for p in league]} rollout_cap={rollout_cap}",
+              flush=True)
         for d in pilots:
             data = gdir / f"play_{d}.jsonl"
-            _collect(d, net, opps, data, args.play_games, args.iters, args.workers)
+            _collect(d, net, opps, data, args.play_games, args.iters, args.workers,
+                     league, rollout_cap)
             buffer.append(data)
         new_net = gdir / "net.npz"
+        # (7) optional sliding replay window (else the cumulative buffer).
+        train_data = (buffer[-args.buffer_window:]
+                      if args.buffer_window > 0 else buffer)
         _run(["uv", "run", "python", "scripts/train_az_lstm.py",
-              "--data", ",".join(str(p) for p in buffer), "--warm", str(net),
-              "--out", str(new_net), "--epochs", str(args.epochs)])
+              "--data", ",".join(str(p) for p in train_data), "--warm", str(net),
+              "--out", str(new_net), "--epochs", str(args.epochs),
+              "--opp-ctx-dim", str(args.opp_ctx_dim)])
         best = pilots[0]
         ev = _gate(best, new_net, args.eval_games, args.workers)
         row = {"gen": g, "best_deck": best, "net": str(new_net),
