@@ -1,7 +1,7 @@
 """Profile where a depth-4 ReBeL solve spends time -- to find the perf lever that would
 make deep search servable (depth is the only proven play lever; depth>=4 is currently
-serving-infeasible at ~56s/move). Runs ONE short RebelAgent-vs-greedy game under cProfile
-and prints the top cumulative-time functions, then per-solve wall-time stats.
+serving-infeasible at ~56s/move). Runs ONE short RebelAgent-vs-greedy game under
+cProfile and prints the top cumulative-time functions, then per-solve wall-time stats.
 
   uv run python scripts/rebel_profile.py --depth 4 --particles 4 --sweeps 4 --moves 8
 """
@@ -30,7 +30,7 @@ class _Timed(RebelAgent):
 
     solve_times: list[float]
 
-    def _solve(self, obs: dict):  # type: ignore[override]
+    def _solve(self, obs: dict) -> list[int] | None:
         t0 = time.perf_counter()
         try:
             return super()._solve(obs)
