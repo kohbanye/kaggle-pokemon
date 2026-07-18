@@ -1,0 +1,28 @@
+{
+  "agent_a": "starmie",
+  "agent_b": "greedy_plus",
+  "games": 100,
+  "a_wins": 81,
+  "b_wins": 19,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 100,
+  "a_winrate": 0.81,
+  "a_winrate_ci95": [
+    0.7222115462093562,
+    0.8748524849023126
+  ],
+  "verdict": "adopt",
+  "significant": true,
+  "avg_turns": 9.8,
+  "avg_selections": 65.66,
+  "avg_move_ms_a": 0.13208487981512726,
+  "avg_move_ms_b": 0.0045198347875797336,
+  "max_move_ms_a": 0.48031844198703766,
+  "max_move_ms_b": 0.03522634506225586,
+  "avg_game_wall_s": 0.012730119451880455,
+  "games_per_sec": 78.55385833416379,
+  "base_seed": 7,
+  "swap": true,
+  "total_wall_s": 1.293000003322959
+}

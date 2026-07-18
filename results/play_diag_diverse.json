@@ -1,0 +1,535 @@
+{
+  "subject_deck": "metal_aggro",
+  "games_per_pair": 40,
+  "summary": {
+    "greedy(ref)": {
+      "vs_greedy_mirror": 0.5,
+      "vs_offdeck_mean": 0.728,
+      "gap": -0.228,
+      "vs_all": {
+        "winrate": 0.733,
+        "ci": [
+          0.685,
+          0.776
+        ],
+        "n": 359
+      }
+    },
+    "init(pre-coevo)": {
+      "vs_greedy_mirror": 0.25,
+      "vs_offdeck_mean": 0.679,
+      "gap": -0.429,
+      "vs_all": {
+        "winrate": 0.653,
+        "ci": [
+          0.602,
+          0.7
+        ],
+        "n": 360
+      }
+    },
+    "base2k": {
+      "vs_greedy_mirror": 0.475,
+      "vs_offdeck_mean": 0.686,
+      "gap": -0.211,
+      "vs_all": {
+        "winrate": 0.689,
+        "ci": [
+          0.639,
+          0.735
+        ],
+        "n": 360
+      }
+    },
+    "treat2k": {
+      "vs_greedy_mirror": 0.325,
+      "vs_offdeck_mean": 0.611,
+      "gap": -0.286,
+      "vs_all": {
+        "winrate": 0.619,
+        "ci": [
+          0.568,
+          0.668
+        ],
+        "n": 360
+      }
+    },
+    "div2k": {
+      "vs_greedy_mirror": 0.3,
+      "vs_offdeck_mean": 0.668,
+      "gap": -0.368,
+      "vs_all": {
+        "winrate": 0.644,
+        "ci": [
+          0.594,
+          0.692
+        ],
+        "n": 360
+      }
+    }
+  },
+  "per_opponent": {
+    "greedy(ref)": {
+      "greedy/metal": {
+        "winrate": 0.5,
+        "ci": [
+          0.352,
+          0.648
+        ],
+        "n": 40
+      },
+      "greedy/grass": {
+        "winrate": 0.875,
+        "ci": [
+          0.739,
+          0.945
+        ],
+        "n": 40
+      },
+      "greedy/fire": {
+        "winrate": 0.4,
+        "ci": [
+          0.263,
+          0.554
+        ],
+        "n": 40
+      },
+      "greedy/water": {
+        "winrate": 0.95,
+        "ci": [
+          0.835,
+          0.986
+        ],
+        "n": 40
+      },
+      "greedy/lightning": {
+        "winrate": 0.718,
+        "ci": [
+          0.562,
+          0.835
+        ],
+        "n": 39
+      },
+      "greedy/psychic": {
+        "winrate": 1.0,
+        "ci": [
+          0.912,
+          1.0
+        ],
+        "n": 40
+      },
+      "greedy/fighting": {
+        "winrate": 0.375,
+        "ci": [
+          0.242,
+          0.53
+        ],
+        "n": 40
+      },
+      "greedy/darkness": {
+        "winrate": 0.775,
+        "ci": [
+          0.625,
+          0.877
+        ],
+        "n": 40
+      },
+      "random/metal": {
+        "winrate": 1.0,
+        "ci": [
+          0.912,
+          1.0
+        ],
+        "n": 40
+      }
+    },
+    "init(pre-coevo)": {
+      "greedy/metal": {
+        "winrate": 0.25,
+        "ci": [
+          0.142,
+          0.402
+        ],
+        "n": 40
+      },
+      "greedy/grass": {
+        "winrate": 0.925,
+        "ci": [
+          0.801,
+          0.974
+        ],
+        "n": 40
+      },
+      "greedy/fire": {
+        "winrate": 0.3,
+        "ci": [
+          0.181,
+          0.454
+        ],
+        "n": 40
+      },
+      "greedy/water": {
+        "winrate": 0.8,
+        "ci": [
+          0.652,
+          0.895
+        ],
+        "n": 40
+      },
+      "greedy/lightning": {
+        "winrate": 0.55,
+        "ci": [
+          0.398,
+          0.693
+        ],
+        "n": 40
+      },
+      "greedy/psychic": {
+        "winrate": 0.9,
+        "ci": [
+          0.769,
+          0.96
+        ],
+        "n": 40
+      },
+      "greedy/fighting": {
+        "winrate": 0.55,
+        "ci": [
+          0.398,
+          0.693
+        ],
+        "n": 40
+      },
+      "greedy/darkness": {
+        "winrate": 0.725,
+        "ci": [
+          0.572,
+          0.839
+        ],
+        "n": 40
+      },
+      "random/metal": {
+        "winrate": 0.875,
+        "ci": [
+          0.739,
+          0.945
+        ],
+        "n": 40
+      }
+    },
+    "base2k": {
+      "greedy/metal": {
+        "winrate": 0.475,
+        "ci": [
+          0.329,
+          0.625
+        ],
+        "n": 40
+      },
+      "greedy/grass": {
+        "winrate": 0.9,
+        "ci": [
+          0.769,
+          0.96
+        ],
+        "n": 40
+      },
+      "greedy/fire": {
+        "winrate": 0.3,
+        "ci": [
+          0.181,
+          0.454
+        ],
+        "n": 40
+      },
+      "greedy/water": {
+        "winrate": 0.9,
+        "ci": [
+          0.769,
+          0.96
+        ],
+        "n": 40
+      },
+      "greedy/lightning": {
+        "winrate": 0.65,
+        "ci": [
+          0.495,
+          0.779
+        ],
+        "n": 40
+      },
+      "greedy/psychic": {
+        "winrate": 0.8,
+        "ci": [
+          0.652,
+          0.895
+        ],
+        "n": 40
+      },
+      "greedy/fighting": {
+        "winrate": 0.5,
+        "ci": [
+          0.352,
+          0.648
+        ],
+        "n": 40
+      },
+      "greedy/darkness": {
+        "winrate": 0.75,
+        "ci": [
+          0.598,
+          0.858
+        ],
+        "n": 40
+      },
+      "random/metal": {
+        "winrate": 0.925,
+        "ci": [
+          0.801,
+          0.974
+        ],
+        "n": 40
+      }
+    },
+    "treat2k": {
+      "greedy/metal": {
+        "winrate": 0.325,
+        "ci": [
+          0.201,
+          0.48
+        ],
+        "n": 40
+      },
+      "greedy/grass": {
+        "winrate": 0.675,
+        "ci": [
+          0.52,
+          0.799
+        ],
+        "n": 40
+      },
+      "greedy/fire": {
+        "winrate": 0.15,
+        "ci": [
+          0.071,
+          0.291
+        ],
+        "n": 40
+      },
+      "greedy/water": {
+        "winrate": 0.8,
+        "ci": [
+          0.652,
+          0.895
+        ],
+        "n": 40
+      },
+      "greedy/lightning": {
+        "winrate": 0.575,
+        "ci": [
+          0.422,
+          0.715
+        ],
+        "n": 40
+      },
+      "greedy/psychic": {
+        "winrate": 0.975,
+        "ci": [
+          0.871,
+          0.996
+        ],
+        "n": 40
+      },
+      "greedy/fighting": {
+        "winrate": 0.4,
+        "ci": [
+          0.263,
+          0.554
+        ],
+        "n": 40
+      },
+      "greedy/darkness": {
+        "winrate": 0.7,
+        "ci": [
+          0.546,
+          0.819
+        ],
+        "n": 40
+      },
+      "random/metal": {
+        "winrate": 0.975,
+        "ci": [
+          0.871,
+          0.996
+        ],
+        "n": 40
+      }
+    },
+    "div2k": {
+      "greedy/metal": {
+        "winrate": 0.3,
+        "ci": [
+          0.181,
+          0.454
+        ],
+        "n": 40
+      },
+      "greedy/grass": {
+        "winrate": 0.775,
+        "ci": [
+          0.625,
+          0.877
+        ],
+        "n": 40
+      },
+      "greedy/fire": {
+        "winrate": 0.45,
+        "ci": [
+          0.307,
+          0.602
+        ],
+        "n": 40
+      },
+      "greedy/water": {
+        "winrate": 0.8,
+        "ci": [
+          0.652,
+          0.895
+        ],
+        "n": 40
+      },
+      "greedy/lightning": {
+        "winrate": 0.6,
+        "ci": [
+          0.446,
+          0.737
+        ],
+        "n": 40
+      },
+      "greedy/psychic": {
+        "winrate": 0.95,
+        "ci": [
+          0.835,
+          0.986
+        ],
+        "n": 40
+      },
+      "greedy/fighting": {
+        "winrate": 0.45,
+        "ci": [
+          0.307,
+          0.602
+        ],
+        "n": 40
+      },
+      "greedy/darkness": {
+        "winrate": 0.65,
+        "ci": [
+          0.495,
+          0.779
+        ],
+        "n": 40
+      },
+      "random/metal": {
+        "winrate": 0.825,
+        "ci": [
+          0.681,
+          0.913
+        ],
+        "n": 40
+      }
+    }
+  },
+  "behaviour": {
+    "greedy(ref)": {
+      "act_mix": {
+        "play": 0.301,
+        "attach": 0.211,
+        "ability": 0.287,
+        "attack": 0.147,
+        "end": 0.053
+      },
+      "avg_turns": 13.0,
+      "first_attack_turn": 3.57,
+      "pct_no_attack_game": 0.006,
+      "pass_rate": 0.012,
+      "attach_per_game": 7.11,
+      "max_bench": 4.69,
+      "bench_by_turn3": 3.19,
+      "prizes_taken": 6.0,
+      "prizes_lost": 5.66
+    },
+    "init(pre-coevo)": {
+      "act_mix": {
+        "play": 0.409,
+        "attach": 0.258,
+        "ability": 0.02,
+        "retreat": 0.001,
+        "attack": 0.207,
+        "end": 0.105
+      },
+      "avg_turns": 16.0,
+      "first_attack_turn": 4.96,
+      "pct_no_attack_game": 0.031,
+      "pass_rate": 0.083,
+      "attach_per_game": 6.82,
+      "max_bench": 4.53,
+      "bench_by_turn3": 3.22,
+      "prizes_taken": 6.0,
+      "prizes_lost": 5.76
+    },
+    "base2k": {
+      "act_mix": {
+        "play": 0.391,
+        "attach": 0.263,
+        "ability": 0.03,
+        "attack": 0.205,
+        "end": 0.111
+      },
+      "avg_turns": 16.2,
+      "first_attack_turn": 4.81,
+      "pct_no_attack_game": 0.039,
+      "pass_rate": 0.09,
+      "attach_per_game": 6.99,
+      "max_bench": 4.39,
+      "bench_by_turn3": 3.2,
+      "prizes_taken": 6.0,
+      "prizes_lost": 5.64
+    },
+    "treat2k": {
+      "act_mix": {
+        "play": 0.443,
+        "attach": 0.179,
+        "attack": 0.244,
+        "end": 0.134
+      },
+      "avg_turns": 16.0,
+      "first_attack_turn": 4.03,
+      "pct_no_attack_game": 0.061,
+      "pass_rate": 0.12,
+      "attach_per_game": 3.92,
+      "max_bench": 4.37,
+      "bench_by_turn3": 3.04,
+      "prizes_taken": 6.0,
+      "prizes_lost": 5.77
+    },
+    "div2k": {
+      "act_mix": {
+        "play": 0.395,
+        "attach": 0.273,
+        "ability": 0.008,
+        "attack": 0.209,
+        "end": 0.115
+      },
+      "avg_turns": 16.3,
+      "first_attack_turn": 4.83,
+      "pct_no_attack_game": 0.042,
+      "pass_rate": 0.096,
+      "attach_per_game": 7.09,
+      "max_bench": 4.4,
+      "bench_by_turn3": 3.08,
+      "prizes_taken": 6.0,
+      "prizes_lost": 5.78
+    }
+  }
+}

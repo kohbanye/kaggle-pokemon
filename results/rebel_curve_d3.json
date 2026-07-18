@@ -1,0 +1,49 @@
+{
+  "deck": "metal_aggro",
+  "greedy_plus": {
+    "winrate": 0.607,
+    "ci": [
+      0.527,
+      0.681
+    ],
+    "n": 150
+  },
+  "curve": [
+    {
+      "net": "vn6_metal_r5",
+      "rebel_wr": 0.493,
+      "ci": [
+        0.414,
+        0.573
+      ],
+      "play_delta": -0.114
+    },
+    {
+      "net": "vnd3_metal_r0",
+      "rebel_wr": 0.553,
+      "ci": [
+        0.473,
+        0.631
+      ],
+      "play_delta": -0.054
+    },
+    {
+      "net": "vnd3_metal_r2",
+      "rebel_wr": 0.493,
+      "ci": [
+        0.414,
+        0.573
+      ],
+      "play_delta": -0.114
+    },
+    {
+      "net": "vnd3_metal_r4",
+      "rebel_wr": 0.567,
+      "ci": [
+        0.487,
+        0.643
+      ],
+      "play_delta": -0.04
+    }
+  ]
+}

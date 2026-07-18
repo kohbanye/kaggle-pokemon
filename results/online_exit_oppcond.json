@@ -1,0 +1,75 @@
+{
+  "deck": "qdgp_best",
+  "gate": "heldout2",
+  "margin": 0.15,
+  "curve": [
+    {
+      "round": 0,
+      "games_played": 600,
+      "points": 164258,
+      "net": "data/online_oppcond/qdgp_best/net_r0.npz",
+      "winrate": 0.699,
+      "ci": [
+        0.678,
+        0.72
+      ],
+      "n": 1800,
+      "by_pilot": {
+        "greedy": 0.735,
+        "heuristic": 0.63,
+        "greedyFF": 0.733
+      }
+    },
+    {
+      "round": 1,
+      "games_played": 1200,
+      "points": 280444,
+      "net": "data/online_oppcond/qdgp_best/net_r1.npz",
+      "winrate": 0.678,
+      "ci": [
+        0.656,
+        0.699
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.712,
+        "heuristic": 0.627,
+        "greedyFF": 0.694
+      }
+    },
+    {
+      "round": 2,
+      "games_played": 1800,
+      "points": 398735,
+      "net": "data/online_oppcond/qdgp_best/net_r2.npz",
+      "winrate": 0.679,
+      "ci": [
+        0.657,
+        0.7
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.685,
+        "heuristic": 0.636,
+        "greedyFF": 0.717
+      }
+    },
+    {
+      "round": 3,
+      "games_played": 2400,
+      "points": 518429,
+      "net": "data/online_oppcond/qdgp_best/net_r3.npz",
+      "winrate": 0.697,
+      "ci": [
+        0.676,
+        0.718
+      ],
+      "n": 1798,
+      "by_pilot": {
+        "greedy": 0.759,
+        "heuristic": 0.65,
+        "greedyFF": 0.683
+      }
+    }
+  ]
+}

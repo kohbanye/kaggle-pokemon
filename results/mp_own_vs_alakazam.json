@@ -1,0 +1,28 @@
+{
+  "agent_a": "multiply",
+  "agent_b": "alakazam",
+  "games": 60,
+  "a_wins": 12,
+  "b_wins": 48,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 60,
+  "a_winrate": 0.2,
+  "a_winrate_ci95": [
+    0.11828505322897494,
+    0.317818058056279
+  ],
+  "verdict": "reject",
+  "significant": true,
+  "avg_turns": 11.883333333333333,
+  "avg_selections": 131.31666666666666,
+  "avg_move_ms_a": 0.8420911115209101,
+  "avg_move_ms_b": 0.1695771235748875,
+  "max_move_ms_a": 14.10900242626667,
+  "max_move_ms_b": 0.4188511520624161,
+  "avg_game_wall_s": 0.08156125582754611,
+  "games_per_sec": 12.260723426260249,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 4.921356996521354
+}

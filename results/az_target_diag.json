@@ -1,0 +1,36 @@
+{
+  "net": "data/coevo_az_v2/gen9/net.npz",
+  "n_games": 300,
+  "n_pi_steps": 11833,
+  "distillation": {
+    "policy_CE_net_vs_pi": 1.326,
+    "argmax_agreement": 0.5085,
+    "pi_entropy": 1.1137,
+    "net_entropy_on_searched": 1.2982
+  },
+  "value_calibration": {
+    "early(t<=2)": {
+      "n": 2005,
+      "mean_V": -0.0788,
+      "mean_z": -0.1312,
+      "corr_V_z": 0.3429
+    },
+    "late(6+)": {
+      "n": 10610,
+      "mean_V": -0.0147,
+      "mean_z": 0.0013,
+      "corr_V_z": 0.6984
+    },
+    "mid(3-5)": {
+      "n": 2467,
+      "mean_V": -0.0082,
+      "mean_z": -0.0766,
+      "corr_V_z": 0.5918
+    }
+  },
+  "recurrence": {
+    "n_steps": 15082,
+    "argmax_changed_when_frozen": 0.0661,
+    "mean_abs_V_gap_frozen": 0.0945
+  }
+}

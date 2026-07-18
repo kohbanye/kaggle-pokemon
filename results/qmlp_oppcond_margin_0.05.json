@@ -1,0 +1,91 @@
+{
+  "heldout": [
+    "lad00_P_evo_1pz_e790",
+    "lad01_W_evo_mid_e776",
+    "lad02_G_evo_mid_e792",
+    "lad03_G_evo_1pz_e741",
+    "lad04_F_evo_mid_e839",
+    "lad05_P_evo_mid_e583",
+    "lad06_D_evo_1pz_e770",
+    "lad07_M_evo_mid_e711",
+    "lad08_F_evo_1pz_e782",
+    "lad09_P_basic_big_e589",
+    "lad10_R_evo_1pz_e576",
+    "lad11_L_evo_1pz_e745",
+    "lad12_P_basic_mid_e633",
+    "lad13_G_basic_mid_e595",
+    "lad14_P_evo_big_e587",
+    "lad15_G_basic_big_e538",
+    "lad16_C_evo_mid_e519",
+    "lad17_W_basic_mid_e485",
+    "lad18_M_evo_1pz_e485",
+    "lad19_W_evo_1pz_e476",
+    "lad20_P_evo_1pz_e782",
+    "lad21_W_evo_mid_e722",
+    "lad22_G_evo_mid_e738",
+    "lad23_G_evo_1pz_e696",
+    "lad24_F_evo_mid_e766",
+    "lad25_P_evo_mid_e546",
+    "lad26_D_evo_1pz_e623",
+    "lad27_M_evo_mid_e688",
+    "lad28_F_evo_1pz_e707",
+    "lad29_P_basic_big_e556"
+  ],
+  "opp_pilots": [
+    "greedy",
+    "heuristic",
+    "greedyFF"
+  ],
+  "games_per_pair": 30,
+  "overall": {
+    "qmlp|qdgp_best": {
+      "winrate": 0.68,
+      "ci": [
+        0.663,
+        0.698
+      ],
+      "n": 2700
+    }
+  },
+  "per_pilot": {
+    "qmlp|qdgp_best": {
+      "greedy": 0.703,
+      "heuristic": 0.628,
+      "greedyFF": 0.71
+    }
+  },
+  "per_opp": {
+    "qmlp|qdgp_best": {
+      "lad00_P_evo_1pz_e790": 0.722,
+      "lad01_W_evo_mid_e776": 0.567,
+      "lad02_G_evo_mid_e792": 0.678,
+      "lad03_G_evo_1pz_e741": 0.956,
+      "lad04_F_evo_mid_e839": 0.256,
+      "lad05_P_evo_mid_e583": 0.844,
+      "lad06_D_evo_1pz_e770": 0.778,
+      "lad07_M_evo_mid_e711": 0.544,
+      "lad08_F_evo_1pz_e782": 0.322,
+      "lad09_P_basic_big_e589": 0.822,
+      "lad10_R_evo_1pz_e576": 0.644,
+      "lad11_L_evo_1pz_e745": 0.811,
+      "lad12_P_basic_mid_e633": 0.778,
+      "lad13_G_basic_mid_e595": 0.867,
+      "lad14_P_evo_big_e587": 0.811,
+      "lad15_G_basic_big_e538": 0.911,
+      "lad16_C_evo_mid_e519": 0.556,
+      "lad17_W_basic_mid_e485": 0.778,
+      "lad18_M_evo_1pz_e485": 0.878,
+      "lad19_W_evo_1pz_e476": 0.856,
+      "lad20_P_evo_1pz_e782": 0.544,
+      "lad21_W_evo_mid_e722": 0.211,
+      "lad22_G_evo_mid_e738": 0.811,
+      "lad23_G_evo_1pz_e696": 0.911,
+      "lad24_F_evo_mid_e766": 0.256,
+      "lad25_P_evo_mid_e546": 0.756,
+      "lad26_D_evo_1pz_e623": 0.767,
+      "lad27_M_evo_mid_e688": 0.589,
+      "lad28_F_evo_1pz_e707": 0.356,
+      "lad29_P_basic_big_e556": 0.833
+    }
+  }
+}

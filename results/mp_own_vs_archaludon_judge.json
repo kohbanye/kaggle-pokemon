@@ -1,0 +1,28 @@
+{
+  "agent_a": "multiply",
+  "agent_b": "archaludon_judge",
+  "games": 60,
+  "a_wins": 19,
+  "b_wins": 41,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 60,
+  "a_winrate": 0.31666666666666665,
+  "a_winrate_ci95": [
+    0.21305867552366523,
+    0.44233767026176773
+  ],
+  "verdict": "reject",
+  "significant": true,
+  "avg_turns": 11.483333333333333,
+  "avg_selections": 117.91666666666667,
+  "avg_move_ms_a": 0.8390272636353893,
+  "avg_move_ms_b": 0.159102968238997,
+  "max_move_ms_a": 13.624008744955063,
+  "max_move_ms_b": 0.45832060277462006,
+  "avg_game_wall_s": 0.07854537349194288,
+  "games_per_sec": 12.731494619509055,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 4.750003939494491
+}

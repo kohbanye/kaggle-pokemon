@@ -1,0 +1,28 @@
+{
+  "agent_a": "multiply",
+  "agent_b": "grimmsnarl",
+  "games": 60,
+  "a_wins": 43,
+  "b_wins": 17,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 60,
+  "a_winrate": 0.7166666666666667,
+  "a_winrate_ci95": [
+    0.5923271483560882,
+    0.8149317157156729
+  ],
+  "verdict": "adopt",
+  "significant": true,
+  "avg_turns": 13.016666666666667,
+  "avg_selections": 145.2,
+  "avg_move_ms_a": 0.9202933656071325,
+  "avg_move_ms_b": 0.1434407111355725,
+  "max_move_ms_a": 15.389582142233849,
+  "max_move_ms_b": 1.6801785677671432,
+  "avg_game_wall_s": 0.09558611630151669,
+  "games_per_sec": 10.461770377254387,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 5.7711635157465935
+}

@@ -1,0 +1,28 @@
+{
+  "agent_a": "starmie",
+  "agent_b": "grimmsnarl",
+  "games": 150,
+  "a_wins": 67,
+  "b_wins": 83,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 150,
+  "a_winrate": 0.44666666666666666,
+  "a_winrate_ci95": [
+    0.36942801041509465,
+    0.5265688156508335
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 11.673333333333334,
+  "avg_selections": 118.96666666666667,
+  "avg_move_ms_a": 0.1349882051482329,
+  "avg_move_ms_b": 0.12574442923202583,
+  "max_move_ms_a": 0.4085507243871689,
+  "max_move_ms_b": 0.37836097180843353,
+  "avg_game_wall_s": 0.029485527612268924,
+  "games_per_sec": 33.914943396973506,
+  "base_seed": 100,
+  "swap": true,
+  "total_wall_s": 4.463660771027207
+}

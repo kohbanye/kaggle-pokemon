@@ -1,0 +1,113 @@
+{
+  "net": "data/coevo_az_v2/gen10/net.npz",
+  "pool": "heldout2",
+  "games_per_pair": 20,
+  "mean_play_delta": -0.04,
+  "decks_net_beats_gp": 0,
+  "decks_gp_beats_net": 3,
+  "n_decks": 6,
+  "per_deck": [
+    {
+      "deck": "g9_e0",
+      "net_wr": 0.719,
+      "net_ci": [
+        0.698,
+        0.74
+      ],
+      "gp_wr": 0.728,
+      "gp_ci": [
+        0.707,
+        0.748
+      ],
+      "play_delta": -0.009,
+      "sig": "~",
+      "exploitability": 0.817,
+      "worst_opp": "lad21_W_evo_mid_e722"
+    },
+    {
+      "deck": "g10_e0",
+      "net_wr": 0.727,
+      "net_ci": [
+        0.706,
+        0.747
+      ],
+      "gp_wr": 0.743,
+      "gp_ci": [
+        0.722,
+        0.762
+      ],
+      "play_delta": -0.016,
+      "sig": "~",
+      "exploitability": 0.883,
+      "worst_opp": "lad23_G_evo_1pz_e696"
+    },
+    {
+      "deck": "metal_aggro",
+      "net_wr": 0.504,
+      "net_ci": [
+        0.481,
+        0.527
+      ],
+      "gp_wr": 0.589,
+      "gp_ci": [
+        0.566,
+        0.612
+      ],
+      "play_delta": -0.085,
+      "sig": "-",
+      "exploitability": 0.983,
+      "worst_opp": "lad23_G_evo_1pz_e696"
+    },
+    {
+      "deck": "qd7_r5",
+      "net_wr": 0.683,
+      "net_ci": [
+        0.661,
+        0.704
+      ],
+      "gp_wr": 0.729,
+      "gp_ci": [
+        0.708,
+        0.749
+      ],
+      "play_delta": -0.046,
+      "sig": "-",
+      "exploitability": 0.9,
+      "worst_opp": "lad21_W_evo_mid_e722"
+    },
+    {
+      "deck": "grass_aggro",
+      "net_wr": 0.601,
+      "net_ci": [
+        0.578,
+        0.623
+      ],
+      "gp_wr": 0.586,
+      "gp_ci": [
+        0.563,
+        0.608
+      ],
+      "play_delta": 0.015,
+      "sig": "~",
+      "exploitability": 0.867,
+      "worst_opp": "lad23_G_evo_1pz_e696"
+    },
+    {
+      "deck": "qdgp_best",
+      "net_wr": 0.563,
+      "net_ci": [
+        0.54,
+        0.586
+      ],
+      "gp_wr": 0.659,
+      "gp_ci": [
+        0.637,
+        0.681
+      ],
+      "play_delta": -0.096,
+      "sig": "-",
+      "exploitability": 0.917,
+      "worst_opp": "lad21_W_evo_mid_e722"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "agent_a": "archaludon_beam",
+  "agent_b": "alakazam",
+  "games": 200,
+  "a_wins": 91,
+  "b_wins": 109,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 200,
+  "a_winrate": 0.455,
+  "a_winrate_ci95": [
+    0.387482193098835,
+    0.524213886275119
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 12.45,
+  "avg_selections": 127.59,
+  "avg_move_ms_a": 3.417062816265533,
+  "avg_move_ms_b": 0.1584126475861077,
+  "max_move_ms_a": 39.10357132554054,
+  "max_move_ms_b": 0.4374571144580841,
+  "avg_game_wall_s": 0.2162268288154155,
+  "games_per_sec": 4.624773001012105,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 43.298994801938534
+}

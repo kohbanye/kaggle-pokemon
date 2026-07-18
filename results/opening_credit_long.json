@@ -1,0 +1,119 @@
+{
+  "greedy(ref)": {
+    "got_opening_rate": 0.5,
+    "empirical": {
+      "win_first": {
+        "winrate": 0.683,
+        "ci": [
+          0.629,
+          0.733
+        ],
+        "n": 300
+      },
+      "win_second": {
+        "winrate": 0.583,
+        "ci": [
+          0.527,
+          0.638
+        ],
+        "n": 300
+      },
+      "delta_win": 0.1
+    },
+    "policy": {
+      "p_first": null,
+      "nat_go_first_rate": null,
+      "prefers": "?"
+    },
+    "critic": {
+      "v_open": null,
+      "v_first_forcefirst": null,
+      "v_first_forcesecond": null,
+      "delta_v": null
+    },
+    "alignment": {
+      "empirical": "+",
+      "policy": "?",
+      "critic": "?"
+    },
+    "n_games": 1800
+  },
+  "base2k": {
+    "got_opening_rate": 0.5,
+    "empirical": {
+      "win_first": {
+        "winrate": 0.563,
+        "ci": [
+          0.507,
+          0.618
+        ],
+        "n": 300
+      },
+      "win_second": {
+        "winrate": 0.507,
+        "ci": [
+          0.45,
+          0.563
+        ],
+        "n": 300
+      },
+      "delta_win": 0.056
+    },
+    "policy": {
+      "p_first": 0.9468,
+      "nat_go_first_rate": 1.0,
+      "prefers": "+"
+    },
+    "critic": {
+      "v_open": 0.0324,
+      "v_first_forcefirst": 0.3814,
+      "v_first_forcesecond": 0.295,
+      "delta_v": 0.0864
+    },
+    "alignment": {
+      "empirical": "+",
+      "policy": "+",
+      "critic": "+"
+    },
+    "n_games": 1800
+  },
+  "treat2k": {
+    "got_opening_rate": 0.5,
+    "empirical": {
+      "win_first": {
+        "winrate": 0.557,
+        "ci": [
+          0.5,
+          0.612
+        ],
+        "n": 300
+      },
+      "win_second": {
+        "winrate": 0.53,
+        "ci": [
+          0.474,
+          0.586
+        ],
+        "n": 300
+      },
+      "delta_win": 0.027
+    },
+    "policy": {
+      "p_first": 0.7979,
+      "nat_go_first_rate": 1.0,
+      "prefers": "+"
+    },
+    "critic": {
+      "v_open": 0.0352,
+      "v_first_forcefirst": 0.6728,
+      "v_first_forcesecond": 0.609,
+      "delta_v": 0.0638
+    },
+    "alignment": {
+      "empirical": "+",
+      "policy": "+",
+      "critic": "+"
+    },
+    "n_games": 1800
+  }
+}

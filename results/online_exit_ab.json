@@ -1,0 +1,78 @@
+{
+  "deck": "qdgp_best",
+  "eval_opp": "greedy_plus",
+  "curve": [
+    {
+      "round": 0,
+      "games_played": 400,
+      "points": 59689,
+      "net": "data/online_ab/qdgp_best/net_r0.npz",
+      "winrate": 0.5233,
+      "ci": [
+        0.467,
+        0.579
+      ],
+      "n": 300
+    },
+    {
+      "round": 1,
+      "games_played": 800,
+      "points": 117611,
+      "net": "data/online_ab/qdgp_best/net_r1.npz",
+      "winrate": 0.5533,
+      "ci": [
+        0.497,
+        0.609
+      ],
+      "n": 300
+    },
+    {
+      "round": 2,
+      "games_played": 1200,
+      "points": 181636,
+      "net": "data/online_ab/qdgp_best/net_r2.npz",
+      "winrate": 0.5033,
+      "ci": [
+        0.447,
+        0.56
+      ],
+      "n": 300
+    },
+    {
+      "round": 3,
+      "games_played": 1600,
+      "points": 238561,
+      "net": "data/online_ab/qdgp_best/net_r3.npz",
+      "winrate": 0.54,
+      "ci": [
+        0.483,
+        0.596
+      ],
+      "n": 300
+    },
+    {
+      "round": 4,
+      "games_played": 2000,
+      "points": 300449,
+      "net": "data/online_ab/qdgp_best/net_r4.npz",
+      "winrate": 0.5333,
+      "ci": [
+        0.477,
+        0.589
+      ],
+      "n": 300
+    },
+    {
+      "round": 5,
+      "games_played": 2400,
+      "points": 362018,
+      "net": "data/online_ab/qdgp_best/net_r5.npz",
+      "winrate": 0.5167,
+      "ci": [
+        0.46,
+        0.573
+      ],
+      "n": 300
+    }
+  ]
+}

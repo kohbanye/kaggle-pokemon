@@ -1,0 +1,31 @@
+{
+  "deck": "metal_aggro",
+  "greedy_plus": {
+    "winrate": 0.5,
+    "ci": [
+      0.377,
+      0.623
+    ],
+    "n": 60
+  },
+  "curve": [
+    {
+      "net": "vntd2_metal_r3",
+      "rebel_wr": 0.617,
+      "ci": [
+        0.49,
+        0.729
+      ],
+      "play_delta": 0.117
+    },
+    {
+      "net": "vntd2_metal_r5",
+      "rebel_wr": 0.5,
+      "ci": [
+        0.377,
+        0.623
+      ],
+      "play_delta": 0.0
+    }
+  ]
+}

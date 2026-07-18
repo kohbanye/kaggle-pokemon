@@ -1,0 +1,28 @@
+{
+  "agent_a": "archaludon_beam",
+  "agent_b": "greedy_plus",
+  "games": 4,
+  "a_wins": 1,
+  "b_wins": 3,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 4,
+  "a_winrate": 0.25,
+  "a_winrate_ci95": [
+    0.04558726080970055,
+    0.6993581574175981
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 12.75,
+  "avg_selections": 63.75,
+  "avg_move_ms_a": 3.153211172474058,
+  "avg_move_ms_b": 0.0052460236474871635,
+  "max_move_ms_a": 14.139456674456596,
+  "max_move_ms_b": 0.020548701286315918,
+  "avg_game_wall_s": 0.08291194401681423,
+  "games_per_sec": 12.06098846020549,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 0.3654989656060934
+}

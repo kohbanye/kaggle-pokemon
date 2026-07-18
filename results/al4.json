@@ -1,0 +1,28 @@
+{
+  "agent_a": "alakazam",
+  "agent_b": "greedy_plus",
+  "games": 60,
+  "a_wins": 57,
+  "b_wins": 3,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 60,
+  "a_winrate": 0.95,
+  "a_winrate_ci95": [
+    0.8629948352365147,
+    0.9828504978356043
+  ],
+  "verdict": "adopt",
+  "significant": true,
+  "avg_turns": 12.8,
+  "avg_selections": 112.71666666666667,
+  "avg_move_ms_a": 0.1545304435709396,
+  "avg_move_ms_b": 0.00408534113142975,
+  "max_move_ms_a": 0.41525065898895264,
+  "max_move_ms_b": 0.022688880562782288,
+  "avg_game_wall_s": 0.024383895782132944,
+  "games_per_sec": 41.01067396837957,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 1.4773958679288626
+}
