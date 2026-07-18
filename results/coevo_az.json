@@ -1,0 +1,245 @@
+{
+  "gate": "heldout2",
+  "curve": [
+    {
+      "gen": 1,
+      "best_deck": "g1_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen1/net.npz",
+      "elites": [
+        "g1_e0",
+        "g1_e1",
+        "g1_e2",
+        "g1_e3",
+        "g1_e4",
+        "g1_e5"
+      ],
+      "winrate": 0.653,
+      "ci": [
+        0.63,
+        0.674
+      ],
+      "n": 1800,
+      "by_pilot": {
+        "greedy": 0.688,
+        "heuristic": 0.588,
+        "greedyFF": 0.682
+      }
+    },
+    {
+      "gen": 2,
+      "best_deck": "g2_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen2/net.npz",
+      "elites": [
+        "g2_e0",
+        "g2_e1",
+        "g2_e2",
+        "g2_e3",
+        "g2_e4",
+        "g2_e5"
+      ],
+      "winrate": 0.718,
+      "ci": [
+        0.697,
+        0.739
+      ],
+      "n": 1800,
+      "by_pilot": {
+        "greedy": 0.73,
+        "heuristic": 0.697,
+        "greedyFF": 0.728
+      }
+    },
+    {
+      "gen": 3,
+      "best_deck": "g3_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen3/net.npz",
+      "elites": [
+        "g3_e0",
+        "g3_e1",
+        "g3_e2",
+        "g3_e3",
+        "g3_e4",
+        "g3_e5"
+      ],
+      "winrate": 0.71,
+      "ci": [
+        0.689,
+        0.73
+      ],
+      "n": 1800,
+      "by_pilot": {
+        "greedy": 0.733,
+        "heuristic": 0.672,
+        "greedyFF": 0.725
+      }
+    },
+    {
+      "gen": 4,
+      "best_deck": "g4_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen4/net.npz",
+      "elites": [
+        "g4_e0",
+        "g4_e1",
+        "g4_e2",
+        "g4_e3",
+        "g4_e4",
+        "g4_e5"
+      ],
+      "winrate": 0.703,
+      "ci": [
+        0.682,
+        0.724
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.708,
+        "heuristic": 0.699,
+        "greedyFF": 0.702
+      }
+    },
+    {
+      "gen": 5,
+      "best_deck": "g5_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen5/net.npz",
+      "elites": [
+        "g5_e0",
+        "g5_e1",
+        "g5_e2",
+        "g5_e3",
+        "g5_e4",
+        "g5_e5"
+      ],
+      "winrate": 0.682,
+      "ci": [
+        0.66,
+        0.703
+      ],
+      "n": 1798,
+      "by_pilot": {
+        "greedy": 0.696,
+        "heuristic": 0.658,
+        "greedyFF": 0.691
+      }
+    },
+    {
+      "gen": 6,
+      "best_deck": "g6_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen6/net.npz",
+      "elites": [
+        "g6_e0",
+        "g6_e1",
+        "g6_e2",
+        "g6_e3",
+        "g6_e4",
+        "g6_e5"
+      ],
+      "winrate": 0.734,
+      "ci": [
+        0.713,
+        0.754
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.747,
+        "heuristic": 0.728,
+        "greedyFF": 0.726
+      }
+    },
+    {
+      "gen": 7,
+      "best_deck": "g7_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen7/net.npz",
+      "elites": [
+        "g7_e0",
+        "g7_e1",
+        "g7_e2",
+        "g7_e3",
+        "g7_e4",
+        "g7_e5"
+      ],
+      "winrate": 0.724,
+      "ci": [
+        0.703,
+        0.744
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.725,
+        "heuristic": 0.718,
+        "greedyFF": 0.728
+      }
+    },
+    {
+      "gen": 8,
+      "best_deck": "g8_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen8/net.npz",
+      "elites": [
+        "g8_e0",
+        "g8_e1",
+        "g8_e2",
+        "g8_e3",
+        "g8_e4",
+        "g8_e5"
+      ],
+      "winrate": 0.745,
+      "ci": [
+        0.724,
+        0.764
+      ],
+      "n": 1798,
+      "by_pilot": {
+        "greedy": 0.769,
+        "heuristic": 0.738,
+        "greedyFF": 0.727
+      }
+    },
+    {
+      "gen": 9,
+      "best_deck": "g9_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen9/net.npz",
+      "elites": [
+        "g9_e0",
+        "g9_e1",
+        "g9_e2",
+        "g9_e3",
+        "g9_e4",
+        "g9_e5"
+      ],
+      "winrate": 0.707,
+      "ci": [
+        0.685,
+        0.727
+      ],
+      "n": 1799,
+      "by_pilot": {
+        "greedy": 0.725,
+        "heuristic": 0.658,
+        "greedyFF": 0.736
+      }
+    },
+    {
+      "gen": 10,
+      "best_deck": "g10_e0",
+      "net": "/home/sakano/git/kp/data/coevo_az/gen10/net.npz",
+      "elites": [
+        "g10_e0",
+        "g10_e1",
+        "g10_e2",
+        "g10_e3",
+        "g10_e4",
+        "g10_e5"
+      ],
+      "winrate": 0.71,
+      "ci": [
+        0.689,
+        0.73
+      ],
+      "n": 1800,
+      "by_pilot": {
+        "greedy": 0.727,
+        "heuristic": 0.69,
+        "greedyFF": 0.713
+      }
+    }
+  ]
+}

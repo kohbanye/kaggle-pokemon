@@ -1,0 +1,28 @@
+{
+  "agent_a": "starmie",
+  "agent_b": "alakazam",
+  "games": 150,
+  "a_wins": 61,
+  "b_wins": 88,
+  "draws": 1,
+  "aborted": 0,
+  "decisive": 149,
+  "a_winrate": 0.40939597315436244,
+  "a_winrate_ci95": [
+    0.33368429621624807,
+    0.48966206406892154
+  ],
+  "verdict": "reject",
+  "significant": true,
+  "avg_turns": 10.673333333333334,
+  "avg_selections": 99.12666666666667,
+  "avg_move_ms_a": 0.1346078328147777,
+  "avg_move_ms_b": 0.14488130282373413,
+  "max_move_ms_a": 0.50387904047966,
+  "max_move_ms_b": 0.4979390650987625,
+  "avg_game_wall_s": 0.025934629055360953,
+  "games_per_sec": 38.558484791333065,
+  "base_seed": 100,
+  "swap": true,
+  "total_wall_s": 3.9204577933996916
+}

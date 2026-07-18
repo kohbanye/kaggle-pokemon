@@ -1,0 +1,96 @@
+{
+  "net": "data/coevo_az/gen8/net.npz",
+  "pool": "heldout2",
+  "games_per_pair": 12,
+  "mean_play_delta": -0.014,
+  "decks_net_beats_gp": 1,
+  "decks_gp_beats_net": 1,
+  "n_decks": 5,
+  "per_deck": [
+    {
+      "deck": "g8_e0",
+      "net_wr": 0.726,
+      "net_ci": [
+        0.699,
+        0.752
+      ],
+      "gp_wr": 0.743,
+      "gp_ci": [
+        0.716,
+        0.768
+      ],
+      "play_delta": -0.017,
+      "sig": "~",
+      "exploitability": 0.944,
+      "worst_opp": "lad21_W_evo_mid_e722"
+    },
+    {
+      "deck": "qdgp_best",
+      "net_wr": 0.581,
+      "net_ci": [
+        0.551,
+        0.61
+      ],
+      "gp_wr": 0.67,
+      "gp_ci": [
+        0.642,
+        0.698
+      ],
+      "play_delta": -0.089,
+      "sig": "-",
+      "exploitability": 0.833,
+      "worst_opp": "lad04_F_evo_mid_e839"
+    },
+    {
+      "deck": "metal_aggro",
+      "net_wr": 0.545,
+      "net_ci": [
+        0.516,
+        0.575
+      ],
+      "gp_wr": 0.589,
+      "gp_ci": [
+        0.559,
+        0.618
+      ],
+      "play_delta": -0.044,
+      "sig": "~",
+      "exploitability": 0.972,
+      "worst_opp": "lad23_G_evo_1pz_e696"
+    },
+    {
+      "deck": "qd7_r5",
+      "net_wr": 0.719,
+      "net_ci": [
+        0.692,
+        0.745
+      ],
+      "gp_wr": 0.715,
+      "gp_ci": [
+        0.687,
+        0.741
+      ],
+      "play_delta": 0.004,
+      "sig": "~",
+      "exploitability": 0.972,
+      "worst_opp": "lad10_R_evo_1pz_e576"
+    },
+    {
+      "deck": "grass_aggro",
+      "net_wr": 0.648,
+      "net_ci": [
+        0.619,
+        0.676
+      ],
+      "gp_wr": 0.573,
+      "gp_ci": [
+        0.543,
+        0.602
+      ],
+      "play_delta": 0.075,
+      "sig": "+",
+      "exploitability": 0.861,
+      "worst_opp": "lad10_R_evo_1pz_e576"
+    }
+  ]
+}

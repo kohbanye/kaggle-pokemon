@@ -1,0 +1,28 @@
+{
+  "agent_a": "archaludon_judge",
+  "agent_b": "greedy_plus",
+  "games": 80,
+  "a_wins": 76,
+  "b_wins": 4,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 80,
+  "a_winrate": 0.95,
+  "a_winrate_ci95": [
+    0.8783772379535698,
+    0.9803864454644556
+  ],
+  "verdict": "adopt",
+  "significant": true,
+  "avg_turns": 12.5875,
+  "avg_selections": 130.4,
+  "avg_move_ms_a": 0.15277448270410582,
+  "avg_move_ms_b": 0.004001493179557714,
+  "max_move_ms_a": 0.41522830724716187,
+  "max_move_ms_b": 0.02835877239704132,
+  "avg_game_wall_s": 0.024616522574797274,
+  "games_per_sec": 40.623122009272485,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 1.9900470431894064
+}

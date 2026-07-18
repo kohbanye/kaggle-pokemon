@@ -1,0 +1,23 @@
+{
+  "n_pbs": 12,
+  "depth": 3,
+  "sweeps": [
+    4,
+    16,
+    64
+  ],
+  "convergence": {
+    "KL_lo_vs_hi": 0.6046835675962875,
+    "KL_mid_vs_hi": 0.08478200783922753,
+    "topswap_lo": 0.3333333333333333,
+    "topswap_mid": 0.16666666666666666
+  },
+  "leaf_sensitivity": {
+    "KL_heuristic_vs_net": 7.154320744865866,
+    "KL_rollout_vs_net": 5.359623212943777,
+    "topswap_heuristic": 0.6666666666666666,
+    "topswap_rollout": 0.4166666666666667,
+    "dV_heuristic": 0.291227929724518,
+    "dV_rollout": 0.46338193496609364
+  }
+}

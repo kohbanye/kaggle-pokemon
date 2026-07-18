@@ -1,0 +1,78 @@
+{
+  "deck": "qdgp_best",
+  "eval_opp": "greedy_plus",
+  "curve": [
+    {
+      "round": 0,
+      "games_played": 400,
+      "points": 59445,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r0.npz",
+      "winrate": 0.5167,
+      "ci": [
+        0.46,
+        0.573
+      ],
+      "n": 300
+    },
+    {
+      "round": 1,
+      "games_played": 800,
+      "points": 121666,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r1.npz",
+      "winrate": 0.55,
+      "ci": [
+        0.493,
+        0.605
+      ],
+      "n": 300
+    },
+    {
+      "round": 2,
+      "games_played": 1200,
+      "points": 182284,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r2.npz",
+      "winrate": 0.55,
+      "ci": [
+        0.493,
+        0.605
+      ],
+      "n": 300
+    },
+    {
+      "round": 3,
+      "games_played": 1600,
+      "points": 242733,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r3.npz",
+      "winrate": 0.5633,
+      "ci": [
+        0.507,
+        0.618
+      ],
+      "n": 300
+    },
+    {
+      "round": 4,
+      "games_played": 2000,
+      "points": 302443,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r4.npz",
+      "winrate": 0.55,
+      "ci": [
+        0.493,
+        0.605
+      ],
+      "n": 300
+    },
+    {
+      "round": 5,
+      "games_played": 2400,
+      "points": 362760,
+      "net": "/home/sakano/git/kp/data/online/qdgp_best/net_r5.npz",
+      "winrate": 0.4833,
+      "ci": [
+        0.427,
+        0.54
+      ],
+      "n": 300
+    }
+  ]
+}

@@ -50,7 +50,7 @@ class Recorder(Protocol):
     def on_end(self, winner: int) -> None: ...
 
 
-def _make_agent(
+def _make_agent(  # noqa: PLR0911 - a registry dispatch legitimately has many returns
     name: str,
     deck: list[int],
     engine: dict,
@@ -60,6 +60,34 @@ def _make_agent(
     """Build an agent; a ``net`` with a weights path loads the trained BC net."""
     if name == "net" and weights is not None:
         return NetAgent(deck, engine, weights=weights, cb_pool=cb_pool)
+    if name == "archaludon":
+        from src.agents.archaludon_pilot import ArchaludonAgent  # noqa: PLC0415
+
+        return ArchaludonAgent(deck, engine)
+    if name == "archaludon_judge":
+        from src.agents import archaludon_judge_pilot as ajp  # noqa: PLC0415
+
+        return ajp.ArchaludonJudgeAgent(deck, engine)
+    if name == "alakazam":
+        from src.agents.alakazam_pilot import AlakazamAgent  # noqa: PLC0415
+
+        return AlakazamAgent(deck, engine)
+    if name == "grimmsnarl":
+        from src.agents.grimmsnarl_pilot import GrimmsnarlAgent  # noqa: PLC0415
+
+        return GrimmsnarlAgent(deck, engine)
+    if name == "starmie":
+        from src.agents.starmie_pilot import StarmieAgent  # noqa: PLC0415
+
+        return StarmieAgent(deck, engine)
+    if name == "multiply":
+        from src.agents.multiply_pilot import MultiPlyAgent  # noqa: PLC0415
+
+        return MultiPlyAgent(deck, engine)
+    if name == "archaludon_beam":
+        from src.agents.archaludon_beam_pilot import BeamAgent  # noqa: PLC0415
+
+        return BeamAgent(deck, engine)
     return build_agent(name, deck, engine)
 
 

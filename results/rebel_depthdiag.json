@@ -1,0 +1,7 @@
+{
+  "n_pbs": 12,
+  "sweeps": 24,
+  "cfr_plus": true,
+  "KL_depth4_vs_depth3": 1.9174757733670982,
+  "topswap_depth4_vs_depth3": 0.5833333333333334
+}

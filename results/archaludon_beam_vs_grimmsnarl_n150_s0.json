@@ -1,0 +1,28 @@
+{
+  "agent_a": "archaludon_beam",
+  "agent_b": "grimmsnarl",
+  "games": 150,
+  "a_wins": 101,
+  "b_wins": 49,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 150,
+  "a_winrate": 0.6733333333333333,
+  "a_winrate_ci95": [
+    0.5947685286976767,
+    0.7432417865880567
+  ],
+  "verdict": "adopt",
+  "significant": true,
+  "avg_turns": 14.133333333333333,
+  "avg_selections": 140.26,
+  "avg_move_ms_a": 3.7338376704313636,
+  "avg_move_ms_b": 0.13665104872941422,
+  "max_move_ms_a": 40.83513468503952,
+  "max_move_ms_b": 0.3927107900381088,
+  "avg_game_wall_s": 0.24995758232971033,
+  "games_per_sec": 4.000678797896736,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 37.5491049811244
+}

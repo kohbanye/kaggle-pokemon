@@ -1,0 +1,28 @@
+{
+  "agent_a": "starmie",
+  "agent_b": "archaludon_judge",
+  "games": 200,
+  "a_wins": 38,
+  "b_wins": 162,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 200,
+  "a_winrate": 0.19,
+  "a_winrate_ci95": [
+    0.14167171527790676,
+    0.25001238707599854
+  ],
+  "verdict": "reject",
+  "significant": true,
+  "avg_turns": 11.5,
+  "avg_selections": 95.785,
+  "avg_move_ms_a": 0.13467771416558735,
+  "avg_move_ms_b": 0.13739231779062616,
+  "max_move_ms_a": 1.608019694685936,
+  "max_move_ms_b": 0.3680884838104248,
+  "avg_game_wall_s": 0.02455543770454824,
+  "games_per_sec": 40.72417735053351,
+  "base_seed": 7,
+  "swap": true,
+  "total_wall_s": 4.94799591973424
+}

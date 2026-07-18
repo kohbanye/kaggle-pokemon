@@ -1,0 +1,153 @@
+{
+  "net": "data/coevo_az_v2/gen9/net.npz",
+  "labels": [
+    "gp|g9_e0",
+    "gp|qd7_r5",
+    "gp|metal",
+    "net|g9_e0",
+    "net|metal",
+    "greedy|metal",
+    "heur|g9_e0",
+    "greedyFF|metal"
+  ],
+  "win_matrix": [
+    [
+      0.5,
+      0.25,
+      1.0,
+      0.625,
+      1.0,
+      0.958,
+      0.458,
+      1.0
+    ],
+    [
+      0.708,
+      0.5,
+      1.0,
+      0.792,
+      1.0,
+      1.0,
+      0.708,
+      1.0
+    ],
+    [
+      0.042,
+      0.083,
+      0.5,
+      0.042,
+      0.667,
+      0.708,
+      0.0,
+      0.417
+    ],
+    [
+      0.417,
+      0.208,
+      0.917,
+      0.5,
+      1.0,
+      0.958,
+      0.375,
+      0.958
+    ],
+    [
+      0.0,
+      0.083,
+      0.458,
+      0.042,
+      0.5,
+      0.542,
+      0.0,
+      0.75
+    ],
+    [
+      0.0,
+      0.083,
+      0.375,
+      0.0,
+      0.625,
+      0.5,
+      0.0,
+      0.667
+    ],
+    [
+      0.5,
+      0.208,
+      1.0,
+      0.625,
+      1.0,
+      1.0,
+      0.5,
+      0.958
+    ],
+    [
+      0.0,
+      0.0,
+      0.458,
+      0.0,
+      0.542,
+      0.417,
+      0.0,
+      0.5
+    ]
+  ],
+  "per_strategy": {
+    "gp|g9_e0": {
+      "exploitability": 0.25,
+      "nashconv": 0.5,
+      "worst_vs": "gp|qd7_r5",
+      "worst_wr": 0.25,
+      "nash_weight": 0.0
+    },
+    "gp|qd7_r5": {
+      "exploitability": 0.0,
+      "nashconv": 0.0,
+      "worst_vs": "gp|qd7_r5",
+      "worst_wr": 0.5,
+      "nash_weight": 1.0
+    },
+    "gp|metal": {
+      "exploitability": 0.5,
+      "nashconv": 1.0,
+      "worst_vs": "heur|g9_e0",
+      "worst_wr": 0.0,
+      "nash_weight": 0.0
+    },
+    "net|g9_e0": {
+      "exploitability": 0.292,
+      "nashconv": 0.583,
+      "worst_vs": "gp|qd7_r5",
+      "worst_wr": 0.208,
+      "nash_weight": 0.0
+    },
+    "net|metal": {
+      "exploitability": 0.5,
+      "nashconv": 1.0,
+      "worst_vs": "gp|g9_e0",
+      "worst_wr": 0.0,
+      "nash_weight": 0.0
+    },
+    "greedy|metal": {
+      "exploitability": 0.5,
+      "nashconv": 1.0,
+      "worst_vs": "gp|g9_e0",
+      "worst_wr": 0.0,
+      "nash_weight": 0.0
+    },
+    "heur|g9_e0": {
+      "exploitability": 0.292,
+      "nashconv": 0.583,
+      "worst_vs": "gp|qd7_r5",
+      "worst_wr": 0.208,
+      "nash_weight": 0.0
+    },
+    "greedyFF|metal": {
+      "exploitability": 0.5,
+      "nashconv": 1.0,
+      "worst_vs": "gp|g9_e0",
+      "worst_wr": 0.0,
+      "nash_weight": 0.0
+    }
+  }
+}

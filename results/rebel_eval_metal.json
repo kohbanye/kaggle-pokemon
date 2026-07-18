@@ -1,0 +1,23 @@
+{
+  "deck": "metal_aggro",
+  "net": "data/rebel/vn_metal_r3.npz",
+  "n_opp_decks": 5,
+  "rebel": {
+    "winrate": 0.408,
+    "ci": [
+      0.325,
+      0.498
+    ],
+    "n": 120
+  },
+  "greedy_plus": {
+    "winrate": 0.608,
+    "ci": [
+      0.519,
+      0.691
+    ],
+    "n": 120
+  },
+  "play_delta": -0.2,
+  "sig": "-"
+}

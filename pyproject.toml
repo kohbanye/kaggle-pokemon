@@ -17,7 +17,7 @@ dependencies = [
 # EDA notebooks aren't held to library lint standards. The submission bundle is a
 # standalone, deliberately crash-proof artifact (blind excepts, no `src` import)
 # that mirrors the unit-tested src/agents/greedy_agent.py.
-extend-exclude = ["notebooks", "submission"]
+extend-exclude = ["notebooks", "submission", "src/agents/archaludon_pilot.py", "src/agents/archaludon_judge_pilot.py", "src/agents/archaludon_beam_pilot.py", "src/agents/alakazam_pilot.py", "src/agents/archaludon_v_pilot.py", "src/agents/grimmsnarl_pilot.py", "src/agents/multiply_pilot.py", "src/agents/starmie_pilot.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -29,6 +29,13 @@ ignore = ["D", "N812"]
 # Notebook builders embed notebook prose/code as strings (en-dashes, long display
 # lines); the generated .ipynb is lint-excluded, so the builder gets the same leeway.
 "scripts/build_play_diag_notebook.py" = ["E501", "RUF001"]
+# Value-model increment: engine-loop runner + training main are long by nature;
+# the opponent arg is a union of bespoke pilots (no shared base type to annotate).
+"scripts/collect_value_data.py" = ["PLR0913", "PLR0915", "ANN001"]
+"scripts/train_value_net.py" = ["PLR0915"]
+# V-lookahead A/B runner: long report main + subject/opponent are a union of
+# bespoke pilots with no shared base type to annotate (same as collect_value_data).
+"scripts/eval_v_lookahead.py" = ["PLR0915", "ANN001", "PERF401"]
 # Card data legitimately contains the ×/● glyphs; flagging them as ambiguous is noise.
 "src/cards.py" = ["RUF002"]
 # RL math: ρ/γ/− in the V-Trace notation are the standard symbols, not typos.
@@ -49,6 +56,15 @@ include = ["src", "tests"]
 exclude = [
     # imports the (gitignored, Linux-only) cg engine lazily -- same as scripts
     "src/search/ismcts.py",
+    # ported public Kaggle agent; imports cg for card data, crash-proof like submission/
+    "src/agents/archaludon_pilot.py",
+    "src/agents/archaludon_judge_pilot.py",
+    "src/agents/archaludon_beam_pilot.py",
+    "src/agents/alakazam_pilot.py",
+    "src/agents/archaludon_v_pilot.py",
+    "src/agents/grimmsnarl_pilot.py",
+    "src/agents/multiply_pilot.py",
+    "src/agents/starmie_pilot.py",
     "src/rebel/engine_game.py",
     "src/rebel/agent.py",
     "src/rebel/value_net_torch.py",

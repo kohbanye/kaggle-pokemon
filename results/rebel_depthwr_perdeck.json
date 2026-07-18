@@ -1,0 +1,46 @@
+{
+  "deck": "metal_aggro",
+  "top_k": 3,
+  "greedy_plus": {
+    "winrate": 0.625,
+    "ci": [
+      0.562,
+      0.684
+    ],
+    "n": 240
+  },
+  "curve": [
+    {
+      "depth": 3,
+      "rebel_wr": 0.575,
+      "ci": [
+        0.512,
+        0.636
+      ],
+      "play_delta": -0.05,
+      "per_deck_delta": {
+        "lad09_P_basic_big_e589": -0.146,
+        "lad01_W_evo_mid_e776": -0.104,
+        "lad07_M_evo_mid_e711": 0.125,
+        "lad02_G_evo_mid_e792": -0.166,
+        "lad04_F_evo_mid_e839": 0.041
+      }
+    },
+    {
+      "depth": 4,
+      "rebel_wr": 0.592,
+      "ci": [
+        0.529,
+        0.652
+      ],
+      "play_delta": -0.033,
+      "per_deck_delta": {
+        "lad09_P_basic_big_e589": -0.187,
+        "lad01_W_evo_mid_e776": -0.25,
+        "lad07_M_evo_mid_e711": 0.25,
+        "lad02_G_evo_mid_e792": 0.021,
+        "lad04_F_evo_mid_e839": 0.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "n_pbs": 10,
+  "sweeps": 24,
+  "cfr_plus": true,
+  "top_k": 3,
+  "base_depth": 3,
+  "per_depth": {
+    "3": {
+      "mean_solve_s": 0.2,
+      "KL_vs_base": 0.0,
+      "topswap_vs_base": 0.0
+    },
+    "4": {
+      "mean_solve_s": 0.406,
+      "KL_vs_base": 2.803,
+      "topswap_vs_base": 0.5
+    },
+    "5": {
+      "mean_solve_s": 1.008,
+      "KL_vs_base": 5.931,
+      "topswap_vs_base": 0.5
+    },
+    "6": {
+      "mean_solve_s": 2.654,
+      "KL_vs_base": 4.681,
+      "topswap_vs_base": 0.3
+    }
+  }
+}

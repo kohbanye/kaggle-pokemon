@@ -1,0 +1,1713 @@
+{
+  "hist": {
+    "ATTACH->PLAY": 1070,
+    "ATTACK->END": 113,
+    "ATTACK->RETREAT": 24,
+    "ATTACH->END": 726,
+    "ATTACH->EVOLVE": 180,
+    "ATTACH->ATTACH": 357,
+    "EVOLVE->PLAY": 62,
+    "EVOLVE->END": 59,
+    "ATTACH->ATTACK": 135,
+    "ATTACK->DISCARD": 20,
+    "PLAY->PLAY": 86,
+    "PLAY->END": 364,
+    "PLAY->RETREAT": 10,
+    "PLAY->ATTACK": 183,
+    "PLAY->DISCARD": 37,
+    "CARD->CARD": 102,
+    "ATTACH->DISCARD": 41,
+    "EVOLVE->DISCARD": 2,
+    "EVOLVE->ATTACK": 10,
+    "END->DISCARD": 5,
+    "ATTACH->RETREAT": 5,
+    "ATTACK->ATTACK": 12,
+    "ENERGY->ENERGY": 5,
+    "EVOLVE->ABILITY": 19,
+    "ABILITY->ATTACK": 21,
+    "PLAY->ABILITY": 67,
+    "ATTACH->ABILITY": 140
+  },
+  "rows": [
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 21
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 18
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 34
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 18
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 24
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 30
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 32
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 30
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 24
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 18
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 11
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 26
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 21
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 23
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 18
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad17_W_basic_mid_e485",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 21
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 11
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 35
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 32
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 23
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 43
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 34
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 38
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 26
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 24
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 3
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 26
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 37
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 53
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 38
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 23
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 30
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 29
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 30
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 41
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 35
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 16
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 29
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 27
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 9
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 27
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 21
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 25
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 34
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 50
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 23
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 21
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 11
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 49
+    },
+    {
+      "opp": "lad29_P_basic_big_e556",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 34
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 3
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 24
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 3
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 26
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 24
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 34
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 11
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 46
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 33
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 0
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 0,
+      "dec": 1,
+      "n_over": 3
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 31
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 52
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "greedy",
+      "won": 1,
+      "dec": 1,
+      "n_over": 52
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 47
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 19
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 49
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 13
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 1
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 5
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 6
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 10
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 12
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 18
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 20
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 22
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 4
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 11
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 14
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 7
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 17
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 2
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 15
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 28
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 30
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 0,
+      "dec": 1,
+      "n_over": 27
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 8
+    },
+    {
+      "opp": "lad06_D_evo_1pz_e770",
+      "opp_pilot": "heuristic",
+      "won": 1,
+      "dec": 1,
+      "n_over": 44
+    }
+  ]
+}

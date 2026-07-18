@@ -1,0 +1,28 @@
+{
+  "agent_a": "alakazam",
+  "agent_b": "archaludon_judge",
+  "games": 80,
+  "a_wins": 47,
+  "b_wins": 33,
+  "draws": 0,
+  "aborted": 0,
+  "decisive": 80,
+  "a_winrate": 0.5875,
+  "a_winrate_ci95": [
+    0.47804040345890164,
+    0.6889414238723812
+  ],
+  "verdict": "inconclusive",
+  "significant": false,
+  "avg_turns": 10.9875,
+  "avg_selections": 111.0,
+  "avg_move_ms_a": 0.15202266605670364,
+  "avg_move_ms_b": 0.13696047510395545,
+  "max_move_ms_a": 1.4079529792070389,
+  "max_move_ms_b": 0.3833118826150894,
+  "avg_game_wall_s": 0.030440991930663585,
+  "games_per_sec": 32.850440691214395,
+  "base_seed": 0,
+  "swap": true,
+  "total_wall_s": 2.468476925045252
+}
